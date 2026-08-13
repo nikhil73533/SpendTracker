@@ -1,0 +1,35 @@
+{
+  "bankName": "ICICI",
+  "patterns": [
+    {
+      "name": "Credit Card Debit",
+      "regex": "ICICI Bank Credit Card .*? debited for (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+) for (?:UPI-(\\d+)-)?([^.]+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "upiGroup": 3,
+      "receiverGroup": 4,
+      "type": "EXPENSE",
+      "sourceType": "Credit Card"
+    },
+    {
+      "name": "Account Debit",
+      "regex": "ICICI Bank Acct .*? debited for (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+);\\s*([^;]+)\\s+credited.*?UPI:(\\d+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "receiverGroup": 3,
+      "upiGroup": 4,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Account Credit",
+      "regex": "Acct .*? credited with (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+) from ([^.]+)\\.\\s*UPI:(\\d+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "receiverGroup": 3,
+      "upiGroup": 4,
+      "type": "INCOME",
+      "sourceType": "Account"
+    }
+  ]
+}

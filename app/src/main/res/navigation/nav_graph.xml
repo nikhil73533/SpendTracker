@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/dashboardFragment">
+
+    <fragment
+        android:id="@+id/dashboardFragment"
+        android:name="com.example.spendtracker.ui.dashboard.DashboardFragment"
+        android:label="Dashboard"
+        tools:layout="@layout/fragment_dashboard">
+        <action
+            android:id="@+id/action_dashboardFragment_to_transactionFormFragment"
+            app:destination="@id/transactionFormFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/chartsFragment"
+        android:name="com.example.spendtracker.ui.charts.ChartsFragment"
+        android:label="Charts"
+        tools:layout="@layout/fragment_charts">
+        <action
+            android:id="@+id/action_chartsFragment_to_categoryDetailFragment"
+            app:destination="@id/categoryDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/categoryDetailFragment"
+        android:name="com.example.spendtracker.ui.charts.CategoryDetailFragment"
+        android:label="Category Detail"
+        tools:layout="@layout/fragment_category_detail">
+        <argument
+            android:name="categoryName"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/accountsFragment"
+        android:name="com.example.spendtracker.ui.accounts.AccountsFragment"
+        android:label="Accounts">
+        <action
+            android:id="@+id/action_accountsFragment_to_accountHistoryFragment"
+            app:destination="@id/accountHistoryFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/accountHistoryFragment"
+        android:name="com.example.spendtracker.ui.accounts.AccountHistoryFragment"
+        android:label="Transaction History"
+        tools:layout="@layout/fragment_account_history">
+        <argument
+            android:name="accountId"
+            app:argType="string" />
+        <argument
+            android:name="accountName"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/moreFragment"
+        android:name="com.example.spendtracker.ui.more.MoreFragment"
+        android:label="More">
+        <action
+            android:id="@+id/action_moreFragment_to_categoryManagementFragment"
+            app:destination="@id/categoryManagementFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/categoryManagementFragment"
+        android:name="com.example.spendtracker.ui.category.CategoryManagementFragment"
+        android:label="Manage Categories"
+        tools:layout="@layout/fragment_category_management" />
+
+    <fragment
+        android:id="@+id/transactionFormFragment"
+        android:name="com.example.spendtracker.ui.transaction.TransactionFormFragment"
+        android:label="Transaction Form"
+        tools:layout="@layout/fragment_transaction_form">
+        <argument
+            android:name="transactionId"
+            android:defaultValue="-1"
+            app:argType="integer" />
+    </fragment>
+
+</navigation>

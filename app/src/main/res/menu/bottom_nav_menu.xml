@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/dashboardFragment"
+        android:icon="@android:drawable/ic_menu_today"
+        android:title="Dashboard" />
+    <item
+        android:id="@+id/chartsFragment"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="Charts" />
+    <item
+        android:id="@+id/accountsFragment"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="Accounts" />
+    <item
+        android:id="@+id/moreFragment"
+        android:icon="@android:drawable/ic_menu_more"
+        android:title="More" />
+</menu>
