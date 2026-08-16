@@ -18,6 +18,10 @@ poiOoxml = "5.2.5"
 mpAndroidChart = "v3.1.0"
 appcompat = "1.7.0"
 constraintLayout = "2.1.4"
+biometric = "1.1.0"
+sqlcipher = "4.5.4"
+sqlite = "2.4.0"
+securityCrypto = "1.1.0-alpha06"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +44,10 @@ navigation-ui = { group = "androidx.navigation", name = "navigation-ui", version
 poi = { group = "org.apache.poi", name = "poi", version.ref = "poi" }
 poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poiOoxml" }
 mp-android-chart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpAndroidChart" }
+biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
+sqlcipher = { group = "net.zetetic", name = "android-database-sqlcipher", version.ref = "sqlcipher" }
+sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "sqlite" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

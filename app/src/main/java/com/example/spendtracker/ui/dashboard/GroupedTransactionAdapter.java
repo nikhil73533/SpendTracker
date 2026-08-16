@@ -30,9 +30,17 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         java.util.List<String> getCategoriesByType(String type);
     }
 
-    public GroupedTransactionAdapter(OnTransactionClickListener listener) {
+    public interface DataFormatter {
+        String formatAmount(double amount);
+        String maskPII(String value);
+    }
+
+    private final DataFormatter formatter;
+
+    public GroupedTransactionAdapter(OnTransactionClickListener listener, DataFormatter formatter) {
         super(new DiffCallback());
         this.listener = listener;
+        this.formatter = formatter;
     }
 
     @Override
@@ -45,10 +53,10 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         if (viewType == ListItem.TYPE_HEADER) {
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_date_header, parent, false);
-            return new HeaderViewHolder(view);
+            return new HeaderViewHolder(view, formatter);
         } else {
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_transaction, parent, false);
-            return new TransactionViewHolder(view);
+            return new TransactionViewHolder(view, formatter);
         }
     }
 
@@ -104,9 +112,11 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         private final TextView tvMonthYear;
         private final TextView tvDayIncome;
         private final TextView tvDayExpense;
+        private final DataFormatter formatter;
 
-        public HeaderViewHolder(@NonNull View itemView) {
+        public HeaderViewHolder(@NonNull View itemView, DataFormatter formatter) {
             super(itemView);
+            this.formatter = formatter;
             tvDayNumber = itemView.findViewById(R.id.tv_day_number);
             tvDayOfWeek = itemView.findViewById(R.id.tv_day_of_week);
             tvMonthYear = itemView.findViewById(R.id.tv_month_year);
@@ -119,17 +129,19 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvDayNumber.setText(dayNumberFormat.format(date));
             tvDayOfWeek.setText(dayOfWeekFormat.format(date));
             tvMonthYear.setText(monthYearFormat.format(date));
-            tvDayIncome.setText(String.format(Locale.getDefault(), "₹ %.2f", item.getTotalIncome()));
-            tvDayExpense.setText(String.format(Locale.getDefault(), "₹ %.2f", item.getTotalExpense()));
+            tvDayIncome.setText(formatter.formatAmount(item.getTotalIncome()));
+            tvDayExpense.setText(formatter.formatAmount(item.getTotalExpense()));
         }
     }
 
     static class TransactionViewHolder extends RecyclerView.ViewHolder {
         private final android.widget.ImageView ivIcon;
         private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime;
+        private final DataFormatter formatter;
 
-        public TransactionViewHolder(@NonNull View itemView) {
+        public TransactionViewHolder(@NonNull View itemView, DataFormatter formatter) {
             super(itemView);
+            this.formatter = formatter;
             ivIcon = itemView.findViewById(R.id.iv_category_icon);
             tvCategory = itemView.findViewById(R.id.tv_category);
             tvReceiver = itemView.findViewById(R.id.tv_receiver);
@@ -143,17 +155,20 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         public void bind(TransactionItem item, OnTransactionClickListener listener) {
             Transaction transaction = item.getTransaction();
             tvCategory.setText(transaction.getCategory());
-            tvReceiver.setText(transaction.getReceiverName());
-            tvDescription.setText(transaction.getDescription());
+            
+            // Requirement 12: Mask PII (Receiver, Description)
+            tvReceiver.setText(formatter.maskPII("INCOME".equals(transaction.getType()) ? transaction.getSender() : transaction.getReceiverName()));
+            tvDescription.setText(formatter.maskPII(transaction.getDescription()));
+            
             tvSource.setText(transaction.getSource());
             tvTime.setText(timeFormat.format(new Date(transaction.getDate())));
 
             if ("INCOME".equals(transaction.getType())) {
-                tvIncomeAmount.setText(String.format(Locale.getDefault(), "₹ %.2f", transaction.getAmount()));
+                tvIncomeAmount.setText(formatter.formatAmount(transaction.getAmount()));
                 tvExpenseAmount.setText("");
             } else {
                 tvIncomeAmount.setText("");
-                tvExpenseAmount.setText(String.format(Locale.getDefault(), "₹ %.2f", transaction.getAmount()));
+                tvExpenseAmount.setText(formatter.formatAmount(transaction.getAmount()));
             }
 
             // Category click for dropdown

@@ -94,6 +94,9 @@ public class CategoryDetailFragment extends Fragment {
                 }
                 return list;
             }
+        }, new GroupedTransactionAdapter.DataFormatter() {
+            @Override public String formatAmount(double amount) { return dashboardViewModel.formatAmount(amount); }
+            @Override public String maskPII(String value) { return transactionViewModel.maskPII(value); }
         });
         binding.rvCategoryTransactions.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.rvCategoryTransactions.setAdapter(adapter);
@@ -120,9 +123,22 @@ public class CategoryDetailFragment extends Fragment {
                 }
             }
 
-            binding.tvCategoryTotal.setText(String.format(Locale.getDefault(), "₹ %.2f", total));
+            binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
             updateList(filtered);
             updateTrend(filtered);
+        });
+
+        dashboardViewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            adapter.notifyDataSetChanged();
+            // Re-run summary total refresh
+            List<Transaction> transactions = dashboardViewModel.getTransactions().getValue();
+            if (transactions != null) {
+                double total = 0;
+                for (Transaction t : transactions) {
+                    if (categoryName.equals(t.getCategory())) total += t.getAmount();
+                }
+                binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
+            }
         });
 
         dashboardViewModel.getDateRange().observe(getViewLifecycleOwner(), range -> {

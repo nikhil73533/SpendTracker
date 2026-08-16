@@ -8,6 +8,7 @@ import com.example.spendtracker.data.local.dao.CategoryDao;
 import com.example.spendtracker.data.local.dao.RegexPatternDao;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
+import com.example.spendtracker.domain.repository.SecurityRepository;
 
 import javax.inject.Singleton;
 import dagger.Module;
@@ -15,6 +16,7 @@ import dagger.Provides;
 import dagger.hilt.InstallIn;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import dagger.hilt.components.SingletonComponent;
+import net.sqlcipher.database.SupportFactory;
 
 @Module
 @InstallIn(SingletonComponent.class)
@@ -22,10 +24,23 @@ public class DatabaseModule {
 
     @Provides
     @Singleton
-    public SpendTrackerDatabase provideDatabase(@ApplicationContext Context context) {
-        return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
+    public SpendTrackerDatabase provideDatabase(@ApplicationContext Context context, SecurityRepository securityRepository) {
+        byte[] passphrase = securityRepository.getDatabasePassphrase();
+        
+        // ULTIMATE RECOVERY: If a backup ZIP exists in cache, it likely has the missing August data
+        com.example.spendtracker.util.DatabaseEncryptionHelper.ultimateRecoveryFromCache(context, "spend_tracker_db", passphrase);
+
+        // Migrate unencrypted DB if it exists (checkpointing WAL now included)
+        com.example.spendtracker.util.DatabaseEncryptionHelper.migrateIfNecessary(context, "spend_tracker_db", passphrase);
+
+        SupportFactory factory = new SupportFactory(passphrase);
+
+        SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
+                .openHelperFactory(factory)
                 .addMigrations(MIGRATION_3_4)
                 .build();
+        
+        return db;
     }
 
     static final Migration MIGRATION_3_4 = new Migration(3, 4) {

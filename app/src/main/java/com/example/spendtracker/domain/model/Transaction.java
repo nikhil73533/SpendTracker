@@ -42,6 +42,7 @@ public class Transaction {
     public int getId() { return id; }
     public double getAmount() { return amount; }
     public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
     public String getDescription() { return description; }
     public String getType() { return type; }
     public long getDate() { return date; }

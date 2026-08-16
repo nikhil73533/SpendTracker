@@ -106,8 +106,9 @@
 
                 <com.github.mikephil.charting.charts.PieChart
                     android:id="@+id/pie_chart_main"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
+                    android:layout_width="200dp"
+                    android:layout_height="200dp"
+                    android:layout_centerInParent="true" />
             </RelativeLayout>
 
             <!-- Line Chart for Trends -->

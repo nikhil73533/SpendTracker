@@ -18,11 +18,17 @@ public class CategoryStatsAdapter extends RecyclerView.Adapter<CategoryStatsAdap
         void onCategoryClick(String category);
     }
 
+    public interface AmountFormatter {
+        String format(double amount);
+    }
+
     private final List<CategoryStat> items = new ArrayList<>();
     private final OnCategoryClickListener listener;
+    private final AmountFormatter formatter;
 
-    public CategoryStatsAdapter(OnCategoryClickListener listener) {
+    public CategoryStatsAdapter(OnCategoryClickListener listener, AmountFormatter formatter) {
         this.listener = listener;
+        this.formatter = formatter;
     }
 
     public static class CategoryStat {
@@ -49,7 +55,7 @@ public class CategoryStatsAdapter extends RecyclerView.Adapter<CategoryStatsAdap
     @Override
     public StatViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_category_stat, parent, false);
-        return new StatViewHolder(view);
+        return new StatViewHolder(view, formatter);
     }
 
     @Override
@@ -63,9 +69,11 @@ public class CategoryStatsAdapter extends RecyclerView.Adapter<CategoryStatsAdap
     static class StatViewHolder extends RecyclerView.ViewHolder {
         private final TextView tvPercentage, tvName, tvAmount;
         private final ImageView ivIcon;
+        private final AmountFormatter formatter;
 
-        public StatViewHolder(@NonNull View itemView) {
+        public StatViewHolder(@NonNull View itemView, AmountFormatter formatter) {
             super(itemView);
+            this.formatter = formatter;
             tvPercentage = itemView.findViewById(R.id.tv_percentage);
             tvName = itemView.findViewById(R.id.tv_category_name);
             tvAmount = itemView.findViewById(R.id.tv_amount);
@@ -76,7 +84,7 @@ public class CategoryStatsAdapter extends RecyclerView.Adapter<CategoryStatsAdap
             tvPercentage.setText(stat.percentage + "%");
             tvPercentage.getBackground().setTint(stat.color);
             tvName.setText(stat.name);
-            tvAmount.setText(String.format(Locale.getDefault(), "₹ %.2f", stat.amount));
+            tvAmount.setText(formatter.format(stat.amount));
             
             // Icon logic
             int iconRes = android.R.drawable.ic_menu_help;

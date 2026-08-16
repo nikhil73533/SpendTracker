@@ -17,9 +17,17 @@ import java.util.Locale;
 
 public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAdapter.MonthViewHolder> {
 
+    public interface AmountFormatter {
+        String format(double amount);
+    }
+
     private final List<MonthSummary> items = new ArrayList<>();
     private final SimpleDateFormat monthNameFormat = new SimpleDateFormat("MMM", Locale.getDefault());
-    private final SimpleDateFormat monthRangeFormat = new SimpleDateFormat("M.1 ~ M.d", Locale.getDefault());
+    private final AmountFormatter formatter;
+
+    public MonthlySummaryAdapter(AmountFormatter formatter) {
+        this.formatter = formatter;
+    }
 
     public static class MonthSummary {
         public final long monthTimestamp;
@@ -99,16 +107,17 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
             
             tvRange.setText(start + " – " + end);
             
-            tvIncome.setText(String.format(Locale.getDefault(), "₹ %.2f", item.income));
-            tvExpense.setText(String.format(Locale.getDefault(), "₹ %.2f", item.expense));
+            tvIncome.setText(formatter.format(item.income));
+            tvExpense.setText(formatter.format(item.expense));
             
             double total = item.income - item.expense;
-            tvTotal.setText(String.format(Locale.getDefault(), "%s₹ %.2f", total >= 0 ? "" : "-", Math.abs(total)));
+            String totalStr = formatter.format(Math.abs(total));
+            tvTotal.setText(String.format(Locale.getDefault(), "%s%s", total >= 0 ? "" : "-", totalStr));
 
             rvWeeks.setVisibility(item.isExpanded ? View.VISIBLE : View.GONE);
             if (item.isExpanded) {
                 rvWeeks.setLayoutManager(new LinearLayoutManager(itemView.getContext()));
-                rvWeeks.setAdapter(new WeeklyAdapter(item.weeks));
+                rvWeeks.setAdapter(new WeeklyAdapter(item.weeks, formatter));
             }
 
             layoutRow.setOnClickListener(v -> {
@@ -120,8 +129,12 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
 
     static class WeeklyAdapter extends RecyclerView.Adapter<WeeklyAdapter.WeekViewHolder> {
         private final List<WeeklySummary> weeks;
+        private final AmountFormatter formatter;
 
-        WeeklyAdapter(List<WeeklySummary> weeks) { this.weeks = weeks; }
+        WeeklyAdapter(List<WeeklySummary> weeks, AmountFormatter formatter) { 
+            this.weeks = weeks; 
+            this.formatter = formatter;
+        }
 
         @NonNull
         @Override
@@ -134,10 +147,11 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
         public void onBindViewHolder(@NonNull WeekViewHolder holder, int position) {
             WeeklySummary w = weeks.get(position);
             holder.tvRange.setText(w.range);
-            holder.tvIncome.setText(String.format(Locale.getDefault(), "₹ %.2f", w.income));
-            holder.tvExpense.setText(String.format(Locale.getDefault(), "₹ %.2f", w.expense));
+            holder.tvIncome.setText(formatter.format(w.income));
+            holder.tvExpense.setText(formatter.format(w.expense));
             double total = w.income - w.expense;
-            holder.tvTotal.setText(String.format(Locale.getDefault(), "%s₹ %.2f", total >= 0 ? "" : "-", Math.abs(total)));
+            String totalStr = formatter.format(Math.abs(total));
+            holder.tvTotal.setText(String.format(Locale.getDefault(), "%s%s", total >= 0 ? "" : "-", totalStr));
         }
 
         @Override

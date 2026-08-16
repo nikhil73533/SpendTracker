@@ -136,6 +136,21 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     }
 
     @Override
+    public void renameCategory(String oldName, String newName) {
+        executorService.execute(() -> {
+            transactionDao.renameCategory(oldName, newName);
+            List<CategoryEntity> categories = categoryDao.getAllCategoriesSync();
+            for (CategoryEntity c : categories) {
+                if (c.name.equals(oldName)) {
+                    c.name = newName;
+                    categoryDao.updateCategory(c);
+                    break;
+                }
+            }
+        });
+    }
+
+    @Override
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTotals(long start, long end, String type) {
         return Transformations.map(transactionDao.getDailyTotals(start, end, type), list -> mapTrends(list));
     }

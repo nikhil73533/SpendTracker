@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Transformations;
 import androidx.lifecycle.ViewModel;
 import com.example.spendtracker.domain.model.Summary;
+import com.example.spendtracker.domain.repository.SecurityRepository;
 import com.example.spendtracker.domain.repository.TransactionRepository;
 import java.util.Calendar;
 import java.util.List;
@@ -14,6 +15,7 @@ import javax.inject.Inject;
 @HiltViewModel
 public class ChartsViewModel extends ViewModel {
     private final TransactionRepository repository;
+    private final SecurityRepository securityRepository;
 
     public enum Granularity { DAILY, WEEKLY, MONTHLY, ANNUALLY }
 
@@ -22,8 +24,9 @@ public class ChartsViewModel extends ViewModel {
     private final MutableLiveData<String> transactionType = new MutableLiveData<>("EXPENSE");
 
     @Inject
-    public ChartsViewModel(TransactionRepository repository) {
+    public ChartsViewModel(TransactionRepository repository, SecurityRepository securityRepository) {
         this.repository = repository;
+        this.securityRepository = securityRepository;
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.DAY_OF_MONTH, 1);
         cal.set(Calendar.HOUR_OF_DAY, 0);
@@ -39,6 +42,9 @@ public class ChartsViewModel extends ViewModel {
 
     public void setGranularity(Granularity g) { granularity.setValue(g); }
     public void setTransactionType(String type) { transactionType.setValue(type); }
+
+    public LiveData<Boolean> isPrivacyModeEnabled() { return securityRepository.isPrivacyModeEnabled(); }
+    public String formatAmount(double amount) { return securityRepository.maskAmount(amount); }
 
     public void moveNext() {
         Calendar cal = Calendar.getInstance();
@@ -70,27 +76,29 @@ public class ChartsViewModel extends ViewModel {
 
     public LiveData<Summary> getChartData() {
         return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> {
-                Calendar cal = Calendar.getInstance();
-                cal.setTimeInMillis(start);
-                
-                long end;
-                if (g == Granularity.ANNUALLY) {
-                    cal.set(Calendar.MONTH, 11);
-                    cal.set(Calendar.DAY_OF_MONTH, 31);
-                } else if (g == Granularity.WEEKLY) {
-                    cal.add(Calendar.DAY_OF_YEAR, 6);
-                } else {
-                    cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
-                }
-                
-                cal.set(Calendar.HOUR_OF_DAY, 23);
-                cal.set(Calendar.MINUTE, 59);
-                cal.set(Calendar.SECOND, 59);
-                end = cal.getTimeInMillis();
-                
-                return repository.getSummary(start, end);
-            })
+            Transformations.switchMap(granularity, g -> 
+                Transformations.switchMap(transactionType, type -> {
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTimeInMillis(start);
+                    
+                    long end;
+                    if (g == Granularity.ANNUALLY) {
+                        cal.set(Calendar.MONTH, 11);
+                        cal.set(Calendar.DAY_OF_MONTH, 31);
+                    } else if (g == Granularity.WEEKLY) {
+                        cal.add(Calendar.DAY_OF_YEAR, 6);
+                    } else {
+                        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+                    }
+                    
+                    cal.set(Calendar.HOUR_OF_DAY, 23);
+                    cal.set(Calendar.MINUTE, 59);
+                    cal.set(Calendar.SECOND, 59);
+                    end = cal.getTimeInMillis();
+                    
+                    return repository.getSummary(start, end);
+                })
+            )
         );
     }
 

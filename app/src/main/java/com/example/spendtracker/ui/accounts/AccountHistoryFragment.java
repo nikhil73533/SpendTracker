@@ -32,6 +32,7 @@ public class AccountHistoryFragment extends Fragment {
     private long currentMonthStart;
     private final SimpleDateFormat monthFormat = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
     private final SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
+    private final androidx.lifecycle.MutableLiveData<Long> monthStartLive = new androidx.lifecycle.MutableLiveData<>();
 
     @Nullable
     @Override
@@ -51,22 +52,22 @@ public class AccountHistoryFragment extends Fragment {
         }
 
         setupUI();
-        observeData();
-    }
-
-    private void setupUI() {
-        binding.tvAccountName.setText(accountName);
-        binding.tvUpiId.setText(accountId);
-        binding.btnBack.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
-
+        
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.DAY_OF_MONTH, 1);
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
-        currentMonthStart = cal.getTimeInMillis();
-        updateDateLabel();
+        monthStartLive.setValue(cal.getTimeInMillis());
+        
+        observeData();
+    }
+
+    private void setupUI() {
+        binding.tvAccountName.setText(viewModel.maskPII(accountName));
+        binding.tvUpiId.setText(viewModel.maskPII(accountId));
+        binding.btnBack.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
 
         binding.btnDateFilter.setOnClickListener(this::showMonthPicker);
 
@@ -74,16 +75,14 @@ public class AccountHistoryFragment extends Fragment {
         binding.rvHistory.setAdapter(adapter);
     }
 
-    private void updateDateLabel() {
-        binding.tvDateLabel.setText(monthFormat.format(new Date(currentMonthStart)));
-    }
-
     private void showMonthPicker(View v) {
         android.widget.PopupMenu menu = new android.widget.PopupMenu(requireContext(), v);
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(currentMonthStart);
+        Long current = monthStartLive.getValue();
+        if (current == null) current = System.currentTimeMillis();
         
-        // Show last 6 months
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(current);
+        
         for (int i = 0; i < 6; i++) {
             menu.getMenu().add(0, i, 0, monthFormat.format(cal.getTime()));
             cal.add(Calendar.MONTH, -1);
@@ -92,36 +91,54 @@ public class AccountHistoryFragment extends Fragment {
         menu.setOnMenuItemClickListener(item -> {
             Calendar newCal = Calendar.getInstance();
             newCal.set(Calendar.DAY_OF_MONTH, 1);
+            newCal.set(Calendar.HOUR_OF_DAY, 0);
+            newCal.set(Calendar.MINUTE, 0);
+            newCal.set(Calendar.SECOND, 0);
+            newCal.set(Calendar.MILLISECOND, 0);
             newCal.add(Calendar.MONTH, -item.getItemId());
-            currentMonthStart = newCal.getTimeInMillis();
-            updateDateLabel();
-            loadHistory();
+            monthStartLive.setValue(newCal.getTimeInMillis());
             return true;
         });
         menu.show();
     }
 
     private void observeData() {
-        loadHistory();
-    }
+        monthStartLive.observe(getViewLifecycleOwner(), start -> {
+            binding.tvDateLabel.setText(monthFormat.format(new Date(start)));
+        });
 
-    private void loadHistory() {
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(currentMonthStart);
-        long start = cal.getTimeInMillis();
-        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
-        cal.set(Calendar.HOUR_OF_DAY, 23);
-        cal.set(Calendar.MINUTE, 59);
-        cal.set(Calendar.SECOND, 59);
-        long end = cal.getTimeInMillis();
+        androidx.lifecycle.LiveData<List<Transaction>> history = androidx.lifecycle.Transformations.switchMap(monthStartLive, start -> {
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(start);
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            cal.set(Calendar.HOUR_OF_DAY, 23);
+            cal.set(Calendar.MINUTE, 59);
+            cal.set(Calendar.SECOND, 59);
+            return viewModel.getAccountHistory(accountId, start, cal.getTimeInMillis());
+        });
 
-        viewModel.getAccountHistory(accountId, start, end).observe(getViewLifecycleOwner(), transactions -> {
+        history.observe(getViewLifecycleOwner(), transactions -> {
             adapter.submitList(transactions);
             double totalExpense = 0;
-            for (Transaction t : transactions) {
-                if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
+            if (transactions != null) {
+                for (Transaction t : transactions) {
+                    if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
+                }
             }
-            binding.tvTotalExpense.setText(String.format(Locale.getDefault(), "₹ %.2f", totalExpense));
+            binding.tvTotalExpense.setText(viewModel.formatAmount(totalExpense));
+        });
+
+        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            adapter.notifyDataSetChanged();
+            // Totals will refresh because viewModel.formatAmount depends on privacy mode
+            List<Transaction> currentList = history.getValue();
+            if (currentList != null) {
+                double totalExpense = 0;
+                for (Transaction t : currentList) {
+                    if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
+                }
+                binding.tvTotalExpense.setText(viewModel.formatAmount(totalExpense));
+            }
         });
     }
 
@@ -158,14 +175,14 @@ public class AccountHistoryFragment extends Fragment {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             Transaction t = getItem(position);
-            holder.tvAmount.setText(String.format(Locale.getDefault(), "₹ %.2f", t.getAmount()));
+            holder.tvAmount.setText(viewModel.formatAmount(t.getAmount()));
             holder.tvCategory.setText(t.getCategory());
             holder.tvTime.setText(timeFormat.format(new Date(t.getDate())));
             
             if ("INCOME".equals(t.getType())) {
-                holder.tvStatus.setText("Received from " + accountName);
+                holder.tvStatus.setText("Received from " + viewModel.maskPII(accountName));
             } else {
-                holder.tvStatus.setText("Paid to " + accountName);
+                holder.tvStatus.setText("Paid to " + viewModel.maskPII(accountName));
             }
         }
 

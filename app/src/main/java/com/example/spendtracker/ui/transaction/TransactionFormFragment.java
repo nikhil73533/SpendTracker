@@ -249,10 +249,7 @@ public class TransactionFormFragment extends Fragment {
                 .setPositiveButton("Update", (dialog, which) -> {
                     String newName = et.getText().toString();
                     if (!newName.isEmpty() && !newName.equals(oldName)) {
-                        // We need an updateCategory method. For now, delete and add.
-                        // Or I'll add the method to VM.
-                        viewModel.deleteCategory(oldName);
-                        viewModel.addCategory(newName, selectedType);
+                        viewModel.renameCategory(oldName, newName);
                         binding.actvCategory.setText(newName, false);
                     }
                 })

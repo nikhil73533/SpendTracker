@@ -110,7 +110,7 @@ public class ChartsFragment extends Fragment {
     }
 
     private void setupRecyclerView() {
-        statsAdapter = new CategoryStatsAdapter(category -> navigateToCategoryDetail(category));
+        statsAdapter = new CategoryStatsAdapter(category -> navigateToCategoryDetail(category), amount -> viewModel.formatAmount(amount));
         binding.rvStats.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvStats.setAdapter(statsAdapter);
     }
@@ -140,6 +140,14 @@ public class ChartsFragment extends Fragment {
         });
 
         viewModel.getDailyTrends().observe(getViewLifecycleOwner(), this::setupLineChart);
+
+        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            Summary summary = viewModel.getChartData().getValue();
+            if (summary != null) updateUIWithData(summary);
+            
+            List<com.example.spendtracker.domain.model.DailyTrend> trends = viewModel.getDailyTrends().getValue();
+            if (trends != null) setupLineChart(trends);
+        });
     }
 
     private void updateHeaderLabel() {
@@ -158,9 +166,9 @@ public class ChartsFragment extends Fragment {
             String startDate = sdf.format(cal.getTime());
             cal.add(Calendar.DAY_OF_YEAR, 6);
             String endDate = sdf.format(cal.getTime());
-            label = startDate + " - " + endDate;
+            label = startDate + " – " + endDate; // Using en-dash as per requirement example
         } else {
-            label = monthYearFormat.format(cal.getTime());
+            label = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.getTime());
         }
         binding.tvChartRange.setText(label);
     }
@@ -175,10 +183,10 @@ public class ChartsFragment extends Fragment {
 
         // Update Tab Text with Total
         TabLayout.Tab expenseTab = binding.tabChartType.getTabAt(1);
-        if (expenseTab != null) expenseTab.setText(String.format(Locale.getDefault(), "Expenses ₹ %.2f", summary.getTotalExpense()));
+        if (expenseTab != null) expenseTab.setText("Expenses " + viewModel.formatAmount(summary.getTotalExpense()));
         
         TabLayout.Tab incomeTab = binding.tabChartType.getTabAt(0);
-        if (incomeTab != null) incomeTab.setText(String.format(Locale.getDefault(), "Income ₹ %.2f", summary.getTotalIncome()));
+        if (incomeTab != null) incomeTab.setText("Income " + viewModel.formatAmount(summary.getTotalIncome()));
 
         setupPieChart(binding.pieChartMain, breakdown, total, colors);
         updateStatsList(breakdown, total, colors);
@@ -213,7 +221,7 @@ public class ChartsFragment extends Fragment {
 
             for (int i = 0; i < sorted.size(); i++) {
                 Map.Entry<String, Double> entry = sorted.get(i);
-                // DO NOT display labels for categories having 0%
+                // Requirement: Do NOT display labels for categories having 0%
                 if (entry.getValue() <= 0) continue;
                 
                 entries.add(new PieEntry(entry.getValue().floatValue(), entry.getKey()));
@@ -223,6 +231,8 @@ public class ChartsFragment extends Fragment {
 
         if (entries.isEmpty()) {
             chart.clear();
+            chart.setNoDataText("No data for " + (showingExpenses ? "expenses" : "income"));
+            chart.invalidate();
             return;
         }
 
@@ -230,14 +240,15 @@ public class ChartsFragment extends Fragment {
         dataSet.setColors(colors);
         dataSet.setSliceSpace(3f); 
         
-        // Rework label positioning so labels are distributed sufficiently far apart
+        // Requirement: Rework label positioning so labels are distributed sufficiently far apart
+        // and change connection-line angle/position
         dataSet.setXValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
         dataSet.setYValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
-        dataSet.setValueLinePart1OffsetPercentage(80f); 
-        dataSet.setValueLinePart1Length(0.5f); 
-        dataSet.setValueLinePart2Length(0.4f);
-        // Change the connection-line angle/position
-        dataSet.setValueLineColor(Color.GRAY);
+        dataSet.setValueLinePart1OffsetPercentage(70f); 
+        dataSet.setValueLinePart1Length(0.6f); 
+        dataSet.setValueLinePart2Length(0.6f);
+        dataSet.setValueLineVariableLength(true);
+        dataSet.setValueLineColor(Color.LTGRAY);
         dataSet.setUsingSliceColorAsValueLineColor(true); 
         
         dataSet.setValueTextColors(colors); 
@@ -250,15 +261,31 @@ public class ChartsFragment extends Fragment {
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
         chart.setHoleColor(Color.TRANSPARENT);
-        chart.setHoleRadius(45f); 
-        chart.setTransparentCircleRadius(50f);
-        chart.setEntryLabelColor(Color.WHITE);
+        chart.setHoleRadius(50f); 
+        chart.setTransparentCircleRadius(55f);
+        chart.setEntryLabelColor(Color.LTGRAY);
         chart.setEntryLabelTextSize(11f);
-        chart.setDrawEntryLabels(false); // Hide labels on slices to prevent overlap, use outside lines
-        chart.setExtraOffsets(25, 10, 25, 10); // Increase offsets for labels
+        chart.setDrawEntryLabels(true);
+        chart.setExtraOffsets(35, 10, 35, 10); 
         chart.setDragDecelerationFrictionCoef(0.95f);
         chart.setRotationEnabled(true);
         chart.setHighlightPerTapEnabled(true);
+        chart.setRotationAngle(0); 
+
+        // Requirement 9: Chart category navigation
+        chart.setOnChartValueSelectedListener(new com.github.mikephil.charting.listener.OnChartValueSelectedListener() {
+            @Override
+            public void onValueSelected(com.github.mikephil.charting.data.Entry e, com.github.mikephil.charting.highlight.Highlight h) {
+                if (e instanceof PieEntry) {
+                    navigateToCategoryDetail(((PieEntry) e).getLabel());
+                    chart.highlightValue(null); // Clear highlight to prevent stale state on return
+                }
+            }
+
+            @Override
+            public void onNothingSelected() {}
+        });
+
         chart.animateY(1200);
         chart.invalidate();
     }

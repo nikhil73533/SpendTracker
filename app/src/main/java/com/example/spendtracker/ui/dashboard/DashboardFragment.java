@@ -12,11 +12,13 @@ import androidx.navigation.Navigation;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentDashboardBinding;
+import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.transaction.TransactionViewModel;
 import com.google.android.material.datepicker.MaterialDatePicker;
 import com.google.android.material.tabs.TabLayout;
 import dagger.hilt.android.AndroidEntryPoint;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -157,7 +159,6 @@ public class DashboardFragment extends Fragment {
             public java.util.List<String> getCategoriesByType(String type) {
                 java.util.List<String> list = "INCOME".equals(type) ? incomeCategories : expenseCategories;
                 if (list.isEmpty()) {
-                    // Fallback to defaults if DB is empty for this type
                     if ("INCOME".equals(type)) {
                         return java.util.Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Gift", "Other");
                     } else {
@@ -166,11 +167,14 @@ public class DashboardFragment extends Fragment {
                 }
                 return list;
             }
+        }, new GroupedTransactionAdapter.DataFormatter() {
+            @Override public String formatAmount(double amount) { return viewModel.formatAmount(amount); }
+            @Override public String maskPII(String value) { return transactionViewModel.maskPII(value); }
         });
         binding.rvTransactions.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvTransactions.setAdapter(adapter);
 
-        monthlyAdapter = new MonthlySummaryAdapter();
+        monthlyAdapter = new MonthlySummaryAdapter(amount -> viewModel.formatAmount(amount));
     }
 
     private void showDeleteConfirmation(Transaction transaction) {
@@ -213,14 +217,99 @@ public class DashboardFragment extends Fragment {
             }
         });
 
-        // Long press reset
+        // Long press for privacy mode
         binding.fabAddTransaction.setOnLongClickListener(v -> {
-            startResetAnimation();
+            com.example.spendtracker.util.BiometricHelper.authenticate(requireActivity(), new com.example.spendtracker.util.BiometricHelper.BiometricCallback() {
+                @Override
+                public void onSuccess() {
+                    viewModel.setPrivacyModeEnabled(false);
+                }
+
+                @Override
+                public void onError(String error) {
+                    android.widget.Toast.makeText(requireContext(), "Auth: " + error, android.widget.Toast.LENGTH_SHORT).show();
+                }
+            });
             return true;
         });
 
         binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
+        binding.btnBackupDb.setOnClickListener(v -> startBackupFlow());
+        binding.btnRestoreDb.setOnClickListener(v -> startRestoreFlow());
     }
+
+    private final androidx.activity.result.ActivityResultLauncher<String> createDocumentLauncher = 
+        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip"), uri -> {
+            if (uri != null) performBackupToUri(uri);
+        });
+
+    private final androidx.activity.result.ActivityResultLauncher<String[]> openDocumentLauncher = 
+        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(), uri -> {
+            if (uri != null) performRestoreFromUri(uri);
+        });
+
+    private void startBackupFlow() {
+        createDocumentLauncher.launch("SpendTracker_Backup.zip");
+    }
+
+    private void startRestoreFlow() {
+        openDocumentLauncher.launch(new String[]{"application/zip"});
+    }
+
+    private void performBackupToUri(android.net.Uri uri) {
+        try {
+            File dbFile = requireContext().getDatabasePath("spend_tracker_db");
+            File walFile = new File(dbFile.getAbsolutePath() + "-wal");
+            File shmFile = new File(dbFile.getAbsolutePath() + "-shm");
+            File zipFile = new File(requireContext().getCacheDir(), "backup.zip");
+            
+            com.example.spendtracker.util.StorageHelper.zipFiles(new File[]{dbFile, walFile, shmFile}, zipFile);
+            
+            try (java.io.InputStream in = new java.io.FileInputStream(zipFile);
+                 java.io.OutputStream out = requireContext().getContentResolver().openOutputStream(uri)) {
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+            }
+            android.widget.Toast.makeText(requireContext(), "Backup Successful", android.widget.Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            android.widget.Toast.makeText(requireContext(), "Backup Failed: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void performRestoreFromUri(android.net.Uri uri) {
+        new android.app.AlertDialog.Builder(requireContext())
+            .setTitle("Restore Database")
+            .setMessage("This will replace all current data. The app will restart. Continue?")
+            .setPositiveButton("Restore", (dialog, which) -> {
+                try {
+                    File tempZip = new File(requireContext().getCacheDir(), "restore.zip");
+                    try (java.io.InputStream in = requireContext().getContentResolver().openInputStream(uri);
+                         java.io.OutputStream out = new java.io.FileOutputStream(tempZip)) {
+                        byte[] buf = new byte[8192];
+                        int len;
+                        while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                    }
+                    
+                    File dbDir = requireContext().getDatabasePath("spend_tracker_db").getParentFile();
+                    com.example.spendtracker.util.StorageHelper.unzipFile(tempZip, dbDir);
+                    
+                    android.widget.Toast.makeText(requireContext(), "Restore Successful. Restarting...", android.widget.Toast.LENGTH_LONG).show();
+                    new android.os.Handler().postDelayed(() -> {
+                        android.os.Process.killProcess(android.os.Process.myPid());
+                        System.exit(0);
+                    }, 2000);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    android.widget.Toast.makeText(requireContext(), "Restore Failed: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+
 
     private void startResetAnimation() {
         binding.fabProgress.setVisibility(View.VISIBLE);
@@ -274,7 +363,7 @@ public class DashboardFragment extends Fragment {
                     // Switch tab first so setFilter(DAILY) runs, then override with specific date
                     binding.tabLayout.getTabAt(0).select(); 
                     viewModel.setCalendarFilter(day.timestamp, "Selected Date");
-                });
+                }, amount -> viewModel.formatAmount(amount));
                 binding.rvCalendar.setAdapter(calendarAdapter);
             }
         });
@@ -291,18 +380,37 @@ public class DashboardFragment extends Fragment {
 
         viewModel.getSummary().observe(getViewLifecycleOwner(), summary -> {
             if (summary != null) {
-                binding.tvTotalIncome.setText(String.format(Locale.getDefault(), "₹%.2f", summary.getTotalIncome()));
-                binding.tvTotalExpense.setText(String.format(Locale.getDefault(), "₹%.2f", summary.getTotalExpense()));
-                binding.tvAccountTotal.setText(String.format(Locale.getDefault(), "₹%.2f", summary.getTotalAccountTransaction()));
+                binding.tvTotalIncome.setText(viewModel.formatAmount(summary.getTotalIncome()));
+                binding.tvTotalExpense.setText(viewModel.formatAmount(summary.getTotalExpense()));
+                binding.tvAccountTotal.setText(viewModel.formatAmount(summary.getTotalAccountTransaction()));
             }
         });
 
         viewModel.getTotalPageData().observe(getViewLifecycleOwner(), data -> {
             if (data != null) {
                 binding.tvComparedPercent.setText(data.comparedPercent + "%");
-                binding.tvAccountExpenses.setText(String.format(Locale.getDefault(), "₹ %.2f", data.accountExpenses));
-                binding.tvCardExpenses.setText(String.format(Locale.getDefault(), "₹ %.2f", data.cardExpenses));
-                binding.tvTotalTransfers.setText(String.format(Locale.getDefault(), "₹ %.2f", data.transfers));
+                binding.tvAccountExpenses.setText(viewModel.formatAmount(data.accountExpenses));
+                binding.tvCardExpenses.setText(viewModel.formatAmount(data.cardExpenses));
+                binding.tvTotalTransfers.setText(viewModel.formatAmount(data.transfers));
+            }
+        });
+
+        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            adapter.notifyDataSetChanged();
+            monthlyAdapter.notifyDataSetChanged();
+            // Re-bind summary data
+            Summary summary = viewModel.getSummary().getValue();
+            if (summary != null) {
+                binding.tvTotalIncome.setText(viewModel.formatAmount(summary.getTotalIncome()));
+                binding.tvTotalExpense.setText(viewModel.formatAmount(summary.getTotalExpense()));
+                binding.tvAccountTotal.setText(viewModel.formatAmount(summary.getTotalAccountTransaction()));
+            }
+            // Re-bind total page data
+            DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
+            if (data != null) {
+                binding.tvAccountExpenses.setText(viewModel.formatAmount(data.accountExpenses));
+                binding.tvCardExpenses.setText(viewModel.formatAmount(data.cardExpenses));
+                binding.tvTotalTransfers.setText(viewModel.formatAmount(data.transfers));
             }
         });
 
@@ -325,7 +433,10 @@ public class DashboardFragment extends Fragment {
         transactionViewModel.getAllTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<java.util.List<Transaction>>() {
             @Override
             public void onChanged(java.util.List<Transaction> transactions) {
-                if (transactions == null) return;
+                if (transactions == null || transactions.isEmpty()) {
+                    android.widget.Toast.makeText(requireContext(), "No data to export", android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 // Stop observing after getting data
                 transactionViewModel.getAllTransactions().removeObserver(this);
                 
@@ -343,27 +454,38 @@ public class DashboardFragment extends Fragment {
                     // Data
                     int rowNum = 1;
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+                    boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+
                     for (Transaction t : transactions) {
                         org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowNum++);
                         row.createCell(0).setCellValue(sdf.format(new Date(t.getDate())));
                         row.createCell(1).setCellValue(t.getCategory());
-                        row.createCell(2).setCellValue(t.getDescription());
-                        row.createCell(3).setCellValue(t.getAmount());
+                        
+                        // Requirement 11: Mask PII in Excel if privacy mode is on
+                        row.createCell(2).setCellValue(masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
+                        
+                        if (masked) {
+                            row.createCell(3).setCellValue("***");
+                        } else {
+                            row.createCell(3).setCellValue(t.getAmount());
+                        }
+                        
                         row.createCell(4).setCellValue(t.getType());
                         row.createCell(5).setCellValue(t.getSource());
-                        row.createCell(6).setCellValue("INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName());
-                        row.createCell(7).setCellValue(t.getUpiId());
+                        
+                        String contact = "INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName();
+                        row.createCell(6).setCellValue(masked ? transactionViewModel.maskPII(contact) : contact);
+                        
+                        row.createCell(7).setCellValue(masked ? transactionViewModel.maskPII(t.getUpiId()) : t.getUpiId());
                     }
 
-                    String fileName = "SpendTracker_" + System.currentTimeMillis() + ".xlsx";
+                    String fileName = "SpendTracker_Export.xlsx";
                     java.io.File file = new java.io.File(requireContext().getExternalFilesDir(null), fileName);
                     java.io.FileOutputStream out = new java.io.FileOutputStream(file);
                     workbook.write(out);
                     out.close();
                     workbook.close();
 
-                    android.widget.Toast.makeText(requireContext(), "Excel exported to: " + file.getAbsolutePath(), android.widget.Toast.LENGTH_LONG).show();
-                    
                     // Share intent
                     android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
                     intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

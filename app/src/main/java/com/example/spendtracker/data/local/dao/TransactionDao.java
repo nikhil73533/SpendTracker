@@ -69,11 +69,14 @@ public interface TransactionDao {
     @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND date BETWEEN :start AND :end GROUP BY strftime('%Y', date / 1000, 'unixepoch') ORDER BY date ASC")
     LiveData<List<TimeSum>> getAnnuallyTotals(long start, long end, String type);
 
-    @Query("SELECT receiverName as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense FROM transactions GROUP BY COALESCE(NULLIF(upiId, ''), receiverName) ORDER BY lastTransactionDate DESC")
+    @Query("SELECT (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense, SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as totalIncome FROM transactions GROUP BY COALESCE(NULLIF(upiId, ''), (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END)) ORDER BY lastTransactionDate DESC")
     LiveData<List<AccountSummary>> getUniqueAccounts();
 
-    @Query("SELECT * FROM transactions WHERE COALESCE(NULLIF(upiId, ''), receiverName) = :accountId AND date BETWEEN :start AND :end ORDER BY date ASC")
+    @Query("SELECT * FROM transactions WHERE (COALESCE(NULLIF(upiId, ''), receiverName) = :accountId OR COALESCE(NULLIF(upiId, ''), sender) = :accountId) AND date BETWEEN :start AND :end ORDER BY date DESC")
     LiveData<List<TransactionEntity>> getAccountHistory(String accountId, long start, long end);
+
+    @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
+    void renameCategory(String oldName, String newName);
 
     class CategorySum {
         public String category;
@@ -90,5 +93,6 @@ public interface TransactionDao {
         public String upiId;
         public long lastTransactionDate;
         public double totalExpense;
+        public double totalIncome;
     }
 }

@@ -64,6 +64,12 @@ dependencies {
     implementation(libs.poi)
     implementation(libs.poi.ooxml)
 
+    // Security & Encryption
+    implementation(libs.biometric)
+    implementation(libs.sqlcipher)
+    implementation(libs.sqlite)
+    implementation(libs.androidx.security.crypto)
+
     implementation(project(":prediction"))
 
     testImplementation(libs.junit)

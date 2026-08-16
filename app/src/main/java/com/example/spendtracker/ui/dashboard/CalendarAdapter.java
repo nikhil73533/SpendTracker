@@ -13,8 +13,12 @@ import java.util.List;
 import java.util.Locale;
 
 public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHolder> {
+    public interface CalendarFormatter {
+        String formatAmount(double amount);
+    }
     private final List<CalendarDay> days;
     private final OnDayClickListener listener;
+    private final CalendarFormatter formatter;
 
     public interface OnDayClickListener {
         void onDayClick(CalendarDay day);
@@ -36,16 +40,17 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         }
     }
 
-    public CalendarAdapter(List<CalendarDay> days, OnDayClickListener listener) {
+    public CalendarAdapter(List<CalendarDay> days, OnDayClickListener listener, CalendarFormatter formatter) {
         this.days = days;
         this.listener = listener;
+        this.formatter = formatter;
     }
 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_calendar_day, parent, false);
-        return new ViewHolder(view);
+        return new ViewHolder(view, formatter);
     }
 
     @Override
@@ -63,9 +68,11 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         private final TextView tvDay;
         private final TextView tvIncome;
         private final TextView tvExpense;
+        private final CalendarFormatter formatter;
 
-        public ViewHolder(@NonNull View itemView) {
+        public ViewHolder(@NonNull View itemView, CalendarFormatter formatter) {
             super(itemView);
+            this.formatter = formatter;
             tvDay = itemView.findViewById(R.id.tv_day);
             tvIncome = itemView.findViewById(R.id.tv_income);
             tvExpense = itemView.findViewById(R.id.tv_expense);
@@ -104,7 +111,8 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
             if (day.income > 0 || day.expense > 0) {
                 if (day.income > 0) {
                     tvIncome.setVisibility(View.VISIBLE);
-                    tvIncome.setText(String.format(Locale.getDefault(), "+%.0f", day.income));
+                    String amount = formatter.formatAmount(day.income);
+                    tvIncome.setText("+" + amount.replace("₹ ", ""));
                     tvIncome.setTextColor(0xFF4CAF50);
                 } else {
                     tvIncome.setVisibility(View.GONE);
@@ -112,7 +120,8 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
 
                 if (day.expense > 0) {
                     tvExpense.setVisibility(View.VISIBLE);
-                    tvExpense.setText(String.format(Locale.getDefault(), "-%.0f", day.expense));
+                    String amount = formatter.formatAmount(day.expense);
+                    tvExpense.setText("-" + amount.replace("₹ ", ""));
                     tvExpense.setTextColor(0xFFFF5252);
                 } else {
                     tvExpense.setVisibility(View.GONE);

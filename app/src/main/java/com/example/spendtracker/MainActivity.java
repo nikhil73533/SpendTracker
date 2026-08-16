@@ -25,12 +25,45 @@ public class MainActivity extends AppCompatActivity {
     @Inject
     DataInitializer dataInitializer;
 
+    @Inject
+    com.example.spendtracker.domain.repository.SecurityRepository securityRepository;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        // EMERGENCY CHECKPOINT
+        try {
+            byte[] pass = securityRepository.getDatabasePassphrase();
+            java.io.File dbFile = getDatabasePath("spend_tracker_db");
+            if (dbFile.exists()) {
+                android.util.Log.e("RECOVERY_CORE", "Attempting Startup Checkpoint...");
+                net.sqlcipher.database.SQLiteDatabase db = net.sqlcipher.database.SQLiteDatabase.openOrCreateDatabase(dbFile, new String(pass), null);
+                db.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
+                db.close();
+                android.util.Log.e("RECOVERY_CORE", "Startup Checkpoint Complete.");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("RECOVERY_CORE", "Startup Checkpoint Error: " + e.getMessage());
+        }
+
+        // EMERGENCY DIAGNOSTICS
+        try {
+            java.io.File cacheDir = getCacheDir();
+            java.io.File backupZip = new java.io.File(cacheDir, "backup.zip");
+            if (backupZip.exists()) {
+                android.util.Log.e("RECOVERY_CORE", "BACKUP ZIP FOUND: " + backupZip.length() + " bytes");
+                try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.FileInputStream(backupZip))) {
+                    java.util.zip.ZipEntry entry;
+                    while ((entry = zis.getNextEntry()) != null) {
+                        android.util.Log.e("RECOVERY_CORE", "ZIP ENTRY: " + entry.getName() + " Size: " + entry.getSize());
+                    }
+                }
+            }
+        } catch (Exception e) {}
 
         dataInitializer.initializeData();
         setupNavigation();
@@ -70,11 +103,8 @@ public class MainActivity extends AppCompatActivity {
             NavController navController = navHostFragment.getNavController();
             NavigationUI.setupWithNavController(binding.bottomNavigation, navController);
             
-            // Fix for stale navigation state when re-selecting charts
             binding.bottomNavigation.setOnItemSelectedListener(item -> {
-                if (item.getItemId() == R.id.chartsFragment) {
-                    navController.popBackStack(R.id.chartsFragment, false);
-                }
+                navController.popBackStack(item.getItemId(), false);
                 return NavigationUI.onNavDestinationSelected(item, navController);
             });
         }
