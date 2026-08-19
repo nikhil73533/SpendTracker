@@ -73,11 +73,21 @@ public class DashboardFragment extends Fragment {
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
                 switch (position) {
-                    case 0: viewModel.setFilter(DashboardViewModel.FilterType.DAILY); break;
+                    case 0:
+                        // If the user tapped a specific calendar day, do NOT override the
+                        // single-day date filter with the full-month DAILY filter.
+                        if (!viewModel.isCalendarDaySelected()) {
+                            viewModel.setFilter(DashboardViewModel.FilterType.DAILY);
+                        }
+                        break;
                     case 1: viewModel.setFilter(DashboardViewModel.FilterType.CALENDAR); break;
                     case 2:
                     case 3: viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY); break;
                     case 4: viewModel.setFilter(DashboardViewModel.FilterType.NOTE); break;
+                }
+                // Clear the single-day guard when user leaves the Daily tab
+                if (position != 0) {
+                    viewModel.clearCalendarDaySelected();
                 }
             }
         });
@@ -118,6 +128,9 @@ public class DashboardFragment extends Fragment {
                 @Override
                 public void onSuccess() {
                     viewModel.setPrivacyModeEnabled(false);
+                    // Force immediate re-render of all navigation summary widgets so that
+                    // actual (unmasked) values are displayed right after authentication.
+                    refreshNavigationWidgets();
                 }
 
                 @Override
@@ -138,15 +151,28 @@ public class DashboardFragment extends Fragment {
             }
         });
 
+        // Combined observer: re-render whenever summary data OR privacy mode changes.
+        // Using two separate observers sharing the same update logic prevents stale values.
         viewModel.getSummary().observe(getViewLifecycleOwner(), summary -> {
             if (summary != null) {
-                updateSummaryUI(summary, Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()));
+                boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+                updateSummaryUI(summary, masked);
             }
         });
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            // Re-fetch summary from the LiveData to guarantee we always show the latest data.
             Summary summary = viewModel.getSummary().getValue();
-            if (summary != null) updateSummaryUI(summary, enabled);
+            if (summary != null) {
+                updateSummaryUI(summary, enabled);
+            } else {
+                // Summary not yet emitted – refresh the widgets once it arrives.
+                viewModel.getSummary().observe(getViewLifecycleOwner(), s -> {
+                    if (s != null) updateSummaryUI(s, Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()));
+                });
+            }
+            // Also notify child-fragment adapters that data visibility changed.
+            notifyChildAdapters();
         });
 
         viewModel.getSelectedTab().observe(getViewLifecycleOwner(), index -> {
@@ -165,6 +191,35 @@ public class DashboardFragment extends Fragment {
     private String formatAmountWithState(double amount, boolean masked) {
         if (masked) return "***";
         return String.format(Locale.getDefault(), "₹ %.0f", amount);
+    }
+
+    /**
+     * Forces all three navigation summary widgets to display the latest actual values
+     * immediately after a successful biometric authentication.
+     */
+    private void refreshNavigationWidgets() {
+        if (binding == null) return;
+        Summary summary = viewModel.getSummary().getValue();
+        if (summary != null) {
+            updateSummaryUI(summary, false);   // privacy is now disabled
+        }
+        notifyChildAdapters();
+    }
+
+    /**
+     * Calls notifyDataSetChanged on every visible child fragment that holds a
+     * RecyclerView adapter, so cached/masked values are immediately replaced.
+     */
+    private void notifyChildAdapters() {
+        if (binding == null) return;
+        // Iterate all child fragments managed by the ViewPager
+        for (androidx.fragment.app.Fragment child : getChildFragmentManager().getFragments()) {
+            if (child instanceof DailyTransactionsFragment) {
+                ((DailyTransactionsFragment) child).refreshAdapter();
+            } else if (child instanceof CalendarFragment) {
+                ((CalendarFragment) child).refreshAdapter();
+            }
+        }
     }
 
     @Override

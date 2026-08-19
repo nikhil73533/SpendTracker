@@ -1,0 +1,25 @@
+{
+  "bankName": "Axis Bank",
+  "patterns": [
+    {
+      "name": "Account Debit",
+      "regex": "(?i)(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:has\\s+been\\s+)?(?:debited|withdrawn)\\s+(?:from|in)\\s+(?:your\\s+)?(?:Axis\\s+Bank\\s+)?(?:A/c|Account)\\s+(?:(?:XX+)?([0-9]+))?",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Account Credit",
+      "regex": "(?i)(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:has\\s+been\\s+)?credited\\s+(?:to|in)\\s+(?:your\\s+)?(?:Axis\\s+Bank\\s+)?(?:A/c|Account)\\s+(?:(?:XX+)?([0-9]+))?",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
+      "type": "INCOME",
+      "sourceType": "Account"
+    }
+  ]
+}

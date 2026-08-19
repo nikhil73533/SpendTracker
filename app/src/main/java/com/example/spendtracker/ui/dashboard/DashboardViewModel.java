@@ -36,6 +36,8 @@ public class DashboardViewModel extends ViewModel {
     private final PredictionService predictionService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private long calendarViewMonthStart;
+    /** True when the user tapped a specific calendar day; prevents the tab-change from resetting to a monthly filter. */
+    private boolean calendarDaySelected = false;
     private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
     private final SimpleDateFormat dayFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.getDefault());
 
@@ -131,8 +133,19 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public void setCalendarFilter(long timestamp, String label) {
+        calendarDaySelected = true;
         long start = getStartOfDay(timestamp);
         dateRange.setValue(new DateRange(start, start + 86399999, label));
+    }
+
+    /** @return {@code true} when a specific calendar day was selected and the daily tab should preserve its filter. */
+    public boolean isCalendarDaySelected() {
+        return calendarDaySelected;
+    }
+
+    /** Clears the calendar-day-selected guard so normal tab switching resumes month-based filtering. */
+    public void clearCalendarDaySelected() {
+        calendarDaySelected = false;
     }
 
     public LiveData<DateRange> getDateRange() { return dateRange; }

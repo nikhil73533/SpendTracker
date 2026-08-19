@@ -120,6 +120,13 @@ public class DailyTransactionsFragment extends Fragment {
         });
     }
 
+    /** Called by {@link DashboardFragment} after biometric auth to force re-render with actual values. */
+    public void refreshAdapter() {
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+    }
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();

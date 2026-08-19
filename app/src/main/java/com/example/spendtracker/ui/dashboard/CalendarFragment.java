@@ -51,6 +51,13 @@ public class CalendarFragment extends Fragment {
         });
     }
 
+    /** Called by {@link DashboardFragment} after biometric auth to force re-render with actual values. */
+    public void refreshAdapter() {
+        if (binding != null && binding.rvCalendar.getAdapter() != null) {
+            binding.rvCalendar.getAdapter().notifyDataSetChanged();
+        }
+    }
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();

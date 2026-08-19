@@ -18,7 +18,10 @@ import com.example.spendtracker.databinding.FragmentTransactionFormBinding;
 import com.example.spendtracker.domain.model.Transaction;
 import dagger.hilt.android.AndroidEntryPoint;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
 
 @AndroidEntryPoint
@@ -31,6 +34,20 @@ public class TransactionFormFragment extends Fragment {
     private final SimpleDateFormat dateTimeSdf = new SimpleDateFormat("dd/MM/yy (EEE) h:mm a", Locale.getDefault());
     private int transactionId = -1;
     private String selectedType = "EXPENSE";
+
+    /** Known Indian bank names for the Bank Name autocomplete. */
+    private static final List<String> KNOWN_BANKS = Arrays.asList(
+        "ICICI Bank", "HDFC Bank", "SBI", "Axis Bank", "Kotak Bank",
+        "Yes Bank", "PNB", "Bank of Baroda", "Union Bank", "Canara Bank",
+        "IDBI Bank", "IndusInd Bank", "Federal Bank", "RBL Bank",
+        "AU Bank", "Bajaj Finance", "Paytm", "PhonePe", "Amazon Pay",
+        "Airtel Payments Bank", "Jio Payments Bank", "OneCard", "Slice", "Navi"
+    );
+
+    /** Source-type options for the Account / Credit Card dropdown. */
+    private static final List<String> SOURCE_TYPES = Arrays.asList(
+        "Account", "Credit Card", "UPI", "Wallet", "Manual"
+    );
 
     @Nullable
     @Override
@@ -68,21 +85,32 @@ public class TransactionFormFragment extends Fragment {
             }
         });
 
-        // Observe categories once
+        // Category suggestions
         viewModel.getCategoriesByType().observe(getViewLifecycleOwner(), this::updateCategoryAdapter);
-        
-        // Observe contacts for recommendations
+
+        // Contact suggestions for Sender / Receiver
         viewModel.getUniqueContacts().observe(getViewLifecycleOwner(), contacts -> {
             if (contacts != null) {
-                ArrayAdapter<String> contactAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_dropdown_item_1line, contacts);
+                ArrayAdapter<String> contactAdapter = new ArrayAdapter<>(requireContext(),
+                    android.R.layout.simple_dropdown_item_1line, contacts);
                 binding.etSender.setAdapter(contactAdapter);
                 binding.etReceiver.setAdapter(contactAdapter);
             }
         });
 
+        // Bank name autocomplete
+        ArrayAdapter<String> bankAdapter = new ArrayAdapter<>(requireContext(),
+            android.R.layout.simple_dropdown_item_1line, KNOWN_BANKS);
+        binding.etBankName.setAdapter(bankAdapter);
+
+        // Account / Credit Card type dropdown
+        ArrayAdapter<String> sourceTypeAdapter = new ArrayAdapter<>(requireContext(),
+            android.R.layout.simple_dropdown_item_1line, SOURCE_TYPES);
+        binding.etAccountInfo.setAdapter(sourceTypeAdapter);
+
         updateFormForType();
 
-        binding.actvCategory.setOnItemClickListener((parent, view, position, id) -> {
+        binding.actvCategory.setOnItemClickListener((parent, v, position, id) -> {
             String selected = (String) parent.getItemAtPosition(position);
             if ("Create New Category...".equals(selected)) {
                 showCreateCategoryDialog();
@@ -109,7 +137,7 @@ public class TransactionFormFragment extends Fragment {
             binding.tilCategory.setVisibility(View.VISIBLE);
             binding.layoutTransferFields.setVisibility(View.GONE);
             binding.btnFees.setVisibility(View.GONE);
-            
+
             if ("INCOME".equals(selectedType)) {
                 binding.tilSender.setVisibility(View.VISIBLE);
                 binding.tilReceiver.setVisibility(View.GONE);
@@ -125,20 +153,20 @@ public class TransactionFormFragment extends Fragment {
         }
     }
 
-    private void updateCategoryAdapter(java.util.List<String> categories) {
-        java.util.List<String> filtered = new java.util.ArrayList<>();
+    private void updateCategoryAdapter(List<String> categories) {
+        List<String> filtered = new ArrayList<>();
         if (categories != null) {
             for (String c : categories) {
                 if (!"Transfer".equalsIgnoreCase(c)) filtered.add(c);
             }
         }
-        
+
         // Add default categories if empty (initial bootstrap)
         if (filtered.isEmpty()) {
             if ("INCOME".equals(selectedType)) {
-                filtered.addAll(java.util.Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Other"));
+                filtered.addAll(Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Other"));
             } else {
-                filtered.addAll(java.util.Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other"));
+                filtered.addAll(Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other"));
             }
         }
 
@@ -148,8 +176,9 @@ public class TransactionFormFragment extends Fragment {
         if (!filtered.contains("Manage Categories...")) {
             filtered.add("Manage Categories...");
         }
-        
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_dropdown_item_1line, filtered);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(),
+            android.R.layout.simple_dropdown_item_1line, filtered);
         binding.actvCategory.setAdapter(adapter);
     }
 
@@ -162,13 +191,13 @@ public class TransactionFormFragment extends Fragment {
             calendar.set(Calendar.YEAR, year);
             calendar.set(Calendar.MONTH, month);
             calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-            
+
             new TimePickerDialog(requireContext(), (tView, hourOfDay, minute) -> {
                 calendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
                 calendar.set(Calendar.MINUTE, minute);
                 updateDateTimeLabels();
             }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), false).show();
-            
+
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show();
     }
 
@@ -198,7 +227,13 @@ public class TransactionFormFragment extends Fragment {
                 binding.etDescription.setText(transaction.getDescription());
                 binding.etSender.setText(transaction.getSender());
                 binding.etReceiver.setText(transaction.getReceiverName());
-                
+
+                // Populate new fields
+                String bankName = transaction.getBankName() != null ? transaction.getBankName() : "";
+                binding.etBankName.setText(bankName, false);
+                String sourceType = transaction.getSourceType() != null ? transaction.getSourceType() : "";
+                binding.etAccountInfo.setText(sourceType, false);
+
                 selectedType = transaction.getType();
                 if ("INCOME".equals(selectedType)) {
                     binding.toggleType.check(R.id.btn_type_income);
@@ -209,7 +244,7 @@ public class TransactionFormFragment extends Fragment {
                 } else {
                     binding.toggleType.check(R.id.btn_type_expense);
                 }
-                
+
                 calendar.setTimeInMillis(transaction.getDate());
                 updateDateTimeLabels();
                 updateFormForType();
@@ -220,8 +255,8 @@ public class TransactionFormFragment extends Fragment {
     private void showManageCategoriesDialog() {
         viewModel.getCategoriesByType(selectedType).observe(getViewLifecycleOwner(), categories -> {
             if (categories == null) return;
-            
-            java.util.List<String> filtered = new java.util.ArrayList<>();
+
+            List<String> filtered = new ArrayList<>();
             for (String c : categories) if (!"Transfer".equalsIgnoreCase(c)) filtered.add(c);
 
             String[] items = filtered.toArray(new String[0]);
@@ -278,6 +313,10 @@ public class TransactionFormFragment extends Fragment {
         String description = binding.etDescription.getText().toString();
         String sender = binding.etSender.getText().toString();
         String receiver = binding.etReceiver.getText().toString();
+        String bankName = binding.etBankName.getText().toString();
+        String accountInfo = binding.etAccountInfo.getText().toString();
+        String sourceType = accountInfo.isEmpty() ? "Manual" : accountInfo;
+        String source = bankName.isEmpty() ? "Manual" : bankName + " (" + sourceType + ")";
 
         Transaction transaction;
         if (existingTransaction != null) {
@@ -288,12 +327,12 @@ public class TransactionFormFragment extends Fragment {
                     description,
                     selectedType,
                     calendar.getTimeInMillis(),
-                    existingTransaction.getSource(),
+                    source,
                     sender,
                     existingTransaction.getUpiId(),
                     receiver,
-                    existingTransaction.getBankName(),
-                    existingTransaction.getSourceType(),
+                    bankName.isEmpty() ? existingTransaction.getBankName() : bankName,
+                    sourceType,
                     binding.etFromAccount.getText().toString(),
                     binding.etToAccount.getText().toString(),
                     0.0
@@ -306,12 +345,12 @@ public class TransactionFormFragment extends Fragment {
                     description,
                     selectedType,
                     calendar.getTimeInMillis(),
-                    "Manual",
+                    source,
                     sender,
                     "",
                     receiver,
-                    "",
-                    "Manual",
+                    bankName.isEmpty() ? "" : bankName,
+                    sourceType,
                     binding.etFromAccount.getText().toString(),
                     binding.etToAccount.getText().toString(),
                     0.0
