@@ -9,18 +9,13 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
-import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentDashboardBinding;
 import com.example.spendtracker.domain.model.Summary;
-import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.transaction.TransactionViewModel;
-import com.google.android.material.datepicker.MaterialDatePicker;
-import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.tabs.TabLayoutMediator;
 import dagger.hilt.android.AndroidEntryPoint;
-import java.io.File;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -30,11 +25,6 @@ public class DashboardFragment extends Fragment {
     private FragmentDashboardBinding binding;
     private DashboardViewModel viewModel;
     private TransactionViewModel transactionViewModel;
-    private GroupedTransactionAdapter adapter;
-    private MonthlySummaryAdapter monthlyAdapter;
-    private java.util.List<String> incomeCategories = new java.util.ArrayList<>();
-    private java.util.List<String> expenseCategories = new java.util.ArrayList<>();
-    private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMM yyyy", Locale.getDefault());
 
     @Nullable
     @Override
@@ -50,8 +40,7 @@ public class DashboardFragment extends Fragment {
         transactionViewModel = new ViewModelProvider(this).get(TransactionViewModel.class);
 
         setupToolbar();
-        setupTabLayout();
-        setupRecyclerView();
+        setupViewPager();
         setupFab();
         observeViewModel();
     }
@@ -63,129 +52,35 @@ public class DashboardFragment extends Fragment {
         binding.btnFavorite.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Added to favorites", android.widget.Toast.LENGTH_SHORT).show());
         binding.btnSearch.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Search clicked", android.widget.Toast.LENGTH_SHORT).show());
         binding.btnFilter.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Filter clicked", android.widget.Toast.LENGTH_SHORT).show());
-
-        setupSwipeGestures();
     }
 
-    private void setupSwipeGestures() {
-        android.view.GestureDetector gestureDetector = new android.view.GestureDetector(requireContext(), new android.view.GestureDetector.SimpleOnGestureListener() {
-            @Override
-            public boolean onFling(android.view.MotionEvent e1, android.view.MotionEvent e2, float velocityX, float velocityY) {
-                if (Math.abs(velocityX) > Math.abs(velocityY)) {
-                    if (velocityX > 0) {
-                        viewModel.movePrev();
-                    } else {
-                        viewModel.moveNext();
-                    }
-                    return true;
-                }
-                return false;
+    private void setupViewPager() {
+        DashboardPagerAdapter adapter = new DashboardPagerAdapter(this);
+        binding.viewPager.setAdapter(adapter);
+
+        new TabLayoutMediator(binding.tabLayout, binding.viewPager, (tab, position) -> {
+            switch (position) {
+                case 0: tab.setText("Daily"); break;
+                case 1: tab.setText("Calendar"); break;
+                case 2: tab.setText("Monthly"); break;
+                case 3: tab.setText("Total"); break;
+                case 4: tab.setText("Notes"); break;
             }
-        });
+        }).attach();
 
-        binding.rvCalendar.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
-    }
-
-    private void setupTabLayout() {
-        binding.tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+        binding.viewPager.registerOnPageChangeCallback(new androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
             @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                binding.layoutTotalTab.setVisibility(View.GONE);
-                binding.rvTransactions.setVisibility(View.GONE);
-                binding.rvCalendar.setVisibility(View.GONE);
-                binding.layoutCalendarHeader.setVisibility(View.GONE);
-                binding.layoutEmptyState.setVisibility(View.GONE);
-
-                switch (tab.getPosition()) {
-                    case 0: // Daily
-                        viewModel.setFilter(DashboardViewModel.FilterType.DAILY);
-                        binding.rvTransactions.setVisibility(View.VISIBLE);
-                        binding.rvTransactions.setAdapter(adapter);
-                        break;
-                    case 1: // Calendar
-                        viewModel.setFilter(DashboardViewModel.FilterType.CALENDAR);
-                        binding.rvCalendar.setVisibility(View.VISIBLE);
-                        binding.layoutCalendarHeader.setVisibility(View.VISIBLE);
-                        break;
-                    case 2: // Monthly
-                        viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY);
-                        binding.rvTransactions.setVisibility(View.VISIBLE);
-                        binding.rvTransactions.setAdapter(monthlyAdapter);
-                        break;
-                    case 3: // Total
-                        viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY); // Total page context for current month
-                        binding.layoutTotalTab.setVisibility(View.VISIBLE);
-                        break;
-                    case 4: // Notes
-                        viewModel.setFilter(DashboardViewModel.FilterType.NOTE);
-                        android.widget.Toast.makeText(requireContext(), "Notes section coming soon", android.widget.Toast.LENGTH_SHORT).show();
-                        break;
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                switch (position) {
+                    case 0: viewModel.setFilter(DashboardViewModel.FilterType.DAILY); break;
+                    case 1: viewModel.setFilter(DashboardViewModel.FilterType.CALENDAR); break;
+                    case 2:
+                    case 3: viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY); break;
+                    case 4: viewModel.setFilter(DashboardViewModel.FilterType.NOTE); break;
                 }
             }
-
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) {}
-
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) {}
         });
-
-        // Set initial selection to Daily
-        if (binding.tabLayout.getTabCount() > 0) {
-            binding.tabLayout.getTabAt(0).select();
-        }
-    }
-
-    private void setupRecyclerView() {
-        adapter = new GroupedTransactionAdapter(new GroupedTransactionAdapter.OnTransactionClickListener() {
-            @Override
-            public void onEdit(Transaction transaction) {
-                Bundle args = new Bundle();
-                args.putInt("transactionId", transaction.getId());
-                Navigation.findNavController(requireView()).navigate(R.id.transactionFormFragment, args);
-            }
-
-            @Override
-            public void onDelete(Transaction transaction) {
-                showDeleteConfirmation(transaction);
-            }
-
-            @Override
-            public void onCategoryChange(Transaction transaction, String newCategory) {
-                viewModel.updateTransactionCategory(transaction, newCategory);
-            }
-
-            @Override
-            public java.util.List<String> getCategoriesByType(String type) {
-                java.util.List<String> list = "INCOME".equals(type) ? incomeCategories : expenseCategories;
-                if (list.isEmpty()) {
-                    if ("INCOME".equals(type)) {
-                        return java.util.Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Gift", "Other");
-                    } else {
-                        return java.util.Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other");
-                    }
-                }
-                return list;
-            }
-        }, new GroupedTransactionAdapter.DataFormatter() {
-            @Override public String formatAmount(double amount) { return viewModel.formatAmount(amount); }
-            @Override public String maskPII(String value) { return transactionViewModel.maskPII(value); }
-        });
-        binding.rvTransactions.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
-        binding.rvTransactions.setAdapter(adapter);
-
-        monthlyAdapter = new MonthlySummaryAdapter(amount -> viewModel.formatAmount(amount));
-    }
-
-    private void showDeleteConfirmation(Transaction transaction) {
-        new android.app.AlertDialog.Builder(requireContext())
-                .setTitle("Delete Transaction")
-                .setMessage("Are you sure you want to delete this transaction?")
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    transactionViewModel.deleteTransaction(transaction);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
     }
 
     private void setupFab() {
@@ -232,274 +127,44 @@ public class DashboardFragment extends Fragment {
             });
             return true;
         });
-
-        binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
-        binding.btnBackupDb.setOnClickListener(v -> startBackupFlow());
-        binding.btnRestoreDb.setOnClickListener(v -> startRestoreFlow());
-    }
-
-    private final androidx.activity.result.ActivityResultLauncher<String> createDocumentLauncher = 
-        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip"), uri -> {
-            if (uri != null) performBackupToUri(uri);
-        });
-
-    private final androidx.activity.result.ActivityResultLauncher<String[]> openDocumentLauncher = 
-        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(), uri -> {
-            if (uri != null) performRestoreFromUri(uri);
-        });
-
-    private void startBackupFlow() {
-        createDocumentLauncher.launch("SpendTracker_Backup.zip");
-    }
-
-    private void startRestoreFlow() {
-        openDocumentLauncher.launch(new String[]{"application/zip"});
-    }
-
-    private void performBackupToUri(android.net.Uri uri) {
-        try {
-            File dbFile = requireContext().getDatabasePath("spend_tracker_db");
-            File walFile = new File(dbFile.getAbsolutePath() + "-wal");
-            File shmFile = new File(dbFile.getAbsolutePath() + "-shm");
-            File zipFile = new File(requireContext().getCacheDir(), "backup.zip");
-            
-            com.example.spendtracker.util.StorageHelper.zipFiles(new File[]{dbFile, walFile, shmFile}, zipFile);
-            
-            try (java.io.InputStream in = new java.io.FileInputStream(zipFile);
-                 java.io.OutputStream out = requireContext().getContentResolver().openOutputStream(uri)) {
-                byte[] buf = new byte[8192];
-                int len;
-                while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
-            }
-            android.widget.Toast.makeText(requireContext(), "Backup Successful", android.widget.Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            e.printStackTrace();
-            android.widget.Toast.makeText(requireContext(), "Backup Failed: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void performRestoreFromUri(android.net.Uri uri) {
-        new android.app.AlertDialog.Builder(requireContext())
-            .setTitle("Restore Database")
-            .setMessage("This will replace all current data. The app will restart. Continue?")
-            .setPositiveButton("Restore", (dialog, which) -> {
-                try {
-                    File tempZip = new File(requireContext().getCacheDir(), "restore.zip");
-                    try (java.io.InputStream in = requireContext().getContentResolver().openInputStream(uri);
-                         java.io.OutputStream out = new java.io.FileOutputStream(tempZip)) {
-                        byte[] buf = new byte[8192];
-                        int len;
-                        while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
-                    }
-                    
-                    File dbDir = requireContext().getDatabasePath("spend_tracker_db").getParentFile();
-                    com.example.spendtracker.util.StorageHelper.unzipFile(tempZip, dbDir);
-                    
-                    android.widget.Toast.makeText(requireContext(), "Restore Successful. Restarting...", android.widget.Toast.LENGTH_LONG).show();
-                    new android.os.Handler().postDelayed(() -> {
-                        android.os.Process.killProcess(android.os.Process.myPid());
-                        System.exit(0);
-                    }, 2000);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    android.widget.Toast.makeText(requireContext(), "Restore Failed: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
-                }
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
-    }
-
-
-
-    private void startResetAnimation() {
-        binding.fabProgress.setVisibility(View.VISIBLE);
-        binding.tvFabPercent.setVisibility(View.VISIBLE);
-        
-        android.os.Handler handler = new android.os.Handler();
-        final int[] progress = {0};
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                if (progress[0] <= 100) {
-                    binding.fabProgress.setProgress(progress[0]);
-                    binding.tvFabPercent.setText(progress[0] + "%");
-                    progress[0] += 5;
-                    handler.postDelayed(this, 50);
-                } else {
-                    viewModel.resetModel();
-                    binding.fabProgress.setVisibility(View.GONE);
-                    binding.tvFabPercent.setVisibility(View.GONE);
-                    android.widget.Toast.makeText(requireContext(), "ML Model Reset Complete", android.widget.Toast.LENGTH_SHORT).show();
-                }
-            }
-        };
-        handler.post(runnable);
     }
 
     private void observeViewModel() {
-        viewModel.getGroupedTransactions().observe(getViewLifecycleOwner(), items -> {
-            if (binding.tabLayout.getSelectedTabPosition() == 2 || binding.tabLayout.getSelectedTabPosition() == 3) return;
-            if (items == null || items.isEmpty()) {
-                if (binding.tabLayout.getSelectedTabPosition() == 0) {
-                    binding.layoutEmptyState.setVisibility(View.VISIBLE);
-                    binding.rvTransactions.setVisibility(View.GONE);
-                }
-            } else {
-                binding.layoutEmptyState.setVisibility(View.GONE);
-                if (binding.tabLayout.getSelectedTabPosition() == 0) {
-                    binding.rvTransactions.setVisibility(View.VISIBLE);
-                }
-                adapter.submitList(items);
-            }
-        });
-
-        viewModel.getMonthlySummaries().observe(getViewLifecycleOwner(), summaries -> {
-            monthlyAdapter.submitList(summaries);
-        });
-
-        viewModel.getCalendarDays().observe(getViewLifecycleOwner(), days -> {
-            if (days != null) {
-                CalendarAdapter calendarAdapter = new CalendarAdapter(days, day -> {
-                    // Switch tab first so setFilter(DAILY) runs, then override with specific date
-                    binding.tabLayout.getTabAt(0).select(); 
-                    viewModel.setCalendarFilter(day.timestamp, "Selected Date");
-                }, amount -> viewModel.formatAmount(amount));
-                binding.rvCalendar.setAdapter(calendarAdapter);
-            }
-        });
-
         viewModel.getDateRange().observe(getViewLifecycleOwner(), range -> {
             if (range.start == 0) {
                 binding.tvDashboardHeader.setText("All Time");
             } else {
                 binding.tvDashboardHeader.setText(range.label);
             }
-            binding.tvTotalRangeLabel.setText(new SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(new Date(range.start)) + " ~ " + 
-                                            new SimpleDateFormat("dd.MM.yy", Locale.getDefault()).format(new Date(range.end)));
         });
 
         viewModel.getSummary().observe(getViewLifecycleOwner(), summary -> {
             if (summary != null) {
-                binding.tvTotalIncome.setText(viewModel.formatAmount(summary.getTotalIncome()));
-                binding.tvTotalExpense.setText(viewModel.formatAmount(summary.getTotalExpense()));
-                binding.tvAccountTotal.setText(viewModel.formatAmount(summary.getTotalAccountTransaction()));
-            }
-        });
-
-        viewModel.getTotalPageData().observe(getViewLifecycleOwner(), data -> {
-            if (data != null) {
-                binding.tvComparedPercent.setText(data.comparedPercent + "%");
-                binding.tvAccountExpenses.setText(viewModel.formatAmount(data.accountExpenses));
-                binding.tvCardExpenses.setText(viewModel.formatAmount(data.cardExpenses));
-                binding.tvTotalTransfers.setText(viewModel.formatAmount(data.transfers));
+                updateSummaryUI(summary, Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()));
             }
         });
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
-            adapter.notifyDataSetChanged();
-            monthlyAdapter.notifyDataSetChanged();
-            // Re-bind summary data
             Summary summary = viewModel.getSummary().getValue();
-            if (summary != null) {
-                binding.tvTotalIncome.setText(viewModel.formatAmount(summary.getTotalIncome()));
-                binding.tvTotalExpense.setText(viewModel.formatAmount(summary.getTotalExpense()));
-                binding.tvAccountTotal.setText(viewModel.formatAmount(summary.getTotalAccountTransaction()));
+            if (summary != null) updateSummaryUI(summary, enabled);
+        });
+
+        viewModel.getSelectedTab().observe(getViewLifecycleOwner(), index -> {
+            if (binding.viewPager.getCurrentItem() != index) {
+                binding.viewPager.setCurrentItem(index, true);
             }
-            // Re-bind total page data
-            DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
-            if (data != null) {
-                binding.tvAccountExpenses.setText(viewModel.formatAmount(data.accountExpenses));
-                binding.tvCardExpenses.setText(viewModel.formatAmount(data.cardExpenses));
-                binding.tvTotalTransfers.setText(viewModel.formatAmount(data.transfers));
-            }
-        });
-
-        viewModel.getCategories().observe(getViewLifecycleOwner(), list -> {
-            // This is for all categories, but we want typed ones for the dropdown
-            // To be more efficient, we could observe getCategoriesByType in VM
-        });
-
-        transactionViewModel.getIncomeCategories().observe(getViewLifecycleOwner(), list -> {
-            if (list != null) incomeCategories = list;
-        });
-
-        transactionViewModel.getExpenseCategories().observe(getViewLifecycleOwner(), list -> {
-            if (list != null) expenseCategories = list;
         });
     }
 
-    private void exportToExcel() {
-        // Fetch fresh data for export
-        transactionViewModel.getAllTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<java.util.List<Transaction>>() {
-            @Override
-            public void onChanged(java.util.List<Transaction> transactions) {
-                if (transactions == null || transactions.isEmpty()) {
-                    android.widget.Toast.makeText(requireContext(), "No data to export", android.widget.Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                // Stop observing after getting data
-                transactionViewModel.getAllTransactions().removeObserver(this);
-                
-                try {
-                    org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-                    org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Transactions");
+    private void updateSummaryUI(Summary summary, boolean masked) {
+        binding.tvTotalIncome.setText(formatAmountWithState(summary.getTotalIncome(), masked));
+        binding.tvTotalExpense.setText(formatAmountWithState(summary.getTotalExpense(), masked));
+        binding.tvAccountTotal.setText(formatAmountWithState(summary.getTotalAccountTransaction(), masked));
+    }
 
-                    // Header
-                    org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
-                    String[] headers = {"Date", "Category", "Description", "Amount", "Type", "Source", "Receiver/Sender", "UPI ID"};
-                    for (int i = 0; i < headers.length; i++) {
-                        headerRow.createCell(i).setCellValue(headers[i]);
-                    }
-
-                    // Data
-                    int rowNum = 1;
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                    boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
-
-                    for (Transaction t : transactions) {
-                        org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowNum++);
-                        row.createCell(0).setCellValue(sdf.format(new Date(t.getDate())));
-                        row.createCell(1).setCellValue(t.getCategory());
-                        
-                        // Requirement 11: Mask PII in Excel if privacy mode is on
-                        row.createCell(2).setCellValue(masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
-                        
-                        if (masked) {
-                            row.createCell(3).setCellValue("***");
-                        } else {
-                            row.createCell(3).setCellValue(t.getAmount());
-                        }
-                        
-                        row.createCell(4).setCellValue(t.getType());
-                        row.createCell(5).setCellValue(t.getSource());
-                        
-                        String contact = "INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName();
-                        row.createCell(6).setCellValue(masked ? transactionViewModel.maskPII(contact) : contact);
-                        
-                        row.createCell(7).setCellValue(masked ? transactionViewModel.maskPII(t.getUpiId()) : t.getUpiId());
-                    }
-
-                    String fileName = "SpendTracker_Export.xlsx";
-                    java.io.File file = new java.io.File(requireContext().getExternalFilesDir(null), fileName);
-                    java.io.FileOutputStream out = new java.io.FileOutputStream(file);
-                    workbook.write(out);
-                    out.close();
-                    workbook.close();
-
-                    // Share intent
-                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
-                    intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                    android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
-                    intent.putExtra(android.content.Intent.EXTRA_STREAM, uri);
-                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    startActivity(android.content.Intent.createChooser(intent, "Share Excel File"));
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    android.widget.Toast.makeText(requireContext(), "Export failed: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
+    private String formatAmountWithState(double amount, boolean masked) {
+        if (masked) return "***";
+        return String.format(Locale.getDefault(), "₹ %.0f", amount);
     }
 
     @Override

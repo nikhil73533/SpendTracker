@@ -92,7 +92,7 @@ public class SMSReceiver extends BroadcastReceiver {
                     );
                     
                     KNNPredictor.PredictionResult result = predictionService.predict(pt);
-                    if (result != null && result.getConfidence() > 0.5) {
+                    if (result != null) { // Removed confidence threshold per requirement
                         transactionToSave = new Transaction(
                             originalTransaction.getId(),
                             originalTransaction.getAmount(),

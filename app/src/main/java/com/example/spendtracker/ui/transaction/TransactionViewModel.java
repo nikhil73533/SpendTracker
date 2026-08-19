@@ -105,4 +105,12 @@ public class TransactionViewModel extends ViewModel {
     public LiveData<List<Transaction>> getAccountHistory(String accountId, long start, long end) {
         return repository.getAccountHistory(accountId, start, end);
     }
+
+    public void markAsRead(String accountName) {
+        new Thread(() -> repository.markAsRead(accountName)).start();
+    }
+
+    public LiveData<List<String>> getUniqueContacts() {
+        return repository.getUniqueContacts();
+    }
 }

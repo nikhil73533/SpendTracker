@@ -23,6 +23,7 @@ public class AccountsFragment extends Fragment {
     private FragmentAccountsBinding binding;
     private TransactionViewModel viewModel;
     private AccountsAdapter adapter;
+    private List<TransactionDao.AccountSummary> allAccounts = new ArrayList<>();
 
     @Nullable
     @Override
@@ -36,9 +37,13 @@ public class AccountsFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(this).get(TransactionViewModel.class);
         
+        setupTabs();
+        setupSearch();
+
         adapter = new AccountsAdapter(account -> {
+            viewModel.markAsRead(account.name);
             Bundle args = new Bundle();
-            args.putString("accountId", (account.upiId != null && !account.upiId.isEmpty()) ? account.upiId : account.name);
+            args.putString("accountId", account.name); 
             args.putString("accountName", account.name);
             Navigation.findNavController(requireView()).navigate(R.id.action_accountsFragment_to_accountHistoryFragment, args);
         }, new AccountsAdapter.AccountFormatter() {
@@ -48,12 +53,58 @@ public class AccountsFragment extends Fragment {
         binding.rvAccounts.setAdapter(adapter);
 
         viewModel.getUniqueAccounts().observe(getViewLifecycleOwner(), accounts -> {
-            adapter.submitList(accounts);
+            allAccounts = accounts;
+            if (binding.etSearch.getText() != null) {
+                filterAccounts(binding.etSearch.getText().toString());
+            } else {
+                filterAccounts("");
+            }
         });
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
         });
+    }
+
+    private void setupTabs() {
+        binding.tabAccounts.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
+                if (tab.getPosition() == 1) {
+                    binding.layoutSearch.setVisibility(View.VISIBLE);
+                } else {
+                    binding.layoutSearch.setVisibility(View.GONE);
+                    binding.etSearch.setText("");
+                }
+            }
+            @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+            @Override public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+        });
+    }
+
+    private void setupSearch() {
+        binding.etSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                filterAccounts(s.toString());
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+    }
+
+    private void filterAccounts(String query) {
+        if (query == null || query.isEmpty()) {
+            adapter.submitList(allAccounts);
+            return;
+        }
+        List<TransactionDao.AccountSummary> filtered = new ArrayList<>();
+        for (TransactionDao.AccountSummary account : allAccounts) {
+            if (account.name.toLowerCase().contains(query.toLowerCase()) || 
+                (account.upiId != null && account.upiId.toLowerCase().contains(query.toLowerCase()))) {
+                filtered.add(account);
+            }
+        }
+        adapter.submitList(filtered);
     }
 
     private static class AccountsAdapter extends androidx.recyclerview.widget.ListAdapter<TransactionDao.AccountSummary, AccountsAdapter.ViewHolder> {
@@ -93,7 +144,7 @@ public class AccountsFragment extends Fragment {
         }
 
         static class ViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
-            android.widget.TextView tvName, tvUpiId, tvExpense, tvLastDate;
+            android.widget.TextView tvName, tvUpiId, tvExpense, tvLastDate, tvUnread;
             private final AccountFormatter formatter;
 
             public ViewHolder(@NonNull android.view.View itemView, AccountFormatter formatter) {
@@ -103,18 +154,51 @@ public class AccountsFragment extends Fragment {
                 tvUpiId = itemView.findViewById(R.id.tv_upi_id);
                 tvExpense = itemView.findViewById(R.id.tv_total_expense);
                 tvLastDate = itemView.findViewById(R.id.tv_last_date);
+                tvUnread = itemView.findViewById(R.id.tv_unread_count);
             }
 
             public void bind(TransactionDao.AccountSummary account, java.util.function.Consumer<TransactionDao.AccountSummary> listener) {
-                tvName.setText(formatter.maskPII(account.name));
-                tvUpiId.setText(formatter.maskPII(account.upiId));
-                tvExpense.setText(formatter.formatAmount(account.totalExpense));
-                
-                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault());
-                tvLastDate.setText("Last: " + sdf.format(new java.util.Date(account.lastTransactionDate)));
-                
-                itemView.setOnClickListener(v -> listener.accept(account));
+            tvName.setText(formatter.maskPII(account.name));
+            
+            // WhatsApp style: Show UPI ID in the subtext
+            tvUpiId.setText(formatter.maskPII(account.upiId));
+
+            // Format date: Today, Yesterday, or Date
+            String dateLabel = formatLastDate(account.lastTransactionDate);
+            tvLastDate.setText(dateLabel);
+            
+            tvExpense.setText(formatter.formatAmount(account.totalExpense));
+
+            if (account.unreadCount > 0) {
+                tvUnread.setVisibility(View.VISIBLE);
+                tvUnread.setText(String.valueOf(account.unreadCount));
+            } else {
+                tvUnread.setVisibility(View.GONE);
             }
+            
+            itemView.setOnClickListener(v -> listener.accept(account));
+        }
+
+        private String formatLastDate(long timestamp) {
+            if (timestamp == 0) return "";
+            java.util.Calendar today = java.util.Calendar.getInstance();
+            java.util.Calendar target = java.util.Calendar.getInstance();
+            target.setTimeInMillis(timestamp);
+
+            if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
+                today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
+                return "Today";
+            }
+            
+            today.add(java.util.Calendar.DAY_OF_YEAR, -1);
+            if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
+                today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
+                return "Yesterday";
+            }
+
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yy", java.util.Locale.getDefault());
+            return sdf.format(new java.util.Date(timestamp));
+        }
         }
     }
 

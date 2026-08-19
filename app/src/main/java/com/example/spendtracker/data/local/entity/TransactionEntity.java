@@ -18,6 +18,7 @@ public class TransactionEntity {
     public String receiverName;
     public String bankName;
     public String sourceType;
+    public boolean isRead = true;
     
     // Transfer specific fields
     public String fromAccount;

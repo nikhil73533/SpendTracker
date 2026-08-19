@@ -16,12 +16,17 @@ import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.DailyTrend;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.data.BarData;
+import com.github.mikephil.charting.data.BarDataSet;
+import com.github.mikephil.charting.data.BarEntry;
 import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.material.tabs.TabLayout;
 import dagger.hilt.android.AndroidEntryPoint;
@@ -40,8 +45,10 @@ public class ChartsFragment extends Fragment {
     private FragmentChartsBinding binding;
     private ChartsViewModel viewModel;
     private CategoryStatsAdapter statsAdapter;
+    private CategoryStatsAdapter sourceStatsAdapter;
     private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMM yyyy", Locale.getDefault());
     private boolean showingExpenses = true;
+    private android.view.GestureDetector gestureDetector;
 
     @Nullable
     @Override
@@ -58,7 +65,41 @@ public class ChartsFragment extends Fragment {
         setupToolbar();
         setupTabLayout();
         setupRecyclerView();
+        setupSwipeNavigation();
         observeViewModel();
+    }
+
+    private void setupSwipeNavigation() {
+        gestureDetector = new android.view.GestureDetector(requireContext(), new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(@Nullable android.view.MotionEvent e1, @NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null) return false;
+                if (Math.abs(velocityX) > Math.abs(velocityY)) {
+                    if (e1.getX() - e2.getX() > 100) { // Swipe left
+                        if (!showingExpenses) {
+                            binding.tabChartType.getTabAt(1).select();
+                            return true;
+                        }
+                    } else if (e2.getX() - e1.getX() > 100) { // Swipe right
+                        if (showingExpenses) {
+                            binding.tabChartType.getTabAt(0).select();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+        });
+
+        View.OnTouchListener touchListener = (v, event) -> {
+            boolean consumed = gestureDetector.onTouchEvent(event);
+            if (event.getAction() == android.view.MotionEvent.ACTION_UP && !consumed) {
+                v.performClick();
+            }
+            return consumed;
+        };
+        
+        binding.getRoot().setOnTouchListener(touchListener);
     }
 
     private void setupToolbar() {
@@ -79,6 +120,7 @@ public class ChartsFragment extends Fragment {
                     binding.tabChartType.setSelectedTabIndicatorColor(requireContext().getColor(R.color.income_blue));
                 }
                 viewModel.setTransactionType(showingExpenses ? "EXPENSE" : "INCOME");
+                updateSectionVisibility();
             }
 
             @Override
@@ -90,6 +132,20 @@ public class ChartsFragment extends Fragment {
         
         // Initial state: Expenses
         binding.tabChartType.getTabAt(1).select();
+    }
+
+    private void updateSectionVisibility() {
+        int visibility = showingExpenses ? View.VISIBLE : View.GONE;
+        binding.tvTrendsTitle.setVisibility(View.VISIBLE); // Trends are kept for both
+        binding.lineChart.setVisibility(View.VISIBLE);
+        
+        binding.tvWeekendTitle.setVisibility(visibility);
+        binding.barChartWeekend.setVisibility(visibility);
+        binding.tvBanksTitle.setVisibility(visibility);
+        binding.barChartBanks.setVisibility(visibility);
+        binding.tvSourceTitle.setVisibility(visibility);
+        binding.pieChartSource.setVisibility(visibility);
+        binding.rvSourceStats.setVisibility(visibility);
     }
 
     private void showGranularityMenu(View v) {
@@ -113,6 +169,10 @@ public class ChartsFragment extends Fragment {
         statsAdapter = new CategoryStatsAdapter(category -> navigateToCategoryDetail(category), amount -> viewModel.formatAmount(amount));
         binding.rvStats.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvStats.setAdapter(statsAdapter);
+
+        sourceStatsAdapter = new CategoryStatsAdapter(null, amount -> viewModel.formatAmount(amount));
+        binding.rvSourceStats.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
+        binding.rvSourceStats.setAdapter(sourceStatsAdapter);
     }
 
     private void navigateToCategoryDetail(String category) {
@@ -137,9 +197,31 @@ public class ChartsFragment extends Fragment {
 
         viewModel.getChartData().observe(getViewLifecycleOwner(), summary -> {
             updateUIWithData(summary);
+            // Force re-draw for state sync reliability
+            binding.pieChartMain.invalidate();
         });
 
-        viewModel.getDailyTrends().observe(getViewLifecycleOwner(), this::setupLineChart);
+        viewModel.getDailyTrends().observe(getViewLifecycleOwner(), trends -> {
+            setupLineChart(trends);
+            binding.lineChart.invalidate();
+        });
+
+        viewModel.getWeekdayWeekendTotals().observe(getViewLifecycleOwner(), data -> {
+            setupBarChart(binding.barChartWeekend, data, "Weekend vs Weekday");
+        });
+
+        viewModel.getBankTotals().observe(getViewLifecycleOwner(), data -> {
+            setupBarChart(binding.barChartBanks, data, "Bank Totals");
+        });
+
+        viewModel.getSourceTypeTotals().observe(getViewLifecycleOwner(), data -> {
+            Map<String, Double> breakdown = mapSourceLabels(data);
+            double total = calculateTotal(data);
+            setupPieChart(binding.pieChartSource, breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
+            updateSourceStatsList(breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
+        });
+
+        updateSectionVisibility();
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             Summary summary = viewModel.getChartData().getValue();
@@ -193,10 +275,17 @@ public class ChartsFragment extends Fragment {
     }
 
     private void updateStatsList(Map<String, Double> breakdown, double total, int[] baseColors) {
+        statsAdapter.submitList(createStatsList(breakdown, total, baseColors));
+    }
+
+    private void updateSourceStatsList(Map<String, Double> breakdown, double total, int[] baseColors) {
+        sourceStatsAdapter.submitList(createStatsList(breakdown, total, baseColors));
+    }
+
+    private List<CategoryStatsAdapter.CategoryStat> createStatsList(Map<String, Double> breakdown, double total, int[] baseColors) {
         List<CategoryStatsAdapter.CategoryStat> stats = new ArrayList<>();
         if (breakdown == null || total == 0) {
-            statsAdapter.submitList(stats);
-            return;
+            return stats;
         }
 
         List<Map.Entry<String, Double>> sorted = new ArrayList<>(breakdown.entrySet());
@@ -208,7 +297,7 @@ public class ChartsFragment extends Fragment {
             int color = baseColors[i % baseColors.length];
             stats.add(new CategoryStatsAdapter.CategoryStat(entry.getKey(), entry.getValue(), percentage, color));
         }
-        statsAdapter.submitList(stats);
+        return stats;
     }
 
     private void setupPieChart(PieChart chart, Map<String, Double> breakdown, double total, int[] baseColors) {
@@ -332,7 +421,7 @@ public class ChartsFragment extends Fragment {
         binding.lineChart.getDescription().setEnabled(false);
         binding.lineChart.getLegend().setEnabled(false);
         
-        binding.lineChart.getXAxis().setValueFormatter(new com.github.mikephil.charting.formatter.IndexAxisValueFormatter(xLabels));
+        binding.lineChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(xLabels));
         binding.lineChart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
         binding.lineChart.getXAxis().setDrawGridLines(false);
         binding.lineChart.getXAxis().setTextColor(Color.GRAY);
@@ -344,6 +433,80 @@ public class ChartsFragment extends Fragment {
         
         binding.lineChart.animateX(1000);
         binding.lineChart.invalidate();
+    }
+
+    private void setupBarChart(BarChart chart, List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> data, String label) {
+        if (data == null || data.isEmpty()) {
+            chart.clear();
+            chart.setNoDataText("No data available");
+            chart.invalidate();
+            return;
+        }
+
+        List<BarEntry> entries = new ArrayList<>();
+        List<String> xLabels = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            entries.add(new BarEntry(i, (float) data.get(i).total));
+            xLabels.add(data.get(i).category);
+        }
+
+        BarDataSet dataSet = new BarDataSet(entries, label);
+        dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
+        dataSet.setValueTextColor(Color.WHITE);
+        dataSet.setValueTextSize(10f);
+
+        BarData barData = new BarData(dataSet);
+        chart.setData(barData);
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
+
+        chart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(xLabels));
+        chart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
+        chart.getXAxis().setDrawGridLines(false);
+        chart.getXAxis().setTextColor(Color.GRAY);
+        chart.getXAxis().setGranularity(1f);
+
+        chart.getAxisLeft().setTextColor(Color.GRAY);
+        chart.getAxisLeft().setGridColor(Color.DKGRAY);
+        chart.getAxisRight().setEnabled(false);
+
+        chart.animateY(1000);
+        chart.invalidate();
+    }
+
+    private Map<String, Double> mapSourceLabels(List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> data) {
+        Map<String, Double> map = new LinkedHashMap<>();
+        if (data != null) {
+            for (com.example.spendtracker.data.local.dao.TransactionDao.CategorySum sum : data) {
+                String label = sum.category;
+                if ("Card".equalsIgnoreCase(label)) label = "Credit Card";
+                else if ("Account".equalsIgnoreCase(label)) label = "Account";
+                else label = "Other";
+                
+                map.put(label, map.getOrDefault(label, 0.0) + sum.total);
+            }
+        }
+        return map;
+    }
+
+    private Map<String, Double> convertToMap(List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> data) {
+        Map<String, Double> map = new LinkedHashMap<>();
+        if (data != null) {
+            for (com.example.spendtracker.data.local.dao.TransactionDao.CategorySum sum : data) {
+                map.put(sum.category, sum.total);
+            }
+        }
+        return map;
+    }
+
+    private double calculateTotal(List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> data) {
+        double total = 0;
+        if (data != null) {
+            for (com.example.spendtracker.data.local.dao.TransactionDao.CategorySum sum : data) {
+                total += sum.total;
+            }
+        }
+        return total;
     }
 
     @Override

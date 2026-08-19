@@ -1,6 +1,7 @@
 package com.example.spendtracker.data.sms;
 
 import android.content.Context;
+import android.util.Log;
 import com.example.spendtracker.data.local.entity.RegexPatternEntity;
 import com.example.spendtracker.domain.model.Transaction;
 import org.json.JSONArray;
@@ -17,7 +18,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext;
 
 @Singleton
 public class SMSParser {
-
+    private static final String TAG = "SMSParser";
     private final Context context;
 
     @Inject
@@ -26,21 +27,53 @@ public class SMSParser {
     }
 
     public Transaction parseSMS(String sender, String body, List<RegexPatternEntity> dbPatterns) {
+        if (isOtpOrGeneric(body)) {
+            Log.d(TAG, "Message identified as OTP or non-transactional. Skipping.");
+            return null;
+        }
+
         // 1. Try JSON configurations from assets
         Transaction transaction = parseFromJsonConfigs(body, sender);
-        if (transaction != null) return transaction;
+        if (isValid(transaction)) return transaction;
 
         // 2. Try custom patterns from DB
         for (RegexPatternEntity entity : dbPatterns) {
-            Pattern p = Pattern.compile(entity.pattern, Pattern.CASE_INSENSITIVE);
-            Matcher m = p.matcher(body);
-            if (m.find()) {
-                return createTransactionFromMatcher(body, sender, m, entity);
+            try {
+                Pattern p = Pattern.compile(entity.pattern, Pattern.CASE_INSENSITIVE);
+                Matcher m = p.matcher(body);
+                if (m.find()) {
+                    Transaction tx = createTransactionFromMatcher(body, sender, m, entity);
+                    if (isValid(tx)) return tx;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing with DB pattern: " + entity.pattern, e);
             }
         }
 
         // 3. Fallback to robust generic parsing
-        return parseGeneric(sender, body);
+        Transaction genericTx = parseGeneric(sender, body);
+        if (isValid(genericTx)) return genericTx;
+
+        return null;
+    }
+
+    private boolean isOtpOrGeneric(String body) {
+        String lowerBody = body.toLowerCase();
+        return lowerBody.contains("otp") || 
+               lowerBody.contains("verification code") || 
+               lowerBody.contains("one time password") ||
+               (lowerBody.contains("login") && !lowerBody.contains("spent")) ||
+               lowerBody.contains("your password is");
+    }
+
+    private boolean isValid(Transaction tx) {
+        if (tx == null) return false;
+        // Basic validation: amount must be positive, type must be set
+        if (tx.getAmount() <= 0) return false;
+        if (tx.getType() == null || tx.getType().isEmpty()) return false;
+        // Prevent false positives that look like years or phone numbers but caught by weak regex
+        if (tx.getAmount() > 10000000) return false; // Safety threshold for normal users
+        return true;
     }
 
     private Transaction parseFromJsonConfigs(String body, String sender) {
@@ -91,25 +124,20 @@ public class SMSParser {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(TAG, "Error in parseFromJsonConfigs", e);
         }
         return null;
     }
 
     private String loadJSONFromAsset(String fileName) {
-        String json;
-        try {
-            InputStream is = context.getAssets().open(fileName);
+        try (InputStream is = context.getAssets().open(fileName)) {
             int size = is.available();
             byte[] buffer = new byte[size];
             is.read(buffer);
-            is.close();
-            json = new String(buffer, StandardCharsets.UTF_8);
+            return new String(buffer, StandardCharsets.UTF_8);
         } catch (Exception ex) {
-            ex.printStackTrace();
             return null;
         }
-        return json;
     }
 
     private Transaction createTransactionFromMatcher(String body, String sender, Matcher m, RegexPatternEntity entity) {
@@ -137,50 +165,74 @@ public class SMSParser {
     private Transaction parseGeneric(String sender, String body) {
         String lowerBody = body.toLowerCase();
         
-        boolean isExpense = lowerBody.contains("debited") || lowerBody.contains("spent") || lowerBody.contains("paid") || lowerBody.contains("dr ");
-        boolean isIncome = lowerBody.contains("credited") || lowerBody.contains("received") || lowerBody.contains("cr ");
+        boolean isExpense = lowerBody.contains("debited") || lowerBody.contains("spent") || lowerBody.contains("paid") || lowerBody.contains("dr ") || lowerBody.contains("payment of");
+        boolean isIncome = lowerBody.contains("credited") || lowerBody.contains("received") || lowerBody.contains("cr ") || lowerBody.contains("added to");
 
         if (!isExpense && !isIncome) return null;
 
         String type = isIncome ? "INCOME" : "EXPENSE";
 
-        Pattern amountPattern = Pattern.compile("(?i)(?:INR|Rs\\.?|Rs|Dr|Cr)\\s*([\\d,.]+)");
-        Matcher amountMatcher = amountPattern.matcher(body);
-        double amount = 0;
-        if (amountMatcher.find()) {
-            String val = amountMatcher.group(1);
-            if (val != null) {
-                try {
-                    amount = Double.parseDouble(val.replaceAll(",", ""));
-                } catch (NumberFormatException e) {}
-            }
-        }
+        // Multi-level Amount Extraction
+        double amount = extractAmount(body);
+        if (amount <= 0) return null;
 
-        String bank = "SMS";
-        if (lowerBody.contains("icici")) bank = "ICICI Bank";
-        else if (lowerBody.contains("au bank") || lowerBody.contains("au a/c") || lowerBody.contains(" au ")) bank = "AU Bank";
-
-        String sourceType = "Account";
-        if (lowerBody.contains("credit card")) {
-            sourceType = "Credit Card";
-        }
-        
-        String receiver = "Uncategorized";
-        String upiId = "";
-        
-        if (lowerBody.contains("icici")) {
-            Pattern iciciReceiver = Pattern.compile("(?i)for\\s+(?!INR|Rs|Rs\\.)(?:UPI-\\d+-)?([^.]+?)(?=\\.|\\s+To|\\s+on)");
-            Matcher m = iciciReceiver.matcher(body);
-            if (m.find() && m.group(1) != null) {
-                receiver = m.group(1).trim();
-            }
-        } else if (lowerBody.contains("au ")) {
-            String[] parts = body.split("/");
-            if (parts.length > 3) {
-                receiver = parts[3].trim();
-            }
-        }
+        String bank = extractBank(lowerBody);
+        String sourceType = lowerBody.contains("credit card") ? "Credit Card" : "Account";
+        String receiver = extractReceiver(body, bank);
+        String upiId = extractUpiId(body);
 
         return new Transaction(0, amount, "Other", body, type, System.currentTimeMillis(), bank + " (" + sourceType + ")", sender, upiId, receiver, bank, sourceType);
+    }
+
+    private double extractAmount(String body) {
+        // Try various common amount patterns
+        String[] patterns = {
+            "(?i)(?:INR|Rs\\.?|Rs|Dr|Cr|Paytm)\\s*([\\d,.]+)",
+            "(?i)amount[ed]?\\s*(?:of\\s*)?([\\d,.]+)",
+            "(?i)spent\\s*([\\d,.]+)"
+        };
+        for (String pStr : patterns) {
+            Matcher m = Pattern.compile(pStr).matcher(body);
+            if (m.find()) {
+                try {
+                    String val = m.group(1);
+                    if (val != null) return Double.parseDouble(val.replaceAll(",", ""));
+                } catch (Exception ignored) {}
+            }
+        }
+        return 0;
+    }
+
+    private String extractBank(String lowerBody) {
+        if (lowerBody.contains("icici")) return "ICICI Bank";
+        if (lowerBody.contains("au bank") || lowerBody.contains("au a/c")) return "AU Bank";
+        if (lowerBody.contains("hdfc")) return "HDFC Bank";
+        if (lowerBody.contains("sbi")) return "SBI";
+        if (lowerBody.contains("axis")) return "Axis Bank";
+        return "SMS";
+    }
+
+    private String extractReceiver(String body, String bank) {
+        if ("ICICI Bank".equals(bank)) {
+            Pattern p = Pattern.compile("(?i)for\\s+(?!INR|Rs|Rs\\.)(?:UPI-\\d+-)?([^.]+?)(?=\\.|\\s+To|\\s+on)");
+            Matcher m = p.matcher(body);
+            if (m.find() && m.group(1) != null) return m.group(1).trim();
+        } else if ("AU Bank".equals(bank)) {
+            String[] parts = body.split("/");
+            if (parts.length > 3) return parts[3].trim();
+        }
+        
+        // Generic "at" or "to" extraction
+        Pattern genericAt = Pattern.compile("(?i)(?:at|to|into)\\s+([^.]+?)(?=\\s+on|\\s+at|\\.|\\z)");
+        Matcher m = genericAt.matcher(body);
+        if (m.find() && m.group(1) != null) return m.group(1).trim();
+        
+        return "Uncategorized";
+    }
+
+    private String extractUpiId(String body) {
+        Pattern p = Pattern.compile("([\\w.-]+@[\\w.-]+)");
+        Matcher m = p.matcher(body);
+        return m.find() ? m.group(1) : "";
     }
 }

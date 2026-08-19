@@ -27,7 +27,26 @@ public class MoreFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        // Category management removed from here
+        
+        binding.cardLedger.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.accountsFragment)
+        );
+
+        binding.cardAdvancedAnalytics.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.chartsFragment)
+        );
+
+        binding.cardConfiguration.setOnClickListener(v -> showComingSoon("Configuration"));
+        binding.cardMessageCaching.setOnClickListener(v -> showComingSoon("Message Caching"));
+        binding.cardCalcbox.setOnClickListener(v -> showComingSoon("CalcBox"));
+        binding.cardBackup.setOnClickListener(v -> showComingSoon("Backup"));
+        binding.cardFeedback.setOnClickListener(v -> showComingSoon("Feedback"));
+        binding.cardHelp.setOnClickListener(v -> showComingSoon("Help"));
+        binding.cardRecommend.setOnClickListener(v -> showComingSoon("Recommend"));
+    }
+
+    private void showComingSoon(String feature) {
+        android.widget.Toast.makeText(requireContext(), getString(R.string.coming_soon, feature), android.widget.Toast.LENGTH_SHORT).show();
     }
 
     @Override

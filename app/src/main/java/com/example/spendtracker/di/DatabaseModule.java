@@ -37,7 +37,7 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                 .build();
         
         return db;
@@ -47,6 +47,13 @@ public class DatabaseModule {
         @Override
         public void migrate(SupportSQLiteDatabase database) {
             database.execSQL("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'EXPENSE'");
+        }
+    };
+
+    static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE transactions ADD COLUMN isRead INTEGER NOT NULL DEFAULT 1");
         }
     };
 

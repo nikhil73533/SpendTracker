@@ -52,7 +52,7 @@ public class SecurityRepositoryImpl implements SecurityRepository {
 
     @Override
     public void setPrivacyModeEnabled(boolean enabled) {
-        privacyMode.postValue(enabled);
+        privacyMode.setValue(enabled);
     }
 
     @Override

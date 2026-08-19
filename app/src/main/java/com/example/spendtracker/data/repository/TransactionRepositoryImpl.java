@@ -206,6 +206,31 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         });
     }
 
+    @Override
+    public LiveData<List<TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end) {
+        return transactionDao.getWeekdayWeekendTotals(start, end);
+    }
+
+    @Override
+    public LiveData<List<TransactionDao.CategorySum>> getBankTotals(long start, long end) {
+        return transactionDao.getBankTotals(start, end);
+    }
+
+    @Override
+    public LiveData<List<TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end) {
+        return transactionDao.getSourceTypeTotals(start, end);
+    }
+
+    @Override
+    public void markAsRead(String accountName) {
+        executorService.execute(() -> transactionDao.markAsRead(accountName));
+    }
+
+    @Override
+    public LiveData<List<String>> getUniqueContacts() {
+        return transactionDao.getUniqueContacts();
+    }
+
     private void updateSummary(MediatorLiveData<Summary> summaryMediator, Double income, Double expense, Double account, 
                                List<TransactionDao.CategorySum> expSums, List<TransactionDao.CategorySum> expAvgs,
                                List<TransactionDao.CategorySum> incSums, List<TransactionDao.CategorySum> incAvgs) {

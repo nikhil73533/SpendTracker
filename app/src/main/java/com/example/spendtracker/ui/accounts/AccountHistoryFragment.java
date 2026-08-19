@@ -1,5 +1,6 @@
 package com.example.spendtracker.ui.accounts;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,13 +14,23 @@ import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentAccountHistoryBinding;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.transaction.TransactionViewModel;
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.ValueFormatter;
 import dagger.hilt.android.AndroidEntryPoint;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 @AndroidEntryPoint
 public class AccountHistoryFragment extends Fragment {
@@ -29,10 +40,12 @@ public class AccountHistoryFragment extends Fragment {
     private ChatAdapter adapter;
     private String accountId;
     private String accountName;
-    private long currentMonthStart;
-    private final SimpleDateFormat monthFormat = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
+    
     private final SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
-    private final androidx.lifecycle.MutableLiveData<Long> monthStartLive = new androidx.lifecycle.MutableLiveData<>();
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.getDefault());
+
+    private enum Granularity { WEEKLY, MONTHLY, ANNUAL }
+    private Granularity currentGranularity = Granularity.WEEKLY;
 
     @Nullable
     @Override
@@ -52,15 +65,6 @@ public class AccountHistoryFragment extends Fragment {
         }
 
         setupUI();
-        
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.DAY_OF_MONTH, 1);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        monthStartLive.setValue(cal.getTimeInMillis());
-        
         observeData();
     }
 
@@ -69,131 +73,279 @@ public class AccountHistoryFragment extends Fragment {
         binding.tvUpiId.setText(viewModel.maskPII(accountId));
         binding.btnBack.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
 
-        binding.btnDateFilter.setOnClickListener(this::showMonthPicker);
+        binding.btnGranularity.setOnClickListener(v -> showGranularityMenu());
+        binding.btnGranularity.setText(currentGranularity.name());
 
         adapter = new ChatAdapter();
         binding.rvHistory.setAdapter(adapter);
+        
+        setupLineChart();
     }
 
-    private void showMonthPicker(View v) {
-        android.widget.PopupMenu menu = new android.widget.PopupMenu(requireContext(), v);
-        Long current = monthStartLive.getValue();
-        if (current == null) current = System.currentTimeMillis();
-        
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(current);
-        
-        for (int i = 0; i < 6; i++) {
-            menu.getMenu().add(0, i, 0, monthFormat.format(cal.getTime()));
-            cal.add(Calendar.MONTH, -1);
+    private void showGranularityMenu() {
+        android.widget.PopupMenu menu = new android.widget.PopupMenu(requireContext(), binding.btnGranularity);
+        for (Granularity g : Granularity.values()) {
+            menu.getMenu().add(g.name());
         }
-
         menu.setOnMenuItemClickListener(item -> {
-            Calendar newCal = Calendar.getInstance();
-            newCal.set(Calendar.DAY_OF_MONTH, 1);
-            newCal.set(Calendar.HOUR_OF_DAY, 0);
-            newCal.set(Calendar.MINUTE, 0);
-            newCal.set(Calendar.SECOND, 0);
-            newCal.set(Calendar.MILLISECOND, 0);
-            newCal.add(Calendar.MONTH, -item.getItemId());
-            monthStartLive.setValue(newCal.getTimeInMillis());
+            currentGranularity = Granularity.valueOf(item.getTitle().toString());
+            binding.btnGranularity.setText(currentGranularity.name());
+            updateTrendChart();
             return true;
         });
         menu.show();
     }
 
     private void observeData() {
-        monthStartLive.observe(getViewLifecycleOwner(), start -> {
-            binding.tvDateLabel.setText(monthFormat.format(new Date(start)));
-        });
-
-        androidx.lifecycle.LiveData<List<Transaction>> history = androidx.lifecycle.Transformations.switchMap(monthStartLive, start -> {
-            Calendar cal = Calendar.getInstance();
-            cal.setTimeInMillis(start);
-            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
-            cal.set(Calendar.HOUR_OF_DAY, 23);
-            cal.set(Calendar.MINUTE, 59);
-            cal.set(Calendar.SECOND, 59);
-            return viewModel.getAccountHistory(accountId, start, cal.getTimeInMillis());
-        });
-
-        history.observe(getViewLifecycleOwner(), transactions -> {
-            adapter.submitList(transactions);
-            double totalExpense = 0;
+        // Fetch all history for this account
+        viewModel.getAccountHistory(accountId, 0, System.currentTimeMillis()).observe(getViewLifecycleOwner(), transactions -> {
             if (transactions != null) {
-                for (Transaction t : transactions) {
-                    if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
-                }
-            }
-            binding.tvTotalExpense.setText(viewModel.formatAmount(totalExpense));
-        });
-
-        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
-            adapter.notifyDataSetChanged();
-            // Totals will refresh because viewModel.formatAmount depends on privacy mode
-            List<Transaction> currentList = history.getValue();
-            if (currentList != null) {
+                processAndSubmitList(transactions);
+                updateTrendChart(transactions);
+                
                 double totalExpense = 0;
-                for (Transaction t : currentList) {
+                for (Transaction t : transactions) {
                     if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
                 }
                 binding.tvTotalExpense.setText(viewModel.formatAmount(totalExpense));
             }
         });
+
+        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            adapter.notifyDataSetChanged();
+            updateTrendChart(); // Redraw chart to mask values if needed
+        });
     }
 
-    private class ChatAdapter extends androidx.recyclerview.widget.ListAdapter<Transaction, ChatAdapter.ViewHolder> {
-        private static final int TYPE_PAID = 0;
-        private static final int TYPE_RECEIVED = 1;
+    private void processAndSubmitList(List<Transaction> transactions) {
+        List<ChatListItem> items = new ArrayList<>();
+        if (transactions == null || transactions.isEmpty()) {
+            adapter.setListItems(items);
+            return;
+        }
 
-        protected ChatAdapter() {
-            super(new androidx.recyclerview.widget.DiffUtil.ItemCallback<Transaction>() {
-                @Override
-                public boolean areItemsTheSame(@NonNull Transaction oldItem, @NonNull Transaction newItem) {
-                    return oldItem.getId() == newItem.getId();
-                }
-                @Override
-                public boolean areContentsTheSame(@NonNull Transaction oldItem, @NonNull Transaction newItem) {
-                    return oldItem.getAmount() == newItem.getAmount() && oldItem.getCategory().equals(newItem.getCategory());
-                }
-            });
+        // Sort descending (latest first for chat-like top-down history or latest at bottom?)
+        // WhatsApp has latest at bottom. Chronological order.
+        Collections.sort(transactions, (a, b) -> Long.compare(a.getDate(), b.getDate()));
+
+        String lastDate = "";
+        for (Transaction t : transactions) {
+            String dateStr = getFormattedDate(t.getDate());
+            if (!dateStr.equals(lastDate)) {
+                items.add(new ChatListItem(dateStr));
+                lastDate = dateStr;
+            }
+            items.add(new ChatListItem(t));
+        }
+        adapter.setListItems(items);
+        binding.rvHistory.scrollToPosition(items.size() - 1);
+    }
+
+    private String getFormattedDate(long timestamp) {
+        Calendar today = Calendar.getInstance();
+        Calendar target = Calendar.getInstance();
+        target.setTimeInMillis(timestamp);
+
+        if (today.get(Calendar.YEAR) == target.get(Calendar.YEAR) &&
+            today.get(Calendar.DAY_OF_YEAR) == target.get(Calendar.DAY_OF_YEAR)) {
+            return "TODAY";
+        }
+        
+        today.add(Calendar.DAY_OF_YEAR, -1);
+        if (today.get(Calendar.YEAR) == target.get(Calendar.YEAR) &&
+            today.get(Calendar.DAY_OF_YEAR) == target.get(Calendar.DAY_OF_YEAR)) {
+            return "YESTERDAY";
+        }
+
+        return dateFormat.format(new Date(timestamp));
+    }
+
+    private void setupLineChart() {
+        LineChart chart = binding.trendChart;
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
+        chart.setTouchEnabled(true);
+        chart.setDragEnabled(true);
+        chart.setScaleEnabled(true);
+        chart.setPinchZoom(true);
+        chart.setDrawGridBackground(false);
+
+        XAxis xAxis = chart.getXAxis();
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setTextColor(Color.WHITE);
+        xAxis.setDrawGridLines(false);
+        xAxis.setGranularity(1f);
+
+        chart.getAxisLeft().setTextColor(Color.WHITE);
+        chart.getAxisLeft().setDrawGridLines(true);
+        chart.getAxisLeft().setGridColor(Color.parseColor("#33FFFFFF"));
+        chart.getAxisRight().setEnabled(false);
+    }
+
+    private void updateTrendChart() {
+        // This is called when granularity changes or privacy mode toggles
+        viewModel.getAccountHistory(accountId, 0, System.currentTimeMillis()).observe(getViewLifecycleOwner(), transactions -> {
+            if (transactions != null) updateTrendChart(transactions);
+        });
+    }
+
+    private void updateTrendChart(List<Transaction> transactions) {
+        if (transactions == null || transactions.isEmpty()) {
+            binding.trendChart.clear();
+            return;
+        }
+
+        TreeMap<Long, Double> groupedData = new TreeMap<>();
+        Calendar cal = Calendar.getInstance();
+
+        for (Transaction t : transactions) {
+            if (!"EXPENSE".equals(t.getType())) continue;
+            
+            cal.setTimeInMillis(t.getDate());
+            if (currentGranularity == Granularity.WEEKLY) {
+                cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+            } else if (currentGranularity == Granularity.MONTHLY) {
+                cal.set(Calendar.DAY_OF_MONTH, 1);
+            } else if (currentGranularity == Granularity.ANNUAL) {
+                cal.set(Calendar.DAY_OF_YEAR, 1);
+            }
+            cal.set(Calendar.HOUR_OF_DAY, 0);
+            cal.set(Calendar.MINUTE, 0);
+            cal.set(Calendar.SECOND, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+            
+            long key = cal.getTimeInMillis();
+            groupedData.put(key, groupedData.getOrDefault(key, 0.0) + t.getAmount());
+        }
+
+        List<Entry> entries = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        int index = 0;
+        
+        SimpleDateFormat labelFormat;
+        if (currentGranularity == Granularity.WEEKLY) labelFormat = new SimpleDateFormat("dd/MM", Locale.getDefault());
+        else if (currentGranularity == Granularity.MONTHLY) labelFormat = new SimpleDateFormat("MMM", Locale.getDefault());
+        else labelFormat = new SimpleDateFormat("yyyy", Locale.getDefault());
+
+        for (Map.Entry<Long, Double> entry : groupedData.entrySet()) {
+            entries.add(new Entry(index++, entry.getValue().floatValue()));
+            labels.add(labelFormat.format(new Date(entry.getKey())));
+        }
+
+        LineDataSet dataSet = new LineDataSet(entries, "Expense Trend");
+        dataSet.setColor(Color.parseColor("#FF5252"));
+        dataSet.setCircleColor(Color.parseColor("#FF5252"));
+        dataSet.setLineWidth(2f);
+        dataSet.setCircleRadius(3f);
+        dataSet.setDrawCircleHole(false);
+        dataSet.setValueTextColor(Color.WHITE);
+        dataSet.setValueTextSize(9f);
+        dataSet.setDrawFilled(true);
+        dataSet.setFillAlpha(50);
+        dataSet.setFillColor(Color.parseColor("#FF5252"));
+        
+        dataSet.setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getPointLabel(Entry entry) {
+                return viewModel.formatAmount(entry.getY());
+            }
+        });
+
+        binding.trendChart.getXAxis().setValueFormatter(new ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                int idx = (int) value;
+                if (idx >= 0 && idx < labels.size()) return labels.get(idx);
+                return "";
+            }
+        });
+
+        binding.trendChart.setData(new LineData(dataSet));
+        binding.trendChart.invalidate();
+    }
+
+    private static class ChatListItem {
+        static final int TYPE_SEPARATOR = 0;
+        static final int TYPE_TRANSACTION = 1;
+        
+        int type;
+        String dateLabel;
+        Transaction transaction;
+
+        ChatListItem(String dateLabel) {
+            this.type = TYPE_SEPARATOR;
+            this.dateLabel = dateLabel;
+        }
+
+        ChatListItem(Transaction transaction) {
+            this.type = TYPE_TRANSACTION;
+            this.transaction = transaction;
+        }
+    }
+
+    private class ChatAdapter extends androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder> {
+        private final List<ChatListItem> items = new ArrayList<>();
+
+        void setListItems(List<ChatListItem> newList) {
+            items.clear();
+            items.addAll(newList);
+            notifyDataSetChanged();
         }
 
         @Override
         public int getItemViewType(int position) {
-            return "INCOME".equals(getItem(position).getType()) ? TYPE_RECEIVED : TYPE_PAID;
+            ChatListItem item = items.get(position);
+            if (item.type == ChatListItem.TYPE_SEPARATOR) return 2;
+            return "INCOME".equals(item.transaction.getType()) ? 1 : 0;
         }
 
         @NonNull
         @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            int layout = viewType == TYPE_PAID ? R.layout.item_chat_paid : R.layout.item_chat_received;
-            View view = LayoutInflater.from(parent.getContext()).inflate(layout, parent, false);
-            return new ViewHolder(view);
+        public androidx.recyclerview.widget.RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+            if (viewType == 2) {
+                return new SeparatorViewHolder(inflater.inflate(R.layout.item_chat_date_separator, parent, false));
+            }
+            int layout = viewType == 0 ? R.layout.item_chat_paid : R.layout.item_chat_received;
+            return new TransactionViewHolder(inflater.inflate(layout, parent, false));
         }
 
         @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            Transaction t = getItem(position);
-            holder.tvAmount.setText(viewModel.formatAmount(t.getAmount()));
-            holder.tvCategory.setText(t.getCategory());
-            holder.tvTime.setText(timeFormat.format(new Date(t.getDate())));
-            
-            if ("INCOME".equals(t.getType())) {
-                holder.tvStatus.setText("Received from " + viewModel.maskPII(accountName));
-            } else {
-                holder.tvStatus.setText("Paid to " + viewModel.maskPII(accountName));
+        public void onBindViewHolder(@NonNull androidx.recyclerview.widget.RecyclerView.ViewHolder holder, int position) {
+            ChatListItem item = items.get(position);
+            if (holder instanceof SeparatorViewHolder) {
+                ((SeparatorViewHolder) holder).tvDate.setText(item.dateLabel);
+            } else if (holder instanceof TransactionViewHolder) {
+                Transaction t = item.transaction;
+                TransactionViewHolder vh = (TransactionViewHolder) holder;
+                vh.tvAmount.setText(viewModel.formatAmount(t.getAmount()));
+                vh.tvCategory.setText(t.getCategory());
+                vh.tvTime.setText(timeFormat.format(new Date(t.getDate())));
+                
+                if ("INCOME".equals(t.getType())) {
+                    vh.tvStatus.setText("Received from " + viewModel.maskPII(accountName));
+                } else {
+                    vh.tvStatus.setText("Paid to " + viewModel.maskPII(accountName));
+                }
             }
         }
 
-        static class ViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
+        @Override
+        public int getItemCount() { return items.size(); }
+
+        static class SeparatorViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
+            android.widget.TextView tvDate;
+            SeparatorViewHolder(View v) { super(v); tvDate = v.findViewById(R.id.tv_date); }
+        }
+
+        static class TransactionViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
             android.widget.TextView tvAmount, tvStatus, tvCategory, tvTime;
-            public ViewHolder(@NonNull View itemView) {
-                super(itemView);
-                tvAmount = itemView.findViewById(R.id.tv_amount);
-                tvStatus = itemView.findViewById(R.id.tv_status);
-                tvCategory = itemView.findViewById(R.id.tv_category);
-                tvTime = itemView.findViewById(R.id.tv_time);
+            TransactionViewHolder(View v) {
+                super(v);
+                tvAmount = v.findViewById(R.id.tv_amount);
+                tvStatus = v.findViewById(R.id.tv_status);
+                tvCategory = v.findViewById(R.id.tv_category);
+                tvTime = v.findViewById(R.id.tv_time);
             }
         }
     }

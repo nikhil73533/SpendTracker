@@ -36,6 +36,16 @@
     </fragment>
 
     <fragment
+        android:id="@+id/bankDetailFragment"
+        android:name="com.example.spendtracker.ui.charts.BankDetailFragment"
+        android:label="Bank Detail"
+        tools:layout="@layout/fragment_category_detail">
+        <argument
+            android:name="bankName"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
         android:id="@+id/accountsFragment"
         android:name="com.example.spendtracker.ui.accounts.AccountsFragment"
         android:label="Accounts">

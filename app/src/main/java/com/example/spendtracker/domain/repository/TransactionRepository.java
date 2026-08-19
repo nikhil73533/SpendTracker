@@ -26,4 +26,9 @@ public interface TransactionRepository {
     
     LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.AccountSummary>> getUniqueAccounts();
     LiveData<List<Transaction>> getAccountHistory(String accountId, long start, long end);
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end);
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals(long start, long end);
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end);
+    void markAsRead(String accountName);
+    LiveData<List<String>> getUniqueContacts();
 }

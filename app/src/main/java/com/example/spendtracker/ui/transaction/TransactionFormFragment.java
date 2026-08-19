@@ -70,6 +70,15 @@ public class TransactionFormFragment extends Fragment {
 
         // Observe categories once
         viewModel.getCategoriesByType().observe(getViewLifecycleOwner(), this::updateCategoryAdapter);
+        
+        // Observe contacts for recommendations
+        viewModel.getUniqueContacts().observe(getViewLifecycleOwner(), contacts -> {
+            if (contacts != null) {
+                ArrayAdapter<String> contactAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_dropdown_item_1line, contacts);
+                binding.etSender.setAdapter(contactAdapter);
+                binding.etReceiver.setAdapter(contactAdapter);
+            }
+        });
 
         updateFormForType();
 

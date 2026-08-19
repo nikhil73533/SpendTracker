@@ -2,6 +2,7 @@ package com.example.spendtracker.ui.dashboard;
 
 import android.content.Context;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Transformations;
 import androidx.lifecycle.ViewModel;
@@ -31,6 +32,7 @@ public class DashboardViewModel extends ViewModel {
     private final SecurityRepository securityRepository;
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
     private final MutableLiveData<FilterType> currentFilter = new MutableLiveData<>(FilterType.DAILY);
+    private final MutableLiveData<Integer> selectedTab = new MutableLiveData<>(0);
     private final PredictionService predictionService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private long calendarViewMonthStart;
@@ -62,10 +64,27 @@ public class DashboardViewModel extends ViewModel {
 
     public void setFilter(FilterType type) {
         currentFilter.setValue(type);
+        if (type == FilterType.NOTE) return;
+
+        DateRange current = dateRange.getValue();
+        long start;
+        if (current != null && current.start != 0) {
+            start = getStartOfMonth(current.start);
+        } else {
+            start = calendarViewMonthStart;
+        }
+        
         if (type == FilterType.DAILY || type == FilterType.MONTHLY || type == FilterType.TOTAL || type == FilterType.CALENDAR) {
-            long start = type == FilterType.CALENDAR ? calendarViewMonthStart : getStartOfMonth(System.currentTimeMillis());
             setMonthFilter(start);
         }
+    }
+
+    public void selectTab(int index) {
+        selectedTab.setValue(index);
+    }
+
+    public LiveData<Integer> getSelectedTab() {
+        return selectedTab;
     }
 
     public void moveNext() {
@@ -98,7 +117,7 @@ public class DashboardViewModel extends ViewModel {
 
     public String formatAmount(double amount) {
         if (Boolean.TRUE.equals(isPrivacyModeEnabled().getValue())) return "***";
-        return String.format(Locale.getDefault(), "₹ %.2f", amount);
+        return String.format(Locale.getDefault(), "₹ %.0f", amount);
     }
 
     private void setMonthFilter(long timestamp) {
@@ -229,35 +248,38 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<List<CalendarAdapter.CalendarDay>> getCalendarDays() {
-        return Transformations.map(repository.getTransactionsInRange(dateRange.getValue().start, dateRange.getValue().end), transactions -> {
-            List<CalendarAdapter.CalendarDay> days = new ArrayList<>();
-            Calendar cal = Calendar.getInstance();
-            cal.setTimeInMillis(dateRange.getValue().start);
-            
-            cal.set(Calendar.DAY_OF_MONTH, 1);
-            int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-            for (int i = 1; i < firstDayOfWeek; i++) {
-                days.add(new CalendarAdapter.CalendarDay(0, 0, 0, false, 0));
-            }
+        return Transformations.switchMap(dateRange, range -> 
+            Transformations.map(repository.getTransactionsInRange(range.start, range.end), transactions -> {
+                List<CalendarAdapter.CalendarDay> days = new ArrayList<>();
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(range.start);
+                
+                cal.set(Calendar.DAY_OF_MONTH, 1);
+                int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+                // Adjust for start of week if needed, assuming Sunday=1
+                for (int i = 1; i < firstDayOfWeek; i++) {
+                    days.add(new CalendarAdapter.CalendarDay(0, 0, 0, false, 0));
+                }
 
-            int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
-            for (int i = 1; i <= daysInMonth; i++) {
-                cal.set(Calendar.DAY_OF_MONTH, i);
-                long start = getStartOfDay(cal.getTimeInMillis());
-                long end = start + 86399999;
-                double dIncome = 0, dExpense = 0;
-                if (transactions != null) {
-                    for (Transaction t : transactions) {
-                        if (t.getDate() >= start && t.getDate() <= end) {
-                            if ("INCOME".equals(t.getType())) dIncome += t.getAmount();
-                            else dExpense += t.getAmount();
+                int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+                for (int i = 1; i <= daysInMonth; i++) {
+                    cal.set(Calendar.DAY_OF_MONTH, i);
+                    long start = getStartOfDay(cal.getTimeInMillis());
+                    long end = start + 86399999;
+                    double dIncome = 0, dExpense = 0;
+                    if (transactions != null) {
+                        for (Transaction t : transactions) {
+                            if (t.getDate() >= start && t.getDate() <= end) {
+                                if ("INCOME".equals(t.getType())) dIncome += t.getAmount();
+                                else dExpense += t.getAmount();
+                            }
                         }
                     }
+                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, true, start));
                 }
-                days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, true, start));
-            }
-            return days;
-        });
+                return days;
+            })
+        );
     }
 
     private long getStartOfDay(long timestamp) {
@@ -282,8 +304,22 @@ public class DashboardViewModel extends ViewModel {
 
     public void updateTransactionCategory(Transaction transaction, String newCategory) {
         executor.execute(() -> {
-            transaction.setCategory(newCategory);
-            repository.updateTransaction(transaction);
+            // Create a new Transaction instance to ensure DiffUtil detects the change
+            Transaction updated = new Transaction(
+                transaction.getId(),
+                transaction.getAmount(),
+                newCategory,
+                transaction.getDescription(),
+                transaction.getType(),
+                transaction.getDate(),
+                transaction.getSource(),
+                transaction.getSender(),
+                transaction.getUpiId(),
+                transaction.getReceiverName(),
+                transaction.getBankName(),
+                transaction.getSourceType()
+            );
+            repository.updateTransaction(updated);
         });
     }
 
@@ -306,8 +342,13 @@ public class DashboardViewModel extends ViewModel {
                             t.getReceiverName(), t.getUpiId(), t.getAmount(), t.getType(), t.getDate());
                     String predicted = predictionService.predict(pt).getCategory();
                     if (!predicted.equals(t.getCategory())) {
-                        t.setCategory(predicted);
-                        repository.updateTransaction(t);
+                        // Create new instance for DiffUtil reliability
+                        Transaction updated = new Transaction(
+                            t.getId(), t.getAmount(), predicted, t.getDescription(),
+                            t.getType(), t.getDate(), t.getSource(), t.getSender(),
+                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType()
+                        );
+                        repository.updateTransaction(updated);
                     }
                 }
             }
@@ -315,9 +356,44 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<TotalPageData> getTotalPageData() {
-        return Transformations.map(getSummary(), summary -> {
-            return new TotalPageData(0, summary.getTotalExpense(), 0, summary.getTotalIncome());
+        return Transformations.switchMap(dateRange, range -> {
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(range.start);
+            cal.add(Calendar.MONTH, -1);
+            long lastStart = getStartOfMonth(cal.getTimeInMillis());
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            long lastEnd = getStartOfDay(cal.getTimeInMillis()) + 86399999;
+
+            LiveData<Summary> currentSummaryLive = repository.getSummary(range.start, range.end);
+            LiveData<Summary> lastSummaryLive = repository.getSummary(lastStart, lastEnd);
+
+            MediatorLiveData<TotalPageData> mediator = new MediatorLiveData<>();
+            
+            Runnable update = () -> {
+                Summary current = currentSummaryLive.getValue();
+                Summary last = lastSummaryLive.getValue();
+                if (current != null) {
+                    double currentExp = current.getTotalExpense();
+                    double lastExp = (last != null) ? last.getTotalExpense() : 0;
+                    int percent = 0;
+                    if (lastExp > 0) {
+                        percent = (int) (((currentExp - lastExp) / lastExp) * 100);
+                    }
+                    mediator.setValue(new TotalPageData(percent, currentExp, 0, current.getTotalIncome()));
+                }
+            };
+
+            mediator.addSource(currentSummaryLive, current -> update.run());
+            mediator.addSource(lastSummaryLive, last -> update.run());
+            
+            return mediator;
         });
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
+        return Transformations.switchMap(dateRange, range -> 
+            repository.getBankTotals(range.start, range.end)
+        );
     }
 
     public static class TotalPageData {

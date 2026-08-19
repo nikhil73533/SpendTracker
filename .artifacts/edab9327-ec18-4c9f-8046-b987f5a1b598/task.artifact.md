@@ -1,0 +1,6 @@
+- [x] Update `SecurityRepositoryImpl.java` for immediate privacy mode updates
+- [x] Update `fragment_charts.xml` for better layout positioning
+- [x] Update `ChartsFragment.java` for Income section handling and source labels
+- [x] Implement `BankDetailFragment.java` and update `nav_graph.xml`
+- [x] Update `TotalSummaryFragment.java` for bank detail navigation
+- [x] Verify all fixes and navigation

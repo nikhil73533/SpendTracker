@@ -1,20 +1,230 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
     android:background="@color/dark_background">
 
-    <!-- Category management removed from here -->
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Settings &amp; More"
-        android:textColor="@color/white"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
+        android:orientation="vertical"
+        android:padding="16dp">
 
-</LinearLayout>
+        <!-- Header Section -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/text_settings_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_settings"
+                android:textColor="@color/white"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/text_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/text_settings_title"
+                android:text="@string/version_info"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+        <!-- Ad Placeholder -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="@color/dark_surface"
+            app:cardCornerRadius="8dp"
+            app:strokeWidth="0dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/ad_placeholder"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Grid of Widgets -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:alignmentMode="alignMargins"
+            android:columnCount="3"
+            android:rowCount="3">
+
+            <!-- Item 1: Configuration -->
+            <LinearLayout
+                android:id="@+id/card_configuration"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_configuration"
+                    android:src="@android:drawable/ic_menu_preferences" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_configuration" />
+            </LinearLayout>
+
+            <!-- Item 2: Ledger -->
+            <LinearLayout
+                android:id="@+id/card_ledger"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_ledger"
+                    android:src="@android:drawable/ic_menu_agenda" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_ledger" />
+            </LinearLayout>
+
+            <!-- Item 3: Message Caching -->
+            <LinearLayout
+                android:id="@+id/card_message_caching"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_message_caching"
+                    android:src="@android:drawable/ic_menu_manage" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_message_caching" />
+            </LinearLayout>
+
+            <!-- Item 4: CalcBox -->
+            <LinearLayout
+                android:id="@+id/card_calcbox"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_calcbox"
+                    android:src="@android:drawable/ic_menu_view" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_calcbox" />
+            </LinearLayout>
+
+            <!-- Item 5: Advanced Analytics -->
+            <LinearLayout
+                android:id="@+id/card_advanced_analytics"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_advanced_analytics"
+                    android:src="@android:drawable/ic_menu_sort_by_size" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_advanced_analytics" />
+            </LinearLayout>
+
+            <!-- Item 6: Backup -->
+            <LinearLayout
+                android:id="@+id/card_backup"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_backup"
+                    android:src="@android:drawable/ic_menu_save" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_backup" />
+            </LinearLayout>
+
+            <!-- Item 7: Feedback -->
+            <LinearLayout
+                android:id="@+id/card_feedback"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_feedback"
+                    android:src="@android:drawable/ic_menu_send" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_feedback" />
+            </LinearLayout>
+
+            <!-- Item 8: Help -->
+            <LinearLayout
+                android:id="@+id/card_help"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_help"
+                    android:src="@android:drawable/ic_menu_help" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_help" />
+            </LinearLayout>
+
+            <!-- Item 9: Recommend -->
+            <LinearLayout
+                android:id="@+id/card_recommend"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_recommend"
+                    android:src="@android:drawable/ic_menu_share" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_recommend" />
+            </LinearLayout>
+
+        </GridLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

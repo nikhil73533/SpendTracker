@@ -69,14 +69,29 @@ public interface TransactionDao {
     @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND date BETWEEN :start AND :end GROUP BY strftime('%Y', date / 1000, 'unixepoch') ORDER BY date ASC")
     LiveData<List<TimeSum>> getAnnuallyTotals(long start, long end, String type);
 
-    @Query("SELECT (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense, SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as totalIncome FROM transactions GROUP BY COALESCE(NULLIF(upiId, ''), (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END)) ORDER BY lastTransactionDate DESC")
+    @Query("SELECT (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense, SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as totalIncome, SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END) as unreadCount FROM transactions GROUP BY (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) ORDER BY lastTransactionDate DESC")
     LiveData<List<AccountSummary>> getUniqueAccounts();
 
-    @Query("SELECT * FROM transactions WHERE (COALESCE(NULLIF(upiId, ''), receiverName) = :accountId OR COALESCE(NULLIF(upiId, ''), sender) = :accountId) AND date BETWEEN :start AND :end ORDER BY date DESC")
-    LiveData<List<TransactionEntity>> getAccountHistory(String accountId, long start, long end);
+    @Query("SELECT (CASE WHEN strftime('%w', date/1000, 'unixepoch') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END) as category, SUM(amount) as total FROM transactions WHERE date BETWEEN :start AND :end GROUP BY (CASE WHEN strftime('%w', date/1000, 'unixepoch') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END)")
+    LiveData<List<CategorySum>> getWeekdayWeekendTotals(long start, long end);
+
+    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE date BETWEEN :start AND :end GROUP BY bankName")
+    LiveData<List<CategorySum>> getBankTotals(long start, long end);
+
+    @Query("SELECT sourceType as category, SUM(amount) as total FROM transactions WHERE date BETWEEN :start AND :end GROUP BY sourceType")
+    LiveData<List<CategorySum>> getSourceTypeTotals(long start, long end);
+
+    @Query("UPDATE transactions SET isRead = 1 WHERE (receiverName = :accountName OR sender = :accountName)")
+    void markAsRead(String accountName);
+
+    @Query("SELECT * FROM transactions WHERE (receiverName = :accountName OR sender = :accountName) AND date BETWEEN :start AND :end ORDER BY date DESC")
+    LiveData<List<TransactionEntity>> getAccountHistory(String accountName, long start, long end);
 
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
     void renameCategory(String oldName, String newName);
+
+    @Query("SELECT DISTINCT name FROM (SELECT sender AS name FROM transactions WHERE sender IS NOT NULL AND sender != '' UNION SELECT receiverName AS name FROM transactions WHERE receiverName IS NOT NULL AND receiverName != '') ORDER BY name ASC")
+    LiveData<List<String>> getUniqueContacts();
 
     class CategorySum {
         public String category;
@@ -94,5 +109,6 @@ public interface TransactionDao {
         public long lastTransactionDate;
         public double totalExpense;
         public double totalIncome;
+        public int unreadCount;
     }
 }

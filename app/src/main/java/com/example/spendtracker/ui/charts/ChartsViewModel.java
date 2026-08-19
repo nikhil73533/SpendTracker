@@ -102,6 +102,50 @@ public class ChartsViewModel extends ViewModel {
         );
     }
 
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals() {
+        return Transformations.switchMap(currentMonthStart, start -> 
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getWeekdayWeekendTotals(start, end);
+            })
+        );
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
+        return Transformations.switchMap(currentMonthStart, start -> 
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getBankTotals(start, end);
+            })
+        );
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals() {
+        return Transformations.switchMap(currentMonthStart, start -> 
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getSourceTypeTotals(start, end);
+            })
+        );
+    }
+
+    private long calculateEndTime(long start, Granularity g) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(start);
+        if (g == Granularity.ANNUALLY) {
+            cal.set(Calendar.MONTH, 11);
+            cal.set(Calendar.DAY_OF_MONTH, 31);
+        } else if (g == Granularity.WEEKLY) {
+            cal.add(Calendar.DAY_OF_YEAR, 6);
+        } else {
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+        }
+        cal.set(Calendar.HOUR_OF_DAY, 23);
+        cal.set(Calendar.MINUTE, 59);
+        cal.set(Calendar.SECOND, 59);
+        return cal.getTimeInMillis();
+    }
+
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTrends() {
         return Transformations.switchMap(currentMonthStart, start -> 
             Transformations.switchMap(granularity, g -> 
