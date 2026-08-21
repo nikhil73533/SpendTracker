@@ -164,10 +164,17 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvTime.setText(timeFormat.format(new Date(transaction.getDate())));
 
             if ("INCOME".equals(transaction.getType())) {
+                tvIncomeAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_blue_light));
                 tvIncomeAmount.setText(formatter.formatAmount(transaction.getAmount()));
                 tvExpenseAmount.setText("");
+            } else if ("TRANSFER".equals(transaction.getType())) {
+                // Transfer: shown in gray, not counted as income or expense
+                tvIncomeAmount.setText("");
+                tvExpenseAmount.setTextColor(0xFF9E9E9E); // gray
+                tvExpenseAmount.setText("↔ " + formatter.formatAmount(transaction.getAmount()));
             } else {
                 tvIncomeAmount.setText("");
+                tvExpenseAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_red_light));
                 tvExpenseAmount.setText(formatter.formatAmount(transaction.getAmount()));
             }
 
@@ -222,13 +229,14 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             if (oldItem instanceof HeaderItem) {
                 HeaderItem oldHeader = (HeaderItem) oldItem;
                 HeaderItem newHeader = (HeaderItem) newItem;
-                return Double.compare(oldHeader.totalIncome, newHeader.totalIncome) == 0 && 
+                return Double.compare(oldHeader.totalIncome, newHeader.totalIncome) == 0 &&
                        Double.compare(oldHeader.totalExpense, newHeader.totalExpense) == 0;
             } else {
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();
-                return Double.compare(oldT.getAmount(), newT.getAmount()) == 0 && 
+                return Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
                        oldT.getCategory().equals(newT.getCategory()) &&
+                       oldT.getType().equals(newT.getType()) &&          // type change triggers rebind
                        oldT.getDescription().equals(newT.getDescription());
             }
         }

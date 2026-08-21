@@ -103,29 +103,35 @@ public class ChartsViewModel extends ViewModel {
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals() {
-        return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> {
-                long end = calculateEndTime(start, g);
-                return repository.getWeekdayWeekendTotals(start, end);
-            })
+        return Transformations.switchMap(currentMonthStart, start ->
+            Transformations.switchMap(granularity, g ->
+                Transformations.switchMap(transactionType, type -> {
+                    long end = calculateEndTime(start, g);
+                    return repository.getWeekdayWeekendTotals(start, end, type);
+                })
+            )
         );
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
-        return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> {
-                long end = calculateEndTime(start, g);
-                return repository.getBankTotals(start, end);
-            })
+        return Transformations.switchMap(currentMonthStart, start ->
+            Transformations.switchMap(granularity, g ->
+                Transformations.switchMap(transactionType, type -> {
+                    long end = calculateEndTime(start, g);
+                    return repository.getBankTotals(start, end, type);
+                })
+            )
         );
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals() {
-        return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> {
-                long end = calculateEndTime(start, g);
-                return repository.getSourceTypeTotals(start, end);
-            })
+        return Transformations.switchMap(currentMonthStart, start ->
+            Transformations.switchMap(granularity, g ->
+                Transformations.switchMap(transactionType, type -> {
+                    long end = calculateEndTime(start, g);
+                    return repository.getSourceTypeTotals(start, end, type);
+                })
+            )
         );
     }
 

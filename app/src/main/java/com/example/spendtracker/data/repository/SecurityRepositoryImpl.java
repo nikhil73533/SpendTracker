@@ -44,7 +44,7 @@ public class SecurityRepositoryImpl implements SecurityRepository {
             e.printStackTrace();
         }
     }
-
+ 
     @Override
     public LiveData<Boolean> isPrivacyModeEnabled() {
         return privacyMode;

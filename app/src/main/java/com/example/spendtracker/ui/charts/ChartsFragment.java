@@ -75,31 +75,29 @@ public class ChartsFragment extends Fragment {
             public boolean onFling(@Nullable android.view.MotionEvent e1, @NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
                 if (e1 == null) return false;
                 if (Math.abs(velocityX) > Math.abs(velocityY)) {
-                    if (e1.getX() - e2.getX() > 100) { // Swipe left
-                        if (!showingExpenses) {
-                            binding.tabChartType.getTabAt(1).select();
-                            return true;
-                        }
-                    } else if (e2.getX() - e1.getX() > 100) { // Swipe right
-                        if (showingExpenses) {
-                            binding.tabChartType.getTabAt(0).select();
-                            return true;
-                        }
+                    // Swipe left → go to Expenses tab (index 1), only when currently on Income (index 0)
+                    if (e1.getX() - e2.getX() > 100 && !showingExpenses) {
+                        binding.tabChartType.getTabAt(1).select();
+                        return true;
+                    }
+                    // Swipe right → go to Income tab (index 0), only when currently on Expenses (index 1)
+                    if (e2.getX() - e1.getX() > 100 && showingExpenses) {
+                        binding.tabChartType.getTabAt(0).select();
+                        return true;
                     }
                 }
                 return false;
             }
         });
 
-        View.OnTouchListener touchListener = (v, event) -> {
+        // Attach swipe listener to the fragment root
+        binding.getRoot().setOnTouchListener((v, event) -> {
             boolean consumed = gestureDetector.onTouchEvent(event);
             if (event.getAction() == android.view.MotionEvent.ACTION_UP && !consumed) {
                 v.performClick();
             }
             return consumed;
-        };
-        
-        binding.getRoot().setOnTouchListener(touchListener);
+        });
     }
 
     private void setupToolbar() {

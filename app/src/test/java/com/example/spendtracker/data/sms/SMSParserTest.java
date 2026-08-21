@@ -115,7 +115,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for HDFC UPI debit", t);
         assertEquals(1200.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("HDFC Bank", t.getBankName());
+        assertEquals("HDFC", t.getBankName());
     }
 
     @Test
@@ -184,7 +184,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for Axis debit", t);
         assertEquals(750.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("Axis Bank", t.getBankName());
+        assertEquals("Axis", t.getBankName());
     }
 
     @Test
@@ -211,7 +211,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for Kotak debit", t);
         assertEquals(450.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("Kotak Bank", t.getBankName());
+        assertEquals("Kotak", t.getBankName());
     }
 
     // =========================================================================

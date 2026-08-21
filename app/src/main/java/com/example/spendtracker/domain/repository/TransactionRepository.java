@@ -23,12 +23,21 @@ public interface TransactionRepository {
     LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getMonthlyTotals(long start, long end, String type);
     LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getAnnuallyTotals(long start, long end, String type);
     List<Transaction> getTransactionsSync();
-    
+
     LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.AccountSummary>> getUniqueAccounts();
     LiveData<List<Transaction>> getAccountHistory(String accountId, long start, long end);
-    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end);
-    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals(long start, long end);
-    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end);
+
+    /** Type-filtered weekday/weekend totals (pass "EXPENSE" or "INCOME"). */
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end, String type);
+    /** Type-filtered bank totals. */
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals(long start, long end, String type);
+    /** Type-filtered source-type totals. */
+    LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end, String type);
+
+    LiveData<Double> getTotalCardExpense(long start, long end);
+    LiveData<Double> getTotalAccountExpense(long start, long end);
+    LiveData<Double> getTotalTransfer(long start, long end);
+
     void markAsRead(String accountName);
     LiveData<List<String>> getUniqueContacts();
 }

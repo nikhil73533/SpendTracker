@@ -243,7 +243,7 @@ public class SMSParser {
                 if (jsonStr == null) continue;
 
                 JSONObject bankConfig = new JSONObject(jsonStr);
-                String bankName = bankConfig.getString("bankName");
+                String bankName = standardizeBankName(bankConfig.getString("bankName"));
                 JSONArray patterns = bankConfig.getJSONArray("patterns");
 
                 for (int i = 0; i < patterns.length(); i++) {
@@ -344,7 +344,7 @@ public class SMSParser {
         double amount = extractAmount(body);
         if (amount <= 0) return null;
 
-        String bankName   = extractBank(body.toLowerCase());
+        String bankName   = standardizeBankName(extractBank(body.toLowerCase()));
         String sourceType = detectSourceType(body);
         String receiver   = extractReceiver(body, bankName);
         String upiId      = extractUpiOrRef(body);
@@ -379,6 +379,46 @@ public class SMSParser {
             if (lowerBody.contains(entry[0])) return entry[1];
         }
         return "Bank";
+    }
+
+    /**
+     * Normalizes a raw bank name to a canonical short form.
+     * E.g. "ICICI Bank" → "ICICI", "State Bank of India" → "SBI".
+     */
+    static String standardizeBankName(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return raw;
+        String lower = raw.trim().toLowerCase();
+        // Order matters: more specific first
+        if (lower.contains("state bank"))     return "SBI";
+        if (lower.contains("icici"))           return "ICICI";
+        if (lower.contains("hdfc"))            return "HDFC";
+        if (lower.contains("axis"))            return "Axis";
+        if (lower.contains("kotak"))           return "Kotak";
+        if (lower.contains("sbi"))             return "SBI";
+        if (lower.contains("pnb"))             return "PNB";
+        if (lower.contains("union bank"))      return "Union Bank";
+        if (lower.contains("bank of baroda"))  return "Bank of Baroda";
+        if (lower.contains("bob"))             return "Bank of Baroda";
+        if (lower.contains("yes bank"))        return "Yes Bank";
+        if (lower.contains("yesb"))            return "Yes Bank";
+        if (lower.contains("canara"))          return "Canara";
+        if (lower.contains("idbi"))            return "IDBI";
+        if (lower.contains("indusind"))        return "IndusInd";
+        if (lower.contains("federal"))         return "Federal";
+        if (lower.contains("rbl"))             return "RBL";
+        if (lower.contains("au bank"))         return "AU Bank";
+        if (lower.contains("au small"))        return "AU Bank";
+        if (lower.contains("bajaj"))           return "Bajaj Finance";
+        if (lower.contains("amazon pay"))      return "Amazon Pay";
+        if (lower.contains("airtel payments")) return "Airtel Payments";
+        if (lower.contains("jio payments"))    return "Jio Payments";
+        if (lower.contains("paytm"))           return "Paytm";
+        if (lower.contains("phonepe"))         return "PhonePe";
+        if (lower.contains("one card") || lower.contains("onecard")) return "OneCard";
+        if (lower.contains("slice"))           return "Slice";
+        if (lower.contains("navi"))            return "Navi";
+        // Already a short token — return as-is
+        return raw.trim();
     }
 
     /** Determines whether the source is a Credit Card, Wallet, UPI, or Account. */

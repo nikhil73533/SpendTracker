@@ -168,18 +168,16 @@ public class DashboardViewModel extends ViewModel {
             Map<Long, List<Transaction>> grouped = new LinkedHashMap<>();
             for (Transaction t : transactions) {
                 long tDay = getStartOfDay(t.getDate());
-                if (!grouped.containsKey(tDay)) {
-                    grouped.put(tDay, new ArrayList<>());
-                }
+                if (!grouped.containsKey(tDay)) grouped.put(tDay, new ArrayList<>());
                 grouped.get(tDay).add(t);
             }
 
             for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
-                double income = 0;
-                double expense = 0;
+                double income = 0, expense = 0;
                 for (Transaction t : entry.getValue()) {
                     if ("INCOME".equals(t.getType())) income += t.getAmount();
-                    else expense += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                    // TRANSFER: not counted in income or expense header
                 }
                 items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense));
                 for (Transaction t : entry.getValue()) {
@@ -198,18 +196,16 @@ public class DashboardViewModel extends ViewModel {
             Map<Long, List<Transaction>> monthGroups = new LinkedHashMap<>();
             for (Transaction t : transactions) {
                 long monthStart = getStartOfMonth(t.getDate());
-                if (!monthGroups.containsKey(monthStart)) {
-                    monthGroups.put(monthStart, new ArrayList<>());
-                }
+                if (!monthGroups.containsKey(monthStart)) monthGroups.put(monthStart, new ArrayList<>());
                 monthGroups.get(monthStart).add(t);
             }
 
             for (Map.Entry<Long, List<Transaction>> entry : monthGroups.entrySet()) {
-                double income = 0;
-                double expense = 0;
+                double income = 0, expense = 0;
                 for (Transaction t : entry.getValue()) {
                     if ("INCOME".equals(t.getType())) income += t.getAmount();
-                    else expense += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                    // TRANSFER: excluded from month income/expense
                 }
                 List<MonthlySummaryAdapter.WeeklySummary> weeks = calculateWeeklySummaries(entry.getValue());
                 summaries.add(new MonthlySummaryAdapter.MonthSummary(entry.getKey(), income, expense, weeks));
@@ -238,7 +234,8 @@ public class DashboardViewModel extends ViewModel {
             long min = Long.MAX_VALUE, max = 0;
             for (Transaction t : entry.getValue()) {
                 if ("INCOME".equals(t.getType())) wIncome += t.getAmount();
-                else wExpense += t.getAmount();
+                else if ("EXPENSE".equals(t.getType())) wExpense += t.getAmount();
+                // TRANSFER: not counted
                 min = Math.min(min, t.getDate());
                 max = Math.max(max, t.getDate());
             }
@@ -261,15 +258,14 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<List<CalendarAdapter.CalendarDay>> getCalendarDays() {
-        return Transformations.switchMap(dateRange, range -> 
+        return Transformations.switchMap(dateRange, range ->
             Transformations.map(repository.getTransactionsInRange(range.start, range.end), transactions -> {
                 List<CalendarAdapter.CalendarDay> days = new ArrayList<>();
                 Calendar cal = Calendar.getInstance();
                 cal.setTimeInMillis(range.start);
-                
+
                 cal.set(Calendar.DAY_OF_MONTH, 1);
                 int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-                // Adjust for start of week if needed, assuming Sunday=1
                 for (int i = 1; i < firstDayOfWeek; i++) {
                     days.add(new CalendarAdapter.CalendarDay(0, 0, 0, false, 0));
                 }
@@ -284,7 +280,8 @@ public class DashboardViewModel extends ViewModel {
                         for (Transaction t : transactions) {
                             if (t.getDate() >= start && t.getDate() <= end) {
                                 if ("INCOME".equals(t.getType())) dIncome += t.getAmount();
-                                else dExpense += t.getAmount();
+                                else if ("EXPENSE".equals(t.getType())) dExpense += t.getAmount();
+                                // TRANSFER: not shown in calendar dots
                             }
                         }
                     }
@@ -378,35 +375,59 @@ public class DashboardViewModel extends ViewModel {
             long lastEnd = getStartOfDay(cal.getTimeInMillis()) + 86399999;
 
             LiveData<Summary> currentSummaryLive = repository.getSummary(range.start, range.end);
-            LiveData<Summary> lastSummaryLive = repository.getSummary(lastStart, lastEnd);
+            LiveData<Summary> lastSummaryLive    = repository.getSummary(lastStart, lastEnd);
+            LiveData<Double>  cardExpLive        = repository.getTotalCardExpense(range.start, range.end);
+            LiveData<Double>  acctExpLive        = repository.getTotalAccountExpense(range.start, range.end);
+            LiveData<Double>  transferLive       = repository.getTotalTransfer(range.start, range.end);
 
             MediatorLiveData<TotalPageData> mediator = new MediatorLiveData<>();
-            
+
             Runnable update = () -> {
                 Summary current = currentSummaryLive.getValue();
-                Summary last = lastSummaryLive.getValue();
+                Summary last    = lastSummaryLive.getValue();
                 if (current != null) {
                     double currentExp = current.getTotalExpense();
-                    double lastExp = (last != null) ? last.getTotalExpense() : 0;
+                    double lastExp    = (last != null) ? last.getTotalExpense() : 0;
                     int percent = 0;
-                    if (lastExp > 0) {
-                        percent = (int) (((currentExp - lastExp) / lastExp) * 100);
-                    }
-                    mediator.setValue(new TotalPageData(percent, currentExp, 0, current.getTotalIncome()));
+                    if (lastExp > 0) percent = (int) (((currentExp - lastExp) / lastExp) * 100);
+
+                    double cardExp  = cardExpLive.getValue()  != null ? cardExpLive.getValue()  : 0;
+                    double acctExp  = acctExpLive.getValue()  != null ? acctExpLive.getValue()  : 0;
+                    double transfer = transferLive.getValue() != null ? transferLive.getValue() : 0;
+                    double income   = current.getTotalIncome();
+
+                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, income));
                 }
             };
 
-            mediator.addSource(currentSummaryLive, current -> update.run());
-            mediator.addSource(lastSummaryLive, last -> update.run());
-            
+            mediator.addSource(currentSummaryLive, v -> update.run());
+            mediator.addSource(lastSummaryLive,    v -> update.run());
+            mediator.addSource(cardExpLive,        v -> update.run());
+            mediator.addSource(acctExpLive,        v -> update.run());
+            mediator.addSource(transferLive,       v -> update.run());
+
             return mediator;
         });
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
-        return Transformations.switchMap(dateRange, range -> 
-            repository.getBankTotals(range.start, range.end)
+        return Transformations.switchMap(dateRange, range ->
+            repository.getBankTotals(range.start, range.end, "EXPENSE")
         );
+    }
+
+    /** Updates only the transaction type and persists to DB. */
+    public void updateTransactionType(Transaction transaction, String newType) {
+        executor.execute(() -> {
+            String newCategory = "TRANSFER".equals(newType) ? "Transfer" : transaction.getCategory();
+            Transaction updated = new Transaction(
+                transaction.getId(), transaction.getAmount(), newCategory,
+                transaction.getDescription(), newType, transaction.getDate(),
+                transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
+                transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType()
+            );
+            repository.updateTransaction(updated);
+        });
     }
 
     public static class TotalPageData {
@@ -414,12 +435,14 @@ public class DashboardViewModel extends ViewModel {
         public final double accountExpenses;
         public final double cardExpenses;
         public final double transfers;
+        public final double income;
 
-        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers) {
+        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double income) {
             this.comparedPercent = comparedPercent;
             this.accountExpenses = accountExpenses;
             this.cardExpenses = cardExpenses;
             this.transfers = transfers;
+            this.income = income;
         }
     }
 }

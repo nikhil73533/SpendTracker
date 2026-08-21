@@ -91,6 +91,7 @@ public class TotalSummaryFragment extends Fragment {
         binding.tvAccountExpenses.setText(formatAmountWithState(data.accountExpenses, masked));
         binding.tvCardExpenses.setText(formatAmountWithState(data.cardExpenses, masked));
         binding.tvTotalTransfers.setText(formatAmountWithState(data.transfers, masked));
+        binding.tvTotalIncome.setText(formatAmountWithState(data.income, masked));
     }
 
     private String formatAmountWithState(double amount, boolean masked) {

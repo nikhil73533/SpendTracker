@@ -23,12 +23,86 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private final CategoryDao categoryDao;
     private final ExecutorService executorService;
 
+    /**
+     * Canonical bank-name normalization table.
+     * Maps patterns (lowercase, may be partial) → canonical short name.
+     */
+    private static final String[][] BANK_NORMALIZATION = {
+        {"icici",    "ICICI"},
+        {"hdfc",     "HDFC"},
+        {"axis",     "Axis"},
+        {"kotak",    "Kotak"},
+        {"sbi",      "SBI"},
+        {"state bank", "SBI"},
+        {"pnb",      "PNB"},
+        {"union bank", "Union Bank"},
+        {"bank of baroda", "Bank of Baroda"},
+        {"bob",      "Bank of Baroda"},
+        {"yes bank", "Yes Bank"},
+        {"yesb",     "Yes Bank"},
+        {"canara",   "Canara"},
+        {"idbi",     "IDBI"},
+        {"indusind", "IndusInd"},
+        {"federal",  "Federal"},
+        {"rbl",      "RBL"},
+        {"au bank",  "AU Bank"},
+        {"au small", "AU Bank"},
+        {"bajaj",    "Bajaj Finance"},
+        {"paytm",    "Paytm"},
+        {"phonepe",  "PhonePe"},
+        {"amazon pay","Amazon Pay"},
+        {"airtel payments","Airtel Payments"},
+        {"jio payments","Jio Payments"},
+        {"onecard",  "OneCard"},
+        {"one card", "OneCard"},
+        {"slice",    "Slice"},
+        {"navi",     "Navi"},
+    };
+
     @Inject
     public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao) {
         this.transactionDao = transactionDao;
         this.categoryDao = categoryDao;
         this.executorService = Executors.newSingleThreadExecutor();
+        // Normalize existing bank names in the background on first run
+        executorService.execute(this::normalizeBankNamesOnce);
     }
+
+    // ── Bank name normalization ──────────────────────────────────────────────
+
+    /**
+     * Returns the canonical short bank name for the given raw string.
+     * E.g. "ICICI Bank" → "ICICI", "ICICi Bank" → "ICICI".
+     */
+    public static String standardizeBankName(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return raw;
+        String lower = raw.trim().toLowerCase();
+        for (String[] entry : BANK_NORMALIZATION) {
+            if (lower.contains(entry[0])) return entry[1];
+        }
+        return raw.trim();
+    }
+
+    /** One-time background migration: normalizes bankName for all existing rows. */
+    private void normalizeBankNamesOnce() {
+        try {
+            List<TransactionEntity> all = transactionDao.getAllTransactionsSync();
+            for (TransactionEntity e : all) {
+                if (e.bankName == null || e.bankName.isEmpty()) continue;
+                String canonical = standardizeBankName(e.bankName);
+                if (!canonical.equals(e.bankName)) {
+                    e.bankName = canonical;
+                    // also update source field for consistency
+                    if (e.source != null && e.source.contains("(")) {
+                        e.source = canonical + " (" + e.sourceType + ")";
+                    }
+                    transactionDao.updateTransaction(e);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // ── CRUD ─────────────────────────────────────────────────────────────────
 
     @Override
     public LiveData<List<Transaction>> getTransactions() {
@@ -72,10 +146,12 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         executorService.execute(() -> transactionDao.deleteTransaction(mapToEntity(transaction)));
     }
 
+    // ── Summary ───────────────────────────────────────────────────────────────
+
     @Override
     public LiveData<Summary> getSummary(long startDate, long endDate) {
         MediatorLiveData<Summary> summaryMediator = new MediatorLiveData<>();
-        
+
         LiveData<Double> incomeLive = transactionDao.getTotalIncome(startDate, endDate);
         LiveData<Double> expenseLive = transactionDao.getTotalExpense(startDate, endDate);
         LiveData<Double> accountLive = transactionDao.getTotalAccountTransaction(startDate, endDate);
@@ -84,24 +160,28 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         LiveData<List<TransactionDao.CategorySum>> incSumsLive = transactionDao.getIncomeCategorySummaries(startDate, endDate);
         LiveData<List<TransactionDao.CategorySum>> incAvgsLive = transactionDao.getIncomeCategoryAverages(startDate, endDate);
 
-        summaryMediator.addSource(incomeLive, v -> updateSummary(summaryMediator, v, expenseLive.getValue(), accountLive.getValue(), expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue()));
-        summaryMediator.addSource(expenseLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), v, accountLive.getValue(), expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue()));
-        summaryMediator.addSource(accountLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), expenseLive.getValue(), v, expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue()));
-        summaryMediator.addSource(expSumsLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(), v, expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue()));
-        summaryMediator.addSource(expAvgsLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(), expSumsLive.getValue(), v, incSumsLive.getValue(), incAvgsLive.getValue()));
-        summaryMediator.addSource(incSumsLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(), expSumsLive.getValue(), expAvgsLive.getValue(), v, incAvgsLive.getValue()));
-        summaryMediator.addSource(incAvgsLive, v -> updateSummary(summaryMediator, incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(), expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), v));
+        Runnable update = () -> updateSummary(summaryMediator,
+            incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(),
+            expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue());
+
+        summaryMediator.addSource(incomeLive,  v -> update.run());
+        summaryMediator.addSource(expenseLive, v -> update.run());
+        summaryMediator.addSource(accountLive, v -> update.run());
+        summaryMediator.addSource(expSumsLive, v -> update.run());
+        summaryMediator.addSource(expAvgsLive, v -> update.run());
+        summaryMediator.addSource(incSumsLive, v -> update.run());
+        summaryMediator.addSource(incAvgsLive, v -> update.run());
 
         return summaryMediator;
     }
+
+    // ── Categories ────────────────────────────────────────────────────────────
 
     @Override
     public LiveData<List<String>> getCategories() {
         return Transformations.map(categoryDao.getAllCategories(), entities -> {
             List<String> names = new ArrayList<>();
-            for (com.example.spendtracker.data.local.entity.CategoryEntity entity : entities) {
-                names.add(entity.name);
-            }
+            for (CategoryEntity entity : entities) names.add(entity.name);
             return names;
         });
     }
@@ -110,9 +190,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     public LiveData<List<String>> getCategoriesByType(String type) {
         return Transformations.map(categoryDao.getCategoriesByType(type), entities -> {
             List<String> names = new ArrayList<>();
-            for (com.example.spendtracker.data.local.entity.CategoryEntity entity : entities) {
-                names.add(entity.name);
-            }
+            for (CategoryEntity entity : entities) names.add(entity.name);
             return names;
         });
     }
@@ -127,10 +205,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         executorService.execute(() -> {
             List<CategoryEntity> categories = categoryDao.getAllCategoriesSync();
             for (CategoryEntity c : categories) {
-                if (c.name.equals(name)) {
-                    categoryDao.deleteCategory(c);
-                    break;
-                }
+                if (c.name.equals(name)) { categoryDao.deleteCategory(c); break; }
             }
         });
     }
@@ -141,52 +216,50 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             transactionDao.renameCategory(oldName, newName);
             List<CategoryEntity> categories = categoryDao.getAllCategoriesSync();
             for (CategoryEntity c : categories) {
-                if (c.name.equals(oldName)) {
-                    c.name = newName;
-                    categoryDao.updateCategory(c);
-                    break;
-                }
+                if (c.name.equals(oldName)) { c.name = newName; categoryDao.updateCategory(c); break; }
             }
         });
     }
 
+    // ── Trend queries ─────────────────────────────────────────────────────────
+
     @Override
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTotals(long start, long end, String type) {
-        return Transformations.map(transactionDao.getDailyTotals(start, end, type), list -> mapTrends(list));
+        return Transformations.map(transactionDao.getDailyTotals(start, end, type), this::mapTrends);
     }
 
     @Override
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getWeeklyTotals(long start, long end, String type) {
-        return Transformations.map(transactionDao.getWeeklyTotals(start, end, type), list -> mapTrends(list));
+        return Transformations.map(transactionDao.getWeeklyTotals(start, end, type), this::mapTrends);
     }
 
     @Override
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getMonthlyTotals(long start, long end, String type) {
-        return Transformations.map(transactionDao.getMonthlyTotals(start, end, type), list -> mapTrends(list));
+        return Transformations.map(transactionDao.getMonthlyTotals(start, end, type), this::mapTrends);
     }
 
     @Override
     public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getAnnuallyTotals(long start, long end, String type) {
-        return Transformations.map(transactionDao.getAnnuallyTotals(start, end, type), list -> mapTrends(list));
+        return Transformations.map(transactionDao.getAnnuallyTotals(start, end, type), this::mapTrends);
     }
 
     private List<com.example.spendtracker.domain.model.DailyTrend> mapTrends(List<TransactionDao.TimeSum> list) {
         List<com.example.spendtracker.domain.model.DailyTrend> trends = new ArrayList<>();
         if (list != null) {
-            for (com.example.spendtracker.data.local.dao.TransactionDao.TimeSum item : list) {
+            for (TransactionDao.TimeSum item : list) {
                 trends.add(new com.example.spendtracker.domain.model.DailyTrend(item.timestamp, item.total));
             }
         }
         return trends;
     }
 
+    // ── Account / chart queries ───────────────────────────────────────────────
+
     @Override
     public List<Transaction> getTransactionsSync() {
         List<TransactionEntity> entities = transactionDao.getAllTransactionsSync();
         List<Transaction> transactions = new ArrayList<>();
-        for (TransactionEntity entity : entities) {
-            transactions.add(mapToDomain(entity));
-        }
+        for (TransactionEntity entity : entities) transactions.add(mapToDomain(entity));
         return transactions;
     }
 
@@ -199,26 +272,39 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     public LiveData<List<Transaction>> getAccountHistory(String accountId, long start, long end) {
         return Transformations.map(transactionDao.getAccountHistory(accountId, start, end), entities -> {
             List<Transaction> transactions = new ArrayList<>();
-            for (TransactionEntity entity : entities) {
-                transactions.add(mapToDomain(entity));
-            }
+            for (TransactionEntity entity : entities) transactions.add(mapToDomain(entity));
             return transactions;
         });
     }
 
     @Override
-    public LiveData<List<TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end) {
-        return transactionDao.getWeekdayWeekendTotals(start, end);
+    public LiveData<List<TransactionDao.CategorySum>> getWeekdayWeekendTotals(long start, long end, String type) {
+        return transactionDao.getWeekdayWeekendTotals(start, end, type);
     }
 
     @Override
-    public LiveData<List<TransactionDao.CategorySum>> getBankTotals(long start, long end) {
-        return transactionDao.getBankTotals(start, end);
+    public LiveData<List<TransactionDao.CategorySum>> getBankTotals(long start, long end, String type) {
+        return transactionDao.getBankTotals(start, end, type);
     }
 
     @Override
-    public LiveData<List<TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end) {
-        return transactionDao.getSourceTypeTotals(start, end);
+    public LiveData<List<TransactionDao.CategorySum>> getSourceTypeTotals(long start, long end, String type) {
+        return transactionDao.getSourceTypeTotals(start, end, type);
+    }
+
+    @Override
+    public LiveData<Double> getTotalCardExpense(long start, long end) {
+        return transactionDao.getCreditCardExpense(start, end);
+    }
+
+    @Override
+    public LiveData<Double> getTotalAccountExpense(long start, long end) {
+        return transactionDao.getAccountExpense(start, end);
+    }
+
+    @Override
+    public LiveData<Double> getTotalTransfer(long start, long end) {
+        return transactionDao.getTransferTotal(start, end);
     }
 
     @Override
@@ -231,15 +317,15 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         return transactionDao.getUniqueContacts();
     }
 
-    private void updateSummary(MediatorLiveData<Summary> summaryMediator, Double income, Double expense, Double account, 
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private void updateSummary(MediatorLiveData<Summary> summaryMediator, Double income, Double expense, Double account,
                                List<TransactionDao.CategorySum> expSums, List<TransactionDao.CategorySum> expAvgs,
                                List<TransactionDao.CategorySum> incSums, List<TransactionDao.CategorySum> incAvgs) {
         double totalIncome = income != null ? income : 0.0;
         double totalExpense = expense != null ? expense : 0.0;
-        
-        // Fix: Total value should be negative if expense is greater than income
         double totalAccount = totalIncome - totalExpense;
-        
+
         summaryMediator.setValue(new Summary(
             totalIncome, totalExpense, totalAccount,
             toMap(expSums), toMap(expAvgs), toMap(incSums), toMap(incAvgs)
@@ -249,9 +335,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private Map<String, Double> toMap(List<TransactionDao.CategorySum> list) {
         Map<String, Double> map = new HashMap<>();
         if (list != null) {
-            for (TransactionDao.CategorySum sum : list) {
-                map.put(sum.category, sum.total);
-            }
+            for (TransactionDao.CategorySum sum : list) map.put(sum.category, sum.total);
         }
         return map;
     }
@@ -259,42 +343,21 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         return new Transaction(
-                entity.id,
-                entity.amount,
-                entity.category,
-                entity.description,
-                entity.type,
-                entity.date,
-                entity.source,
-                entity.sender,
-                entity.upiId,
-                entity.receiverName,
-                entity.bankName,
-                entity.sourceType,
-                entity.fromAccount,
-                entity.toAccount,
-                entity.fees
+            entity.id, entity.amount, entity.category, entity.description,
+            entity.type, entity.date, entity.source, entity.sender, entity.upiId,
+            entity.receiverName, entity.bankName, entity.sourceType,
+            entity.fromAccount, entity.toAccount, entity.fees
         );
     }
 
     private TransactionEntity mapToEntity(Transaction transaction) {
         if (transaction == null) return null;
         return new TransactionEntity(
-                transaction.getId(),
-                transaction.getAmount(),
-                transaction.getCategory(),
-                transaction.getDescription(),
-                transaction.getType(),
-                transaction.getDate(),
-                transaction.getSource(),
-                transaction.getSender(),
-                transaction.getUpiId(),
-                transaction.getReceiverName(),
-                transaction.getBankName(),
-                transaction.getSourceType(),
-                transaction.getFromAccount(),
-                transaction.getToAccount(),
-                transaction.getFees()
+            transaction.getId(), transaction.getAmount(), transaction.getCategory(),
+            transaction.getDescription(), transaction.getType(), transaction.getDate(),
+            transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
+            transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType(),
+            transaction.getFromAccount(), transaction.getToAccount(), transaction.getFees()
         );
     }
 }
