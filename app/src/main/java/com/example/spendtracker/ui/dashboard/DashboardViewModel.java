@@ -10,7 +10,7 @@ import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 import com.example.spendtracker.domain.repository.TransactionRepository;
-import com.example.prediction.domain.service.PredictionService;
+import com.example.prediction.domain.service.IncrementalPredictionService;
 import dagger.hilt.android.lifecycle.HiltViewModel;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import java.text.SimpleDateFormat;
@@ -33,7 +33,7 @@ public class DashboardViewModel extends ViewModel {
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
     private final MutableLiveData<FilterType> currentFilter = new MutableLiveData<>(FilterType.DAILY);
     private final MutableLiveData<Integer> selectedTab = new MutableLiveData<>(0);
-    private final PredictionService predictionService;
+    private final IncrementalPredictionService predictionService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private long calendarViewMonthStart;
     /** True when the user tapped a specific calendar day; prevents the tab-change from resetting to a monthly filter. */
@@ -57,7 +57,7 @@ public class DashboardViewModel extends ViewModel {
     public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository, @ApplicationContext Context context) {
         this.repository = repository;
         this.securityRepository = securityRepository;
-        this.predictionService = new PredictionService(context);
+        this.predictionService = new IncrementalPredictionService(context);
         calendarViewMonthStart = getStartOfMonth(System.currentTimeMillis());
         setFilter(FilterType.DAILY);
     }
@@ -330,14 +330,24 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getSourceType()
             );
             repository.updateTransaction(updated);
+
+            // Incremental learning: user correction teaches the model
+            if (!"TRANSFER".equalsIgnoreCase(transaction.getType())) {
+                com.example.prediction.domain.model.PredictionTransaction pt =
+                    new com.example.prediction.domain.model.PredictionTransaction(
+                        transaction.getReceiverName(),
+                        transaction.getUpiId(),
+                        transaction.getAmount(),
+                        transaction.getType(),
+                        transaction.getDate()
+                    );
+                predictionService.learn(pt, newCategory);
+            }
         });
     }
 
     public void resetModel() {
-        executor.execute(() -> {
-            predictionService.resetModel();
-            triggerRefinementPass();
-        });
+        executor.execute(() -> predictionService.resetAllData());
     }
 
     public void triggerRefinementPass() {

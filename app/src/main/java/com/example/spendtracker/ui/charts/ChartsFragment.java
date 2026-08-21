@@ -74,15 +74,16 @@ public class ChartsFragment extends Fragment {
             @Override
             public boolean onFling(@Nullable android.view.MotionEvent e1, @NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
                 if (e1 == null) return false;
-                if (Math.abs(velocityX) > Math.abs(velocityY)) {
-                    // Swipe left → go to Expenses tab (index 1), only when currently on Income (index 0)
-                    if (e1.getX() - e2.getX() > 100 && !showingExpenses) {
-                        binding.tabChartType.getTabAt(1).select();
+                float deltaX = e1.getX() - e2.getX();
+                float deltaY = e1.getY() - e2.getY();
+                if (Math.abs(velocityX) > Math.abs(velocityY) && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    if (deltaX > 100) {
+                        // Swipe left → next period
+                        viewModel.moveNext();
                         return true;
-                    }
-                    // Swipe right → go to Income tab (index 0), only when currently on Expenses (index 1)
-                    if (e2.getX() - e1.getX() > 100 && showingExpenses) {
-                        binding.tabChartType.getTabAt(0).select();
+                    } else if (deltaX < -100) {
+                        // Swipe right → previous period
+                        viewModel.movePrev();
                         return true;
                     }
                 }
@@ -90,13 +91,14 @@ public class ChartsFragment extends Fragment {
             }
         });
 
-        // Attach swipe listener to the fragment root
+        // Attach swipe listener to the NestedScrollView content only (not charts)
+        // We intercept at the root but allow scroll views to handle vertical scrolling
         binding.getRoot().setOnTouchListener((v, event) -> {
             boolean consumed = gestureDetector.onTouchEvent(event);
             if (event.getAction() == android.view.MotionEvent.ACTION_UP && !consumed) {
                 v.performClick();
             }
-            return consumed;
+            return false; // Return false so scroll still works
         });
     }
 
@@ -168,7 +170,7 @@ public class ChartsFragment extends Fragment {
         binding.rvStats.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvStats.setAdapter(statsAdapter);
 
-        sourceStatsAdapter = new CategoryStatsAdapter(null, amount -> viewModel.formatAmount(amount));
+        sourceStatsAdapter = new CategoryStatsAdapter(sourceType -> navigateToSourceDetail(sourceType), amount -> viewModel.formatAmount(amount));
         binding.rvSourceStats.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvSourceStats.setAdapter(sourceStatsAdapter);
     }
@@ -183,6 +185,17 @@ public class ChartsFragment extends Fragment {
         }
     }
 
+    private void navigateToSourceDetail(String sourceType) {
+        // Reuse categoryDetailFragment with a special "__source__:" prefix to distinguish source filter
+        Bundle args = new Bundle();
+        args.putString("categoryName", "__source__:" + sourceType);
+        try {
+            Navigation.findNavController(requireView()).navigate(R.id.action_chartsFragment_to_categoryDetailFragment, args);
+        } catch (Exception e) {
+            android.widget.Toast.makeText(requireContext(), "Transactions: " + sourceType, android.widget.Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void observeViewModel() {
         viewModel.getCurrentMonthStart().observe(getViewLifecycleOwner(), start -> {
             updateHeaderLabel();
@@ -194,40 +207,94 @@ public class ChartsFragment extends Fragment {
         });
 
         viewModel.getChartData().observe(getViewLifecycleOwner(), summary -> {
+            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+                clearSensitiveCharts();
+                return;
+            }
             updateUIWithData(summary);
-            // Force re-draw for state sync reliability
             binding.pieChartMain.invalidate();
         });
 
         viewModel.getDailyTrends().observe(getViewLifecycleOwner(), trends -> {
+            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) return;
             setupLineChart(trends);
             binding.lineChart.invalidate();
         });
 
         viewModel.getWeekdayWeekendTotals().observe(getViewLifecycleOwner(), data -> {
+            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+                binding.barChartWeekend.clear();
+                binding.barChartWeekend.setNoDataText("Unlock to view");
+                binding.barChartWeekend.invalidate();
+                return;
+            }
             setupBarChart(binding.barChartWeekend, data, "Weekend vs Weekday");
         });
 
         viewModel.getBankTotals().observe(getViewLifecycleOwner(), data -> {
+            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+                binding.barChartBanks.clear();
+                binding.barChartBanks.setNoDataText("Unlock to view");
+                binding.barChartBanks.invalidate();
+                return;
+            }
             setupBarChart(binding.barChartBanks, data, "Bank Totals");
         });
 
         viewModel.getSourceTypeTotals().observe(getViewLifecycleOwner(), data -> {
+            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+                binding.pieChartSource.clear();
+                binding.pieChartSource.setNoDataText("Unlock to view");
+                binding.pieChartSource.invalidate();
+                sourceStatsAdapter.submitList(new java.util.ArrayList<>());
+                return;
+            }
             Map<String, Double> breakdown = mapSourceLabels(data);
             double total = calculateTotal(data);
-            setupPieChart(binding.pieChartSource, breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
+            setupSourcePieChart(binding.pieChartSource, breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
             updateSourceStatsList(breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
         });
 
         updateSectionVisibility();
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
-            Summary summary = viewModel.getChartData().getValue();
-            if (summary != null) updateUIWithData(summary);
-            
-            List<com.example.spendtracker.domain.model.DailyTrend> trends = viewModel.getDailyTrends().getValue();
-            if (trends != null) setupLineChart(trends);
+            if (Boolean.TRUE.equals(enabled)) {
+                clearSensitiveCharts();
+            } else {
+                // Re-trigger data refresh from cached LiveData values
+                Summary summary = viewModel.getChartData().getValue();
+                if (summary != null) updateUIWithData(summary);
+                List<com.example.spendtracker.domain.model.DailyTrend> trends = viewModel.getDailyTrends().getValue();
+                if (trends != null) setupLineChart(trends);
+            }
         });
+    }
+
+    /** Clears all sensitive chart data when biometric lock is active. Data is not accessible in memory. */
+    private void clearSensitiveCharts() {
+        if (binding == null) return;
+        binding.pieChartMain.clear();
+        binding.pieChartMain.setNoDataText("Unlock to view");
+        binding.pieChartMain.invalidate();
+        binding.lineChart.clear();
+        binding.lineChart.setNoDataText("Unlock to view");
+        binding.lineChart.invalidate();
+        binding.barChartWeekend.clear();
+        binding.barChartWeekend.setNoDataText("Unlock to view");
+        binding.barChartWeekend.invalidate();
+        binding.barChartBanks.clear();
+        binding.barChartBanks.setNoDataText("Unlock to view");
+        binding.barChartBanks.invalidate();
+        binding.pieChartSource.clear();
+        binding.pieChartSource.setNoDataText("Unlock to view");
+        binding.pieChartSource.invalidate();
+        statsAdapter.submitList(new java.util.ArrayList<>());
+        sourceStatsAdapter.submitList(new java.util.ArrayList<>());
+        // Update tab texts to hide totals
+        TabLayout.Tab expTab = binding.tabChartType.getTabAt(1);
+        if (expTab != null) expTab.setText("Expenses ***");
+        TabLayout.Tab incTab = binding.tabChartType.getTabAt(0);
+        if (incTab != null) incTab.setText("Income ***");
     }
 
     private void updateHeaderLabel() {
@@ -296,6 +363,70 @@ public class ChartsFragment extends Fragment {
             stats.add(new CategoryStatsAdapter.CategoryStat(entry.getKey(), entry.getValue(), percentage, color));
         }
         return stats;
+    }
+
+    /** Source pie chart with sourceType-based navigation on click. */
+    private void setupSourcePieChart(PieChart chart, Map<String, Double> breakdown, double total, int[] baseColors) {
+        List<PieEntry> entries = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+
+        if (breakdown != null && total > 0) {
+            List<Map.Entry<String, Double>> sorted = new ArrayList<>(breakdown.entrySet());
+            sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            for (int i = 0; i < sorted.size(); i++) {
+                Map.Entry<String, Double> entry = sorted.get(i);
+                if (entry.getValue() <= 0) continue;
+                entries.add(new PieEntry(entry.getValue().floatValue(), entry.getKey()));
+                colors.add(baseColors[i % baseColors.length]);
+            }
+        }
+
+        if (entries.isEmpty()) {
+            chart.clear();
+            chart.setNoDataText("No source data");
+            chart.invalidate();
+            return;
+        }
+
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        dataSet.setColors(colors);
+        dataSet.setSliceSpace(3f);
+        dataSet.setXValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
+        dataSet.setYValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
+        dataSet.setValueLinePart1Length(0.6f);
+        dataSet.setValueLinePart2Length(0.6f);
+        dataSet.setValueTextColors(colors);
+        dataSet.setValueTextSize(12f);
+        dataSet.setValueFormatter(new com.github.mikephil.charting.formatter.PercentFormatter(chart));
+
+        PieData pieData = new PieData(dataSet);
+        chart.setData(pieData);
+        chart.setUsePercentValues(true);
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
+        chart.setHoleColor(Color.TRANSPARENT);
+        chart.setHoleRadius(50f);
+        chart.setTransparentCircleRadius(55f);
+        chart.setEntryLabelColor(Color.LTGRAY);
+        chart.setEntryLabelTextSize(11f);
+        chart.setDrawEntryLabels(true);
+        chart.setExtraOffsets(35, 10, 35, 10);
+        chart.setHighlightPerTapEnabled(true);
+
+        chart.setOnChartValueSelectedListener(new com.github.mikephil.charting.listener.OnChartValueSelectedListener() {
+            @Override
+            public void onValueSelected(com.github.mikephil.charting.data.Entry e, com.github.mikephil.charting.highlight.Highlight h) {
+                if (e instanceof PieEntry) {
+                    navigateToSourceDetail(((PieEntry) e).getLabel());
+                    chart.highlightValue(null);
+                }
+            }
+            @Override
+            public void onNothingSelected() {}
+        });
+
+        chart.animateY(1200);
+        chart.invalidate();
     }
 
     private void setupPieChart(PieChart chart, Map<String, Double> breakdown, double total, int[] baseColors) {
@@ -476,11 +607,8 @@ public class ChartsFragment extends Fragment {
         Map<String, Double> map = new LinkedHashMap<>();
         if (data != null) {
             for (com.example.spendtracker.data.local.dao.TransactionDao.CategorySum sum : data) {
-                String label = sum.category;
-                if ("Card".equalsIgnoreCase(label)) label = "Credit Card";
-                else if ("Account".equalsIgnoreCase(label)) label = "Account";
-                else label = "Other";
-                
+                // Preserve the actual sourceType value as-is so navigation can filter by it
+                String label = (sum.category == null || sum.category.isEmpty()) ? "Other" : sum.category;
                 map.put(label, map.getOrDefault(label, 0.0) + sum.total);
             }
         }

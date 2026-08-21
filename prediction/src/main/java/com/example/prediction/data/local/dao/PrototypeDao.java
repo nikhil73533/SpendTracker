@@ -16,4 +16,7 @@ public interface PrototypeDao {
 
     @Query("SELECT * FROM prototypes WHERE type = :type")
     List<PrototypeEntity> getPrototypesByType(String type);
+
+    @Query("DELETE FROM prototypes")
+    void deleteAll();
 }

@@ -17,4 +17,7 @@ public interface MerchantStatsDao {
 
     @Update
     void update(MerchantStatsEntity stats);
+
+    @Query("DELETE FROM merchant_stats")
+    void deleteAll();
 }

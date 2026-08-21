@@ -40,6 +40,7 @@ public class CategoryDetailFragment extends Fragment {
     private DashboardViewModel dashboardViewModel;
     private TransactionViewModel transactionViewModel;
     private String categoryName;
+    private String sourceTypeFilter; // non-null when filtering by sourceType
     private GroupedTransactionAdapter adapter;
     private java.util.List<String> incomeCategories = new java.util.ArrayList<>();
     private java.util.List<String> expenseCategories = new java.util.ArrayList<>();
@@ -58,7 +59,14 @@ public class CategoryDetailFragment extends Fragment {
         transactionViewModel = new ViewModelProvider(this).get(TransactionViewModel.class);
 
         if (getArguments() != null) {
-            categoryName = getArguments().getString("categoryName", "Other");
+            String raw = getArguments().getString("categoryName", "Other");
+            if (raw.startsWith("__source__:")) {
+                sourceTypeFilter = raw.substring("__source__:".length());
+                categoryName = sourceTypeFilter; // display title
+            } else {
+                categoryName = raw;
+                sourceTypeFilter = null;
+            }
         }
 
         binding.tvCategoryTitle.setText(categoryName);
@@ -117,7 +125,10 @@ public class CategoryDetailFragment extends Fragment {
             List<Transaction> filtered = new ArrayList<>();
             double total = 0;
             for (Transaction t : transactions) {
-                if (categoryName.equals(t.getCategory())) {
+                boolean matches = (sourceTypeFilter != null)
+                    ? sourceTypeFilter.equalsIgnoreCase(t.getSourceType())
+                    : categoryName.equals(t.getCategory());
+                if (matches) {
                     filtered.add(t);
                     total += t.getAmount();
                 }
@@ -130,12 +141,14 @@ public class CategoryDetailFragment extends Fragment {
 
         dashboardViewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
-            // Re-run summary total refresh
             List<Transaction> transactions = dashboardViewModel.getTransactions().getValue();
             if (transactions != null) {
                 double total = 0;
                 for (Transaction t : transactions) {
-                    if (categoryName.equals(t.getCategory())) total += t.getAmount();
+                    boolean matches = (sourceTypeFilter != null)
+                        ? sourceTypeFilter.equalsIgnoreCase(t.getSourceType())
+                        : categoryName.equals(t.getCategory());
+                    if (matches) total += t.getAmount();
                 }
                 binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
             }

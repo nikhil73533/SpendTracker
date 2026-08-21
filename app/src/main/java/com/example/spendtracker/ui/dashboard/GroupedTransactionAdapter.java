@@ -207,7 +207,12 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
             itemView.setOnClickListener(v -> listener.onEdit(transaction));
             itemView.setOnLongClickListener(v -> {
-                listener.onDelete(transaction);
+                new android.app.AlertDialog.Builder(v.getContext())
+                    .setTitle("Delete Transaction")
+                    .setMessage("Delete this transaction of " + formatter.formatAmount(transaction.getAmount()) + "?")
+                    .setPositiveButton("Delete", (dialog, which) -> listener.onDelete(transaction))
+                    .setNegativeButton("Cancel", null)
+                    .show();
                 return true;
             });
         }

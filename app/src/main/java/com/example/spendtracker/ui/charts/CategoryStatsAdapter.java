@@ -95,7 +95,11 @@ public class CategoryStatsAdapter extends RecyclerView.Adapter<CategoryStatsAdap
             else if (category.contains("health")) iconRes = android.R.drawable.ic_menu_mylocation;
             
             ivIcon.setImageResource(iconRes);
-            itemView.setOnClickListener(v -> listener.onCategoryClick(stat.name));
+            if (listener != null) {
+                itemView.setOnClickListener(v -> listener.onCategoryClick(stat.name));
+            } else {
+                itemView.setClickable(false);
+            }
         }
     }
 }

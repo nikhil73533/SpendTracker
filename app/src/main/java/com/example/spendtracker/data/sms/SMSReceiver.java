@@ -11,9 +11,9 @@ import com.example.spendtracker.domain.usecase.AddTransactionUseCase;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.data.local.dao.RegexPatternDao;
 import com.example.spendtracker.data.local.entity.RegexPatternEntity;
-import com.example.prediction.domain.service.PredictionService;
+import com.example.prediction.domain.service.IncrementalPredictionService;
 import com.example.prediction.domain.model.PredictionTransaction;
-import com.example.prediction.domain.service.KNNPredictor;
+import com.example.prediction.domain.model.IncrementalPredictionResult;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -37,12 +37,12 @@ public class SMSReceiver extends BroadcastReceiver {
     @Inject
     RegexPatternDao regexPatternDao;
 
-    private PredictionService predictionService;
+    private IncrementalPredictionService predictionService;
 
     @Override
     public void onReceive(Context context, Intent intent) {
         if (predictionService == null) {
-            predictionService = new PredictionService(context);
+            predictionService = new IncrementalPredictionService(context);
         }
         if (intent != null && "android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction())) {
             final PendingResult pendingResult = goAsync();
@@ -73,16 +73,29 @@ public class SMSReceiver extends BroadcastReceiver {
 
             Log.d(TAG, "SMS Received from: " + sender + ", Body: " + messageBody);
 
+            // SMSParser already filters OTP/promotional messages — this service only
+            // receives genuine financial transaction SMS.
             List<RegexPatternEntity> patterns = regexPatternDao.getAllPatternsSync();
             Transaction originalTransaction = smsParser.parseSMS(sender, messageBody, patterns);
-            
+
             if (originalTransaction != null) {
                 Log.d(TAG, "Transaction detected: " + originalTransaction.getAmount());
-                
+
+                // TRANSFER type — category is always "Transfer", no ML needed
+                if ("TRANSFER".equalsIgnoreCase(originalTransaction.getType())) {
+                    addTransactionUseCase.execute(originalTransaction);
+                    return;
+                }
+
+                // Prediction pipeline for INCOME / EXPENSE
                 Transaction transactionToSave = originalTransaction;
 
-                // Prediction Integration
-                if ("Other".equals(originalTransaction.getCategory()) || "Uncategorized".equals(originalTransaction.getCategory())) {
+                boolean isCategorized = originalTransaction.getCategory() != null
+                    && !originalTransaction.getCategory().isBlank()
+                    && !originalTransaction.getCategory().equalsIgnoreCase("Other")
+                    && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
+
+                if (!isCategorized) {
                     PredictionTransaction pt = new PredictionTransaction(
                         originalTransaction.getReceiverName(),
                         originalTransaction.getUpiId(),
@@ -90,9 +103,9 @@ public class SMSReceiver extends BroadcastReceiver {
                         originalTransaction.getType(),
                         originalTransaction.getDate()
                     );
-                    
-                    KNNPredictor.PredictionResult result = predictionService.predict(pt);
-                    if (result != null) { // Removed confidence threshold per requirement
+
+                    IncrementalPredictionResult result = predictionService.predict(pt);
+                    if (result != null && result.getCategory() != null) {
                         transactionToSave = new Transaction(
                             originalTransaction.getId(),
                             originalTransaction.getAmount(),
@@ -107,9 +120,11 @@ public class SMSReceiver extends BroadcastReceiver {
                             originalTransaction.getBankName(),
                             originalTransaction.getSourceType()
                         );
+                        Log.d(TAG, "ML categorized as: " + result.getCategory()
+                            + " (conf=" + result.getConfidence() + ", needsConfirm=" + result.needsUserConfirmation() + ")");
                     }
                 }
-                
+
                 addTransactionUseCase.execute(transactionToSave);
             }
         }
