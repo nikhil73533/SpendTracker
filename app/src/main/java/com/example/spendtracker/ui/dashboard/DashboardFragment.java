@@ -40,6 +40,7 @@ public class DashboardFragment extends Fragment {
         transactionViewModel = new ViewModelProvider(this).get(TransactionViewModel.class);
 
         setupToolbar();
+        setupSearch();
         setupViewPager();
         setupFab();
         observeViewModel();
@@ -48,10 +49,27 @@ public class DashboardFragment extends Fragment {
     private void setupToolbar() {
         binding.btnPrevDate.setOnClickListener(v -> viewModel.movePrev());
         binding.btnNextDate.setOnClickListener(v -> viewModel.moveNext());
-        
-        binding.btnFavorite.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Added to favorites", android.widget.Toast.LENGTH_SHORT).show());
-        binding.btnSearch.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Search clicked", android.widget.Toast.LENGTH_SHORT).show());
-        binding.btnFilter.setOnClickListener(v -> android.widget.Toast.makeText(requireContext(), "Filter clicked", android.widget.Toast.LENGTH_SHORT).show());
+
+        // Search icon toggles search bar visibility
+        binding.btnSearch.setOnClickListener(v -> {
+            boolean isVisible = binding.layoutSearch.getVisibility() == View.VISIBLE;
+            binding.layoutSearch.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+            if (!isVisible) {
+                binding.etSearch.requestFocus();
+            } else {
+                binding.etSearch.setText("");
+            }
+        });
+    }
+
+    private void setupSearch() {
+        binding.etSearch.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                viewModel.setSearchQuery(s.toString());
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
     }
 
     private void setupViewPager() {
@@ -64,7 +82,7 @@ public class DashboardFragment extends Fragment {
                 case 1: tab.setText("Calendar"); break;
                 case 2: tab.setText("Monthly"); break;
                 case 3: tab.setText("Total"); break;
-                case 4: tab.setText("Notes"); break;
+                case 4: tab.setText(getString(R.string.tab_transaction_group)); break;
             }
         }).attach();
 
@@ -83,7 +101,7 @@ public class DashboardFragment extends Fragment {
                     case 1: viewModel.setFilter(DashboardViewModel.FilterType.CALENDAR); break;
                     case 2:
                     case 3: viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY); break;
-                    case 4: viewModel.setFilter(DashboardViewModel.FilterType.NOTE); break;
+                    case 4: viewModel.setFilter(DashboardViewModel.FilterType.TRANSACTION_GROUP); break;
                 }
                 // Clear the single-day guard when user leaves the Daily tab
                 if (position != 0) {

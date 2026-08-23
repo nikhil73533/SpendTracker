@@ -40,4 +40,10 @@ public interface TransactionRepository {
 
     void markAsRead(String accountName);
     LiveData<List<String>> getUniqueContacts();
+
+    // ── Trash / Soft Delete ──────────────────────────────────────────────────
+    void softDeleteTransaction(int transactionId);
+    void restoreTransaction(int transactionId);
+    LiveData<List<Transaction>> getDeletedTransactions();
+    void permanentlyDeleteTransaction(int transactionId);
 }

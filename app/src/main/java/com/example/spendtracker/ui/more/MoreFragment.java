@@ -36,10 +36,16 @@ public class MoreFragment extends Fragment {
             Navigation.findNavController(view).navigate(R.id.chartsFragment)
         );
 
-        binding.cardConfiguration.setOnClickListener(v -> showComingSoon("Configuration"));
+        binding.cardConfiguration.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.action_moreFragment_to_trashFragment)
+        );
         binding.cardMessageCaching.setOnClickListener(v -> showComingSoon("Message Caching"));
-        binding.cardCalcbox.setOnClickListener(v -> showComingSoon("CalcBox"));
-        binding.cardBackup.setOnClickListener(v -> showComingSoon("Backup"));
+        binding.cardCalcbox.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.action_moreFragment_to_calculatorFragment)
+        );
+        binding.cardBackup.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.action_moreFragment_to_backupFragment)
+        );
         binding.cardFeedback.setOnClickListener(v -> showComingSoon("Feedback"));
         binding.cardHelp.setOnClickListener(v -> showComingSoon("Help"));
         binding.cardRecommend.setOnClickListener(v -> showComingSoon("Recommend"));

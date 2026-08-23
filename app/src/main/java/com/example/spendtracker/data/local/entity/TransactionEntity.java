@@ -1,9 +1,15 @@
 package com.example.spendtracker.data.local.entity;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions",
+        indices = {
+            @Index(value = {"transactionGroupId"}),
+            @Index(value = {"status"})
+        })
 public class TransactionEntity {
     @PrimaryKey(autoGenerate = true)
     public int id;
@@ -24,6 +30,18 @@ public class TransactionEntity {
     public String fromAccount;
     public String toAccount;
     public double fees;
+
+    // Transaction Group association (nullable)
+    @ColumnInfo(defaultValue = "0")
+    public int transactionGroupId;
+
+    // Soft delete: "ACTIVE" or "DELETED"
+    @ColumnInfo(defaultValue = "ACTIVE")
+    public String status = "ACTIVE";
+
+    // Deletion timestamp (0 means not deleted)
+    @ColumnInfo(defaultValue = "0")
+    public long deletedAt;
 
     public TransactionEntity() {}
 
@@ -47,5 +65,8 @@ public class TransactionEntity {
         this.fromAccount = fromAccount;
         this.toAccount = toAccount;
         this.fees = fees;
+        this.status = "ACTIVE";
+        this.deletedAt = 0;
+        this.transactionGroupId = 0;
     }
 }

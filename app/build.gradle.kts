@@ -60,9 +60,8 @@ dependencies {
     // Charts
     implementation(libs.mp.android.chart)
 
-    // Excel Export
-    implementation(libs.poi)
-    implementation(libs.poi.ooxml)
+    // Excel Export (Android-compatible .xlsx writer, no JPMS/jlink deps)
+    implementation(libs.fastexcel)
 
     // Security & Encryption
     implementation(libs.biometric)

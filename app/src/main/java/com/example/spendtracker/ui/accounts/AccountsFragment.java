@@ -37,7 +37,6 @@ public class AccountsFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(this).get(TransactionViewModel.class);
         
-        setupTabs();
         setupSearch();
 
         adapter = new AccountsAdapter(account -> {
@@ -63,22 +62,6 @@ public class AccountsFragment extends Fragment {
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
-        });
-    }
-
-    private void setupTabs() {
-        binding.tabAccounts.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
-                if (tab.getPosition() == 1) {
-                    binding.layoutSearch.setVisibility(View.VISIBLE);
-                } else {
-                    binding.layoutSearch.setVisibility(View.GONE);
-                    binding.etSearch.setText("");
-                }
-            }
-            @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
-            @Override public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
         });
     }
 
@@ -158,47 +141,42 @@ public class AccountsFragment extends Fragment {
             }
 
             public void bind(TransactionDao.AccountSummary account, java.util.function.Consumer<TransactionDao.AccountSummary> listener) {
-            tvName.setText(formatter.maskPII(account.name));
-            
-            // WhatsApp style: Show UPI ID in the subtext
-            tvUpiId.setText(formatter.maskPII(account.upiId));
+                tvName.setText(formatter.maskPII(account.name));
+                tvUpiId.setText(formatter.maskPII(account.upiId));
+                String dateLabel = formatLastDate(account.lastTransactionDate);
+                tvLastDate.setText(dateLabel);
+                tvExpense.setText(formatter.formatAmount(account.totalExpense));
 
-            // Format date: Today, Yesterday, or Date
-            String dateLabel = formatLastDate(account.lastTransactionDate);
-            tvLastDate.setText(dateLabel);
-            
-            tvExpense.setText(formatter.formatAmount(account.totalExpense));
-
-            if (account.unreadCount > 0) {
-                tvUnread.setVisibility(View.VISIBLE);
-                tvUnread.setText(String.valueOf(account.unreadCount));
-            } else {
-                tvUnread.setVisibility(View.GONE);
-            }
-            
-            itemView.setOnClickListener(v -> listener.accept(account));
-        }
-
-        private String formatLastDate(long timestamp) {
-            if (timestamp == 0) return "";
-            java.util.Calendar today = java.util.Calendar.getInstance();
-            java.util.Calendar target = java.util.Calendar.getInstance();
-            target.setTimeInMillis(timestamp);
-
-            if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
-                today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
-                return "Today";
-            }
-            
-            today.add(java.util.Calendar.DAY_OF_YEAR, -1);
-            if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
-                today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
-                return "Yesterday";
+                if (account.unreadCount > 0) {
+                    tvUnread.setVisibility(View.VISIBLE);
+                    tvUnread.setText(String.valueOf(account.unreadCount));
+                } else {
+                    tvUnread.setVisibility(View.GONE);
+                }
+                
+                itemView.setOnClickListener(v -> listener.accept(account));
             }
 
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yy", java.util.Locale.getDefault());
-            return sdf.format(new java.util.Date(timestamp));
-        }
+            private String formatLastDate(long timestamp) {
+                if (timestamp == 0) return "";
+                java.util.Calendar today = java.util.Calendar.getInstance();
+                java.util.Calendar target = java.util.Calendar.getInstance();
+                target.setTimeInMillis(timestamp);
+
+                if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
+                    today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
+                    return "Today";
+                }
+                
+                today.add(java.util.Calendar.DAY_OF_YEAR, -1);
+                if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
+                    today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
+                    return "Yesterday";
+                }
+
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yy", java.util.Locale.getDefault());
+                return sdf.format(new java.util.Date(timestamp));
+            }
         }
     }
 

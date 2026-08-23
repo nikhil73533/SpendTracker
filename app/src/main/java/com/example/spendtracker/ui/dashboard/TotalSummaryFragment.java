@@ -25,9 +25,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
+import org.dhatim.fastexcel.Workbook;
+import org.dhatim.fastexcel.Worksheet;
 
 @AndroidEntryPoint
 public class TotalSummaryFragment extends Fragment {
@@ -108,40 +107,38 @@ public class TotalSummaryFragment extends Fragment {
                     return;
                 }
                 transactionViewModel.getAllTransactions().removeObserver(this);
-                
+
                 try {
-                    XSSFWorkbook workbook = new XSSFWorkbook();
-                    Sheet sheet = workbook.createSheet("Transactions");
-
-                    Row headerRow = sheet.createRow(0);
-                    String[] headers = {"Date", "Category", "Description", "Amount", "Type", "Source", "Receiver/Sender", "UPI ID"};
-                    for (int i = 0; i < headers.length; i++) {
-                        headerRow.createCell(i).setCellValue(headers[i]);
-                    }
-
-                    int rowNum = 1;
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                    boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
-
-                    for (Transaction t : transactions) {
-                        Row row = sheet.createRow(rowNum++);
-                        row.createCell(0).setCellValue(sdf.format(new Date(t.getDate())));
-                        row.createCell(1).setCellValue(t.getCategory());
-                        row.createCell(2).setCellValue(masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
-                        if (masked) row.createCell(3).setCellValue("***");
-                        else row.createCell(3).setCellValue(t.getAmount());
-                        row.createCell(4).setCellValue(t.getType());
-                        row.createCell(5).setCellValue(t.getSource());
-                        String contact = "INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName();
-                        row.createCell(6).setCellValue(masked ? transactionViewModel.maskPII(contact) : contact);
-                        row.createCell(7).setCellValue(masked ? transactionViewModel.maskPII(t.getUpiId()) : t.getUpiId());
-                    }
-
                     File file = new File(requireContext().getExternalFilesDir(null), "SpendTracker_Export.xlsx");
                     FileOutputStream out = new FileOutputStream(file);
-                    workbook.write(out);
-                    out.close();
-                    workbook.close();
+
+                    try (Workbook workbook = new Workbook(out, "SpendTracker", "1.0")) {
+                        Worksheet sheet = workbook.newWorksheet("Transactions");
+
+                        // Header row
+                        String[] headers = {"Date", "Category", "Description", "Amount", "Type", "Source", "Receiver/Sender", "UPI ID"};
+                        for (int i = 0; i < headers.length; i++) {
+                            sheet.value(0, i, headers[i]);
+                        }
+
+                        int rowNum = 1;
+                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+                        boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+
+                        for (Transaction t : transactions) {
+                            sheet.value(rowNum, 0, sdf.format(new Date(t.getDate())));
+                            sheet.value(rowNum, 1, t.getCategory());
+                            sheet.value(rowNum, 2, masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
+                            if (masked) sheet.value(rowNum, 3, "***");
+                            else sheet.value(rowNum, 3, t.getAmount());
+                            sheet.value(rowNum, 4, t.getType());
+                            sheet.value(rowNum, 5, t.getSource());
+                            String contact = "INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName();
+                            sheet.value(rowNum, 6, masked ? transactionViewModel.maskPII(contact) : contact);
+                            sheet.value(rowNum, 7, masked ? transactionViewModel.maskPII(t.getUpiId()) : t.getUpiId());
+                            rowNum++;
+                        }
+                    } // workbook.close() called here; flushes and closes 'out'
 
                     Intent intent = new Intent(Intent.ACTION_SEND);
                     intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

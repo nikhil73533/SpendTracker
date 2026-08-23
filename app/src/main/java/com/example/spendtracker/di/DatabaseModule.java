@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.example.spendtracker.data.local.dao.CategoryDao;
 import com.example.spendtracker.data.local.dao.RegexPatternDao;
 import com.example.spendtracker.data.local.dao.TransactionDao;
+import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 
@@ -37,7 +38,7 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build();
         
         return db;
@@ -57,6 +58,45 @@ public class DatabaseModule {
         }
     };
 
+    /**
+     * Migration 5 → 6:
+     * - Add transactionGroupId, status, deletedAt to transactions
+     * - Create transaction_groups table
+     * - Create transaction_group_categories table
+     */
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // Add new columns to transactions
+            database.execSQL("ALTER TABLE transactions ADD COLUMN transactionGroupId INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN deletedAt INTEGER NOT NULL DEFAULT 0");
+
+            // Create transaction_groups table
+            database.execSQL("CREATE TABLE IF NOT EXISTS `transaction_groups` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`name` TEXT, "
+                    + "`startDate` INTEGER NOT NULL, "
+                    + "`endDate` INTEGER NOT NULL, "
+                    + "`createdAt` INTEGER NOT NULL, "
+                    + "`isActive` INTEGER NOT NULL)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_groups_startDate_endDate` ON `transaction_groups` (`startDate`, `endDate`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_groups_createdAt` ON `transaction_groups` (`createdAt`)");
+
+            // Create transaction_group_categories table
+            database.execSQL("CREATE TABLE IF NOT EXISTS `transaction_group_categories` ("
+                    + "`groupId` INTEGER NOT NULL, "
+                    + "`categoryName` TEXT NOT NULL, "
+                    + "PRIMARY KEY(`groupId`, `categoryName`), "
+                    + "FOREIGN KEY(`groupId`) REFERENCES `transaction_groups`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_group_categories_groupId` ON `transaction_group_categories` (`groupId`)");
+
+            // Create indices on transactions for the new columns
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionGroupId` ON `transactions` (`transactionGroupId`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_status` ON `transactions` (`status`)");
+        }
+    };
+
     @Provides
     public TransactionDao provideTransactionDao(SpendTrackerDatabase database) {
         return database.transactionDao();
@@ -70,5 +110,10 @@ public class DatabaseModule {
     @Provides
     public RegexPatternDao provideRegexPatternDao(SpendTrackerDatabase database) {
         return database.regexPatternDao();
+    }
+
+    @Provides
+    public TransactionGroupDao provideTransactionGroupDao(SpendTrackerDatabase database) {
+        return database.transactionGroupDao();
     }
 }

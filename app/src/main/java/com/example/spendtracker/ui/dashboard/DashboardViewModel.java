@@ -33,6 +33,7 @@ public class DashboardViewModel extends ViewModel {
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
     private final MutableLiveData<FilterType> currentFilter = new MutableLiveData<>(FilterType.DAILY);
     private final MutableLiveData<Integer> selectedTab = new MutableLiveData<>(0);
+    private final MutableLiveData<String> searchQuery = new MutableLiveData<>("");
     private final IncrementalPredictionService predictionService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private long calendarViewMonthStart;
@@ -62,11 +63,11 @@ public class DashboardViewModel extends ViewModel {
         setFilter(FilterType.DAILY);
     }
 
-    public enum FilterType { DAILY, MONTHLY, TOTAL, CALENDAR, NOTE }
+    public enum FilterType { DAILY, MONTHLY, TOTAL, CALENDAR, TRANSACTION_GROUP }
 
     public void setFilter(FilterType type) {
         currentFilter.setValue(type);
-        if (type == FilterType.NOTE) return;
+        if (type == FilterType.TRANSACTION_GROUP) return;
 
         DateRange current = dateRange.getValue();
         long start;
@@ -87,6 +88,14 @@ public class DashboardViewModel extends ViewModel {
 
     public LiveData<Integer> getSelectedTab() {
         return selectedTab;
+    }
+
+    public void setSearchQuery(String query) {
+        searchQuery.setValue(query);
+    }
+
+    public LiveData<String> getSearchQuery() {
+        return searchQuery;
     }
 
     public void moveNext() {

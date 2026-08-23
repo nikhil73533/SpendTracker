@@ -74,6 +74,15 @@
         <action
             android:id="@+id/action_moreFragment_to_categoryManagementFragment"
             app:destination="@id/categoryManagementFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_calculatorFragment"
+            app:destination="@id/calculatorFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_trashFragment"
+            app:destination="@id/trashFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_backupFragment"
+            app:destination="@id/backupFragment" />
     </fragment>
 
     <fragment
@@ -92,5 +101,23 @@
             android:defaultValue="-1"
             app:argType="integer" />
     </fragment>
+
+    <fragment
+        android:id="@+id/calculatorFragment"
+        android:name="com.example.spendtracker.ui.calculator.CalculatorFragment"
+        android:label="Calculator"
+        tools:layout="@layout/fragment_calculator" />
+
+    <fragment
+        android:id="@+id/trashFragment"
+        android:name="com.example.spendtracker.ui.settings.TrashFragment"
+        android:label="Trash Bin"
+        tools:layout="@layout/fragment_trash" />
+
+    <fragment
+        android:id="@+id/backupFragment"
+        android:name="com.example.spendtracker.ui.settings.BackupFragment"
+        android:label="Backup"
+        tools:layout="@layout/fragment_backup" />
 
 </navigation>

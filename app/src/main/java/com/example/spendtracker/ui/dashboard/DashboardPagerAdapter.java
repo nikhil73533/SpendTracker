@@ -18,7 +18,7 @@ public class DashboardPagerAdapter extends FragmentStateAdapter {
             case 1: return new CalendarFragment();
             case 2: return new MonthlySummaryFragment();
             case 3: return new TotalSummaryFragment();
-            case 4: return new NotesFragment();
+            case 4: return new TransactionGroupFragment();
             default: return new DailyTransactionsFragment();
         }
     }

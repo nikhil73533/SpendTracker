@@ -136,7 +136,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
     static class TransactionViewHolder extends RecyclerView.ViewHolder {
         private final android.widget.ImageView ivIcon;
-        private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime;
+        private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime, tvGroupTag;
         private final DataFormatter formatter;
 
         public TransactionViewHolder(@NonNull View itemView, DataFormatter formatter) {
@@ -150,6 +150,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvIncomeAmount = itemView.findViewById(R.id.tv_income_amount);
             tvExpenseAmount = itemView.findViewById(R.id.tv_expense_amount);
             tvTime = itemView.findViewById(R.id.tv_time);
+            tvGroupTag = itemView.findViewById(R.id.tv_group_tag);
         }
 
         public void bind(TransactionItem item, OnTransactionClickListener listener) {
@@ -215,6 +216,15 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                     .show();
                 return true;
             });
+
+            // Transaction Group tag
+            String groupName = transaction.getTransactionGroupName();
+            if (groupName != null && !groupName.isEmpty()) {
+                tvGroupTag.setText(groupName);
+                tvGroupTag.setVisibility(View.VISIBLE);
+            } else {
+                tvGroupTag.setVisibility(View.GONE);
+            }
         }
     }
 

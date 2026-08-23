@@ -62,7 +62,7 @@
             android:columnCount="3"
             android:rowCount="3">
 
-            <!-- Item 1: Configuration -->
+            <!-- Item 1: Trash Bin -->
             <LinearLayout
                 android:id="@+id/card_configuration"
                 style="@style/SettingsWidgetItemStyle"
@@ -72,12 +72,12 @@
 
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="@string/label_configuration"
-                    android:src="@android:drawable/ic_menu_preferences" />
+                    android:contentDescription="@string/label_trash"
+                    android:src="@android:drawable/ic_menu_delete" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
-                    android:text="@string/label_configuration" />
+                    android:text="@string/label_trash" />
             </LinearLayout>
 
             <!-- Item 2: Ledger -->

@@ -6,6 +6,7 @@ import androidx.lifecycle.Transformations;
 import com.example.spendtracker.data.local.dao.CategoryDao;
 import com.example.spendtracker.data.local.entity.CategoryEntity;
 import com.example.spendtracker.data.local.dao.TransactionDao;
+import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
@@ -21,6 +22,7 @@ import javax.inject.Inject;
 public class TransactionRepositoryImpl implements TransactionRepository {
     private final TransactionDao transactionDao;
     private final CategoryDao categoryDao;
+    private final TransactionGroupDao transactionGroupDao;
     private final ExecutorService executorService;
 
     /**
@@ -60,9 +62,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     };
 
     @Inject
-    public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao) {
+    public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao, TransactionGroupDao transactionGroupDao) {
         this.transactionDao = transactionDao;
         this.categoryDao = categoryDao;
+        this.transactionGroupDao = transactionGroupDao;
         this.executorService = Executors.newSingleThreadExecutor();
         // Normalize existing bank names in the background on first run
         executorService.execute(this::normalizeBankNamesOnce);
@@ -143,7 +146,34 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void deleteTransaction(Transaction transaction) {
-        executorService.execute(() -> transactionDao.deleteTransaction(mapToEntity(transaction)));
+        // Soft delete: mark as DELETED instead of removing
+        executorService.execute(() -> transactionDao.softDeleteTransaction(transaction.getId(), System.currentTimeMillis()));
+    }
+
+    @Override
+    public void softDeleteTransaction(int transactionId) {
+        executorService.execute(() -> transactionDao.softDeleteTransaction(transactionId, System.currentTimeMillis()));
+    }
+
+    @Override
+    public void restoreTransaction(int transactionId) {
+        executorService.execute(() -> transactionDao.restoreTransaction(transactionId));
+    }
+
+    @Override
+    public LiveData<List<Transaction>> getDeletedTransactions() {
+        return Transformations.map(transactionDao.getDeletedTransactions(), entities -> {
+            List<Transaction> transactions = new ArrayList<>();
+            for (TransactionEntity entity : entities) {
+                transactions.add(mapToDomain(entity));
+            }
+            return transactions;
+        });
+    }
+
+    @Override
+    public void permanentlyDeleteTransaction(int transactionId) {
+        executorService.execute(() -> transactionDao.permanentlyDeleteTransaction(transactionId));
     }
 
     // ── Summary ───────────────────────────────────────────────────────────────
@@ -342,22 +372,37 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
-        return new Transaction(
+        Transaction t = new Transaction(
             entity.id, entity.amount, entity.category, entity.description,
             entity.type, entity.date, entity.source, entity.sender, entity.upiId,
             entity.receiverName, entity.bankName, entity.sourceType,
             entity.fromAccount, entity.toAccount, entity.fees
         );
+        t.setTransactionGroupId(entity.transactionGroupId);
+        t.setStatus(entity.status != null ? entity.status : "ACTIVE");
+        t.setDeletedAt(entity.deletedAt);
+        // Populate group name for display
+        if (entity.transactionGroupId > 0 && transactionGroupDao != null) {
+            try {
+                String groupName = transactionGroupDao.getGroupNameSync(entity.transactionGroupId);
+                t.setTransactionGroupName(groupName);
+            } catch (Exception ignored) {}
+        }
+        return t;
     }
 
     private TransactionEntity mapToEntity(Transaction transaction) {
         if (transaction == null) return null;
-        return new TransactionEntity(
+        TransactionEntity entity = new TransactionEntity(
             transaction.getId(), transaction.getAmount(), transaction.getCategory(),
             transaction.getDescription(), transaction.getType(), transaction.getDate(),
             transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
             transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType(),
             transaction.getFromAccount(), transaction.getToAccount(), transaction.getFees()
         );
+        entity.transactionGroupId = transaction.getTransactionGroupId();
+        entity.status = transaction.getStatus() != null ? transaction.getStatus() : "ACTIVE";
+        entity.deletedAt = transaction.getDeletedAt();
+        return entity;
     }
 }
