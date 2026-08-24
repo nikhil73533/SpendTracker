@@ -1,16 +1,16 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml:2:13-83
-INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml:2:13-83
+ADDED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml:2:13-83
+INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml:2:13-83
 	package
-		INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml
+		INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml
 	xmlns:android
-		ADDED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml:2:23-81
+		ADDED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml:2:23-81
 uses-sdk
-INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml reason: use-sdk injection requested
-INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml
-INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml
+INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml reason: use-sdk injection requested
+INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml
+INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml
 	android:targetSdkVersion
-		INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml
+		INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml
 	android:minSdkVersion
-		INJECTED from /home/mockingj/Documents/Personal Projects/SpendTracker/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest16451722571273466926.xml
+		INJECTED from /home/mockingj/AndroidStudioProjects/SpendTracker/prediction/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest11453991832146970795.xml

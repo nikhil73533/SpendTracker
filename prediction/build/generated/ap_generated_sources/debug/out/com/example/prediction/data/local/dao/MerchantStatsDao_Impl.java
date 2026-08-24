@@ -6,6 +6,7 @@ import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
+import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -26,6 +27,8 @@ public final class MerchantStatsDao_Impl implements MerchantStatsDao {
   private final EntityInsertionAdapter<MerchantStatsEntity> __insertionAdapterOfMerchantStatsEntity;
 
   private final EntityDeletionOrUpdateAdapter<MerchantStatsEntity> __updateAdapterOfMerchantStatsEntity;
+
+  private final SharedSQLiteStatement __preparedStmtOfDeleteAll;
 
   public MerchantStatsDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
@@ -96,6 +99,14 @@ public final class MerchantStatsDao_Impl implements MerchantStatsDao {
         }
       }
     };
+    this.__preparedStmtOfDeleteAll = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM merchant_stats";
+        return _query;
+      }
+    };
   }
 
   @Override
@@ -119,6 +130,23 @@ public final class MerchantStatsDao_Impl implements MerchantStatsDao {
       __db.setTransactionSuccessful();
     } finally {
       __db.endTransaction();
+    }
+  }
+
+  @Override
+  public void deleteAll() {
+    __db.assertNotSuspendingTransaction();
+    final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAll.acquire();
+    try {
+      __db.beginTransaction();
+      try {
+        _stmt.executeUpdateDelete();
+        __db.setTransactionSuccessful();
+      } finally {
+        __db.endTransaction();
+      }
+    } finally {
+      __preparedStmtOfDeleteAll.release(_stmt);
     }
   }
 
