@@ -156,7 +156,6 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <!-- Sender field (shown for INCOME type) -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_sender"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -164,7 +163,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Sender">
-            <AutoCompleteTextView
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/et_sender"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -172,7 +171,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Receiver field (shown for EXPENSE type) -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_receiver"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -180,7 +178,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Receiver / Payee">
-            <AutoCompleteTextView
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/et_receiver"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -188,7 +186,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Bank Name field -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_bank_name"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -196,7 +193,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:hint="Bank Name">
-            <AutoCompleteTextView
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/et_bank_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
