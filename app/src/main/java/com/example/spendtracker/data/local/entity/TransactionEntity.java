@@ -1,5 +1,6 @@
 package com.example.spendtracker.data.local.entity;
 
+import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.Index;
@@ -24,6 +25,7 @@ public class TransactionEntity {
     public String receiverName;
     public String bankName;
     public String sourceType;
+    @ColumnInfo(defaultValue = "1")
     public boolean isRead = true;
     
     // Transfer specific fields
@@ -36,6 +38,7 @@ public class TransactionEntity {
     public int transactionGroupId;
 
     // Soft delete: "ACTIVE" or "DELETED"
+    @NonNull
     @ColumnInfo(defaultValue = "ACTIVE")
     public String status = "ACTIVE";
 

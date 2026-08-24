@@ -1,0 +1,4 @@
+- [x] Update `DashboardViewModel.updateTransactionCategory` logic
+- [x] Update `TransactionDao` queries to synchronize Transfer logic
+- [x] Implement data synchronization in `TransactionRepositoryImpl`
+- [/] Verify fix by deploying and testing

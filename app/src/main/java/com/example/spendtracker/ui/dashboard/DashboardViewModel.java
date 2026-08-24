@@ -323,13 +323,22 @@ public class DashboardViewModel extends ViewModel {
 
     public void updateTransactionCategory(Transaction transaction, String newCategory) {
         executor.execute(() -> {
+            String updatedType = transaction.getType();
+            if ("Transfer".equalsIgnoreCase(newCategory)) {
+                updatedType = "TRANSFER";
+            } else if ("TRANSFER".equals(transaction.getType())) {
+                // If it was a transfer and changed to something else, default to EXPENSE
+                // (or you could try to guess based on context, but EXPENSE is safer for most corrections)
+                updatedType = "EXPENSE";
+            }
+
             // Create a new Transaction instance to ensure DiffUtil detects the change
             Transaction updated = new Transaction(
                 transaction.getId(),
                 transaction.getAmount(),
                 newCategory,
                 transaction.getDescription(),
-                transaction.getType(),
+                updatedType,
                 transaction.getDate(),
                 transaction.getSource(),
                 transaction.getSender(),
@@ -341,7 +350,7 @@ public class DashboardViewModel extends ViewModel {
             repository.updateTransaction(updated);
 
             // Incremental learning: user correction teaches the model
-            if (!"TRANSFER".equalsIgnoreCase(transaction.getType())) {
+            if (!"TRANSFER".equalsIgnoreCase(updatedType)) {
                 com.example.prediction.domain.model.PredictionTransaction pt =
                     new com.example.prediction.domain.model.PredictionTransaction(
                         transaction.getReceiverName(),

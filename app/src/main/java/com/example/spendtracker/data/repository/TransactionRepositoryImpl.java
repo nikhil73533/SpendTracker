@@ -68,7 +68,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         this.transactionGroupDao = transactionGroupDao;
         this.executorService = Executors.newSingleThreadExecutor();
         // Normalize existing bank names in the background on first run
-        executorService.execute(this::normalizeBankNamesOnce);
+        executorService.execute(() -> {
+            normalizeBankNamesOnce();
+            syncTransferDataOnce();
+        });
     }
 
     // ── Bank name normalization ──────────────────────────────────────────────
@@ -99,6 +102,19 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                     if (e.source != null && e.source.contains("(")) {
                         e.source = canonical + " (" + e.sourceType + ")";
                     }
+                    transactionDao.updateTransaction(e);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** One-time background migration: ensures category "Transfer" implies type "TRANSFER". */
+    private void syncTransferDataOnce() {
+        try {
+            List<TransactionEntity> all = transactionDao.getAllTransactionsSync();
+            for (TransactionEntity e : all) {
+                if ("Transfer".equalsIgnoreCase(e.category) && !"TRANSFER".equals(e.type)) {
+                    e.type = "TRANSFER";
                     transactionDao.updateTransaction(e);
                 }
             }
