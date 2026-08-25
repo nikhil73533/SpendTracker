@@ -48,16 +48,16 @@ public interface TransactionDao {
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getCategorySummaries(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getExpenseCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getExpenseCategoryAverages(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'INCOME' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'INCOME' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getIncomeCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getIncomeCategoryAverages(long start, long end);
 
     @Query("SELECT date as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (date / 86400000) ORDER BY date ASC")

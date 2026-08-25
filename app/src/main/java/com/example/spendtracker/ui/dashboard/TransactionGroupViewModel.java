@@ -99,4 +99,16 @@ public class TransactionGroupViewModel extends ViewModel {
     public LiveData<List<String>> getCategories() {
         return transactionRepository.getCategories();
     }
+
+    public void addCategory(String name, String type) {
+        transactionRepository.addCategory(name, type);
+    }
+
+    public void renameCategory(String oldName, String newName) {
+        transactionRepository.renameCategory(oldName, newName);
+    }
+
+    public void deleteCategory(String name) {
+        transactionRepository.deleteCategory(name);
+    }
 }

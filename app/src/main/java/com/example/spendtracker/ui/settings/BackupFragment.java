@@ -1,10 +1,14 @@
 package com.example.spendtracker.ui.settings;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -23,6 +27,23 @@ public class BackupFragment extends Fragment {
     private FragmentBackupBinding binding;
     private BackupViewModel viewModel;
     private final SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
+
+    private ActivityResultLauncher<Intent> googleSignInLauncher;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        googleSignInLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    viewModel.handleSignInResult(result.getData());
+                } else {
+                    Toast.makeText(requireContext(), "Google Sign-In cancelled", Toast.LENGTH_SHORT).show();
+                }
+            }
+        );
+    }
 
     @Nullable
     @Override
@@ -69,8 +90,21 @@ public class BackupFragment extends Fragment {
             }
         });
 
-        binding.btnConnectDrive.setOnClickListener(v -> {
-            Toast.makeText(requireContext(), "Google Drive sync is coming soon.", Toast.LENGTH_SHORT).show();
+        // Google Drive Connect/Disconnect
+        viewModel.getDriveAccountEmail().observe(getViewLifecycleOwner(), email -> {
+            if (email != null && !email.isEmpty()) {
+                binding.btnConnectDrive.setText(getString(R.string.label_disconnect_drive));
+                binding.btnConnectDrive.setOnClickListener(v -> {
+                    viewModel.disconnectDrive(requireContext());
+                    Toast.makeText(requireContext(), "Google Drive disconnected", Toast.LENGTH_SHORT).show();
+                });
+            } else {
+                binding.btnConnectDrive.setText(getString(R.string.label_connect_drive));
+                binding.btnConnectDrive.setOnClickListener(v -> {
+                    Intent signInIntent = viewModel.getGoogleSignInIntent(requireContext());
+                    googleSignInLauncher.launch(signInIntent);
+                });
+            }
         });
     }
 

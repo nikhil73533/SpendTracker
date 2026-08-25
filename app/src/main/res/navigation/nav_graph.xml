@@ -86,6 +86,9 @@
         <action
             android:id="@+id/action_moreFragment_to_backupFragment"
             app:destination="@id/backupFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_billAlertsFragment"
+            app:destination="@id/billAlertsFragment" />
     </fragment>
 
     <fragment
@@ -132,5 +135,11 @@
         android:name="com.example.spendtracker.ui.settings.BackupFragment"
         android:label="Backup"
         tools:layout="@layout/fragment_backup" />
+
+    <fragment
+        android:id="@+id/billAlertsFragment"
+        android:name="com.example.spendtracker.ui.more.BillAlertsFragment"
+        android:label="Bill Alerts"
+        tools:layout="@layout/fragment_bill_alerts" />
 
 </navigation>

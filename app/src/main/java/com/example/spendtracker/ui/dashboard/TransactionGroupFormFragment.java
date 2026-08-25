@@ -13,6 +13,7 @@ import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentTransactionGroupFormBinding;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.chip.Chip;
+import com.google.android.material.textfield.TextInputEditText;
 import dagger.hilt.android.AndroidEntryPoint;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -112,17 +113,105 @@ public class TransactionGroupFormFragment extends BottomSheetDialogFragment {
     private void loadCategories() {
         viewModel.getCategories().observe(getViewLifecycleOwner(), categories -> {
             binding.chipGroupCategories.removeAllViews();
-            if (categories == null) return;
-            for (String cat : categories) {
-                Chip chip = new Chip(requireContext());
-                chip.setText(cat);
-                chip.setCheckable(true);
-                chip.setChipBackgroundColorResource(R.color.dark_surface);
-                chip.setTextColor(getResources().getColor(R.color.white, null));
-                chip.setTag(cat);
-                binding.chipGroupCategories.addView(chip);
+            if (categories != null) {
+                for (String cat : categories) {
+                    addCategoryChip(cat);
+                }
             }
+            // Add the "+" chip for creating new categories
+            addCreateCategoryChip();
         });
+    }
+
+    private void addCategoryChip(String cat) {
+        Chip chip = new Chip(requireContext());
+        chip.setText(cat);
+        chip.setCheckable(true);
+        chip.setChipBackgroundColorResource(R.color.dark_surface);
+        chip.setTextColor(getResources().getColor(R.color.white, null));
+        chip.setTag(cat);
+        chip.setCloseIconVisible(true);
+        chip.setCloseIconTintResource(R.color.expense_red);
+
+        // Long press to rename
+        chip.setOnLongClickListener(v -> {
+            showRenameCategoryDialog(cat);
+            return true;
+        });
+
+        // Close icon to delete
+        chip.setOnCloseIconClickListener(v -> {
+            showDeleteCategoryConfirmation(cat);
+        });
+
+        binding.chipGroupCategories.addView(chip);
+    }
+
+    private void addCreateCategoryChip() {
+        Chip addChip = new Chip(requireContext());
+        addChip.setText("+ Add");
+        addChip.setCheckable(false);
+        addChip.setChipBackgroundColorResource(R.color.income_blue);
+        addChip.setTextColor(getResources().getColor(R.color.white, null));
+        addChip.setChipStrokeWidth(0);
+        addChip.setOnClickListener(v -> showAddCategoryDialog());
+        binding.chipGroupCategories.addView(addChip);
+    }
+
+    private void showAddCategoryDialog() {
+        android.view.View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_category, null);
+        android.widget.EditText etName = dialogView.findViewById(R.id.et_category_name);
+        android.widget.Spinner spinner = dialogView.findViewById(R.id.spinner_type);
+
+        android.widget.ArrayAdapter<String> spinnerAdapter = new android.widget.ArrayAdapter<>(
+            requireContext(), android.R.layout.simple_spinner_item, new String[]{"EXPENSE", "INCOME"});
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(spinnerAdapter);
+
+        new android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.add_category)
+            .setView(dialogView)
+            .setPositiveButton("Add", (dialog, which) -> {
+                String name = etName.getText().toString().trim();
+                String type = (String) spinner.getSelectedItem();
+                if (!name.isEmpty()) {
+                    viewModel.addCategory(name, type);
+                    Toast.makeText(requireContext(), "Category '" + name + "' added", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void showRenameCategoryDialog(String oldName) {
+        android.widget.EditText etNewName = new android.widget.EditText(requireContext());
+        etNewName.setText(oldName);
+        etNewName.setSelectAllOnFocus(true);
+
+        new android.app.AlertDialog.Builder(requireContext())
+            .setTitle("Rename Category")
+            .setView(etNewName)
+            .setPositiveButton("Rename", (dialog, which) -> {
+                String newName = etNewName.getText().toString().trim();
+                if (!newName.isEmpty() && !newName.equals(oldName)) {
+                    viewModel.renameCategory(oldName, newName);
+                    Toast.makeText(requireContext(), "Renamed '" + oldName + "' → '" + newName + "'", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void showDeleteCategoryConfirmation(String categoryName) {
+        new android.app.AlertDialog.Builder(requireContext())
+            .setTitle("Delete Category")
+            .setMessage("Delete category '" + categoryName + "'? Transactions won't be deleted.")
+            .setPositiveButton("Delete", (d, w) -> {
+                viewModel.deleteCategory(categoryName);
+                Toast.makeText(requireContext(), "Category deleted", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private void loadGroupData() {

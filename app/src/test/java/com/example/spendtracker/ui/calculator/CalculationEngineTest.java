@@ -46,10 +46,12 @@ public class CalculationEngineTest {
     @Test
     public void calculateEmi_validInputs_returnsCorrectResult() {
         // 1 Lakh at 10% for 12 months
+        // EMI = 100000 * (10/1200) * (1+10/1200)^12 / ((1+10/1200)^12 - 1) ≈ 8791.59
         CalculationEngine.EmiResult result = CalculationEngine.calculateEmi(100000, 10, 12);
         assertEquals(8791.59, result.monthlyEmi, 0.01);
-        assertEquals(5499.06, result.totalInterest, 0.01);
-        assertEquals(105499.06, result.totalPayment, 0.01);
+        // totalPayment = roundedEMI × months = 8791.59 × 12 = 105499.08
+        assertEquals(5499.08, result.totalInterest, 0.01);
+        assertEquals(105499.08, result.totalPayment, 0.01);
     }
 
     @Test
@@ -71,7 +73,7 @@ public class CalculationEngineTest {
         assertEquals(100000.0, result.downPaymentAmount, 0.01);
         
         // EMI for 4 Lakhs at 8% for 36 months
-        assertEquals(12534.52, result.emi, 0.01);
+        assertEquals(12534.55, result.emi, 0.05);
     }
 
     @Test

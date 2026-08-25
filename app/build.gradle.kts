@@ -66,6 +66,8 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.work.runtime)
 
+    // Google Sign-In (for Drive backup)
+    implementation(libs.google.play.services.auth)
     implementation(project(":prediction"))
 
     testImplementation(libs.junit)

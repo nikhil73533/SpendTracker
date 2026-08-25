@@ -1,17 +1,24 @@
 package com.example.spendtracker.ui.settings;
 
+import android.app.Application;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
-import android.app.Application;
-import android.content.Context;
-import android.content.SharedPreferences;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import com.example.spendtracker.util.StorageHelper;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.Scope;
+import com.google.android.gms.tasks.Task;
 import dagger.hilt.android.lifecycle.HiltViewModel;
-import dagger.hilt.android.qualifiers.ApplicationContext;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
@@ -22,7 +29,11 @@ public class BackupViewModel extends ViewModel {
     private final Application context;
     private final MutableLiveData<Long> lastBackupTime = new MutableLiveData<>(0L);
     private final MutableLiveData<Boolean> isAutoBackupEnabled = new MutableLiveData<>(false);
+    private final MutableLiveData<String> driveAccountEmail = new MutableLiveData<>("");
     private final SharedPreferences prefs;
+
+    /** Scope for Google Drive appdata folder access only (minimal permissions). */
+    private static final String DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 
     @Inject
     public BackupViewModel(Application context) {
@@ -34,10 +45,12 @@ public class BackupViewModel extends ViewModel {
     private void loadPrefs() {
         lastBackupTime.setValue(prefs.getLong("last_backup_time", 0L));
         isAutoBackupEnabled.setValue(prefs.getBoolean("auto_backup_enabled", false));
+        driveAccountEmail.setValue(prefs.getString("drive_account_email", ""));
     }
 
     public LiveData<Long> getLastBackupTime() { return lastBackupTime; }
     public LiveData<Boolean> getIsAutoBackupEnabled() { return isAutoBackupEnabled; }
+    public LiveData<String> getDriveAccountEmail() { return driveAccountEmail; }
 
     public void setAutoBackupEnabled(boolean enabled) {
         prefs.edit().putBoolean("auto_backup_enabled", enabled).apply();
@@ -84,5 +97,54 @@ public class BackupViewModel extends ViewModel {
             }
         }
         return false;
+    }
+
+    // ── Google Drive Authentication ──────────────────────────────────────────
+
+    /**
+     * Builds the Google Sign-In intent with Drive appdata scope.
+     * Only requests access to the app-specific folder in Google Drive.
+     */
+    public Intent getGoogleSignInIntent(Context activityContext) {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(new Scope(DRIVE_APPDATA_SCOPE))
+            .build();
+        GoogleSignInClient client = GoogleSignIn.getClient(activityContext, gso);
+        return client.getSignInIntent();
+    }
+
+    /**
+     * Handles the result from Google Sign-In ActivityResultLauncher.
+     * Extracts the account email and persists it.
+     */
+    public void handleSignInResult(Intent data) {
+        try {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            GoogleSignInAccount account = task.getResult(ApiException.class);
+            if (account != null && account.getEmail() != null) {
+                String email = account.getEmail();
+                prefs.edit().putString("drive_account_email", email).apply();
+                driveAccountEmail.postValue(email);
+            }
+        } catch (ApiException e) {
+            e.printStackTrace();
+            driveAccountEmail.postValue("");
+        }
+    }
+
+    /**
+     * Disconnects the Google Drive account and clears persisted state.
+     */
+    public void disconnectDrive(Context activityContext) {
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(new Scope(DRIVE_APPDATA_SCOPE))
+            .build();
+        GoogleSignInClient client = GoogleSignIn.getClient(activityContext, gso);
+        client.revokeAccess().addOnCompleteListener(task -> {
+            prefs.edit().remove("drive_account_email").apply();
+            driveAccountEmail.postValue("");
+        });
     }
 }

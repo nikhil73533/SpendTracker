@@ -33,7 +33,11 @@ public class CalculationEngine {
         if (parser.pos < parser.input.length()) {
             throw new ArithmeticException("Unexpected character: " + parser.input.charAt(parser.pos));
         }
-        return result.setScale(SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
+        BigDecimal res = result.setScale(SCALE, RoundingMode.HALF_UP).stripTrailingZeros();
+        if (res.scale() < 0) {
+            res = res.setScale(0);
+        }
+        return res;
     }
 
     // Recursive descent parser for proper operator precedence
@@ -109,9 +113,13 @@ public class CalculationEngine {
     }
 
     /**
-     * Standard reducing-balance EMI calculation.
+     * Standard reducing-balance EMI calculation as per Indian banking norms (RBI guideline).
      * Formula: EMI = P × r × (1+r)^n / ((1+r)^n - 1)
-     * where P = principal, r = monthly interest rate, n = tenure in months.
+     * where P = principal, r = monthly interest rate (annual / 12 / 100), n = tenure in months.
+     *
+     * Note: Indian banks compute EMI to the nearest paise (2 decimal places),
+     * then derive total payment = EMI × n, and total interest = total payment - P.
+     * The last EMI may differ by a few paise due to rounding; this is standard practice.
      */
     public static EmiResult calculateEmi(double principal, double annualRate, int tenureMonths) {
         if (principal <= 0 || tenureMonths <= 0) {
@@ -126,14 +134,17 @@ public class CalculationEngine {
         double monthlyRate = annualRate / 12.0 / 100.0;
         double pow = Math.pow(1 + monthlyRate, tenureMonths);
         double emi = principal * monthlyRate * pow / (pow - 1);
-        double totalPayment = emi * tenureMonths;
-        double totalInterest = totalPayment - principal;
 
-        return new EmiResult(
-            Math.round(emi * 100.0) / 100.0,
-            Math.round(totalInterest * 100.0) / 100.0,
-            Math.round(totalPayment * 100.0) / 100.0
-        );
+        // Round EMI to 2 decimal places (paise precision)
+        emi = Math.round(emi * 100.0) / 100.0;
+
+        // Total Payment & Interest derived from rounded EMI (how banks actually bill)
+        double totalPayment = emi * tenureMonths;
+        totalPayment = Math.round(totalPayment * 100.0) / 100.0;
+        double totalInterest = totalPayment - principal;
+        totalInterest = Math.round(totalInterest * 100.0) / 100.0;
+
+        return new EmiResult(emi, totalInterest, totalPayment);
     }
 
     // ── Loan Calculator ──────────────────────────────────────────────────────
@@ -199,20 +210,14 @@ public class CalculationEngine {
         if (len <= 3) {
             sb.append(intStr);
         } else {
-            sb.append(intStr.substring(len - 3));
-            int remaining = len - 3;
-            int idx = 0;
-            String prefix = intStr.substring(0, remaining);
-            // Group by 2 from right
-            List<String> groups = new ArrayList<>();
+            String lastThree = intStr.substring(len - 3);
+            String prefix = intStr.substring(0, len - 3);
+            StringBuilder formattedPrefix = new StringBuilder();
             for (int i = prefix.length(); i > 0; i -= 2) {
-                groups.add(0, prefix.substring(Math.max(0, i - 2), i));
+                if (formattedPrefix.length() > 0) formattedPrefix.insert(0, ",");
+                formattedPrefix.insert(0, prefix.substring(Math.max(0, i - 2), i));
             }
-            for (int i = 0; i < groups.size(); i++) {
-                if (i > 0) sb.insert(0, ",");
-                sb.insert(0, groups.get(i));
-            }
-            sb.insert(sb.length() - 3, ",");
+            sb.append(formattedPrefix).append(",").append(lastThree);
         }
 
         if (decPart > 0) {

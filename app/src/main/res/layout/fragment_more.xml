@@ -224,6 +224,43 @@
                     android:text="@string/label_recommend" />
             </LinearLayout>
 
+            <!-- Item 10: Bill Alerts -->
+            <LinearLayout
+                android:id="@+id/card_bill_alerts"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Bill Alerts"
+                    android:src="@android:drawable/ic_popup_reminder"
+                    app:tint="#FF9800" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="Bill Alerts" />
+            </LinearLayout>
+
+            <!-- Item 11: Bulk Ingestion -->
+            <LinearLayout
+                android:id="@+id/card_bulk_ingestion"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Bulk Ingestion"
+                    android:src="@android:drawable/ic_menu_upload" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="Bulk Ingestion" />
+            </LinearLayout>
+
         </GridLayout>
 
     </LinearLayout>

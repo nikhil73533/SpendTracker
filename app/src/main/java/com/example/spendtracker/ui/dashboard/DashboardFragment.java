@@ -90,6 +90,10 @@ public class DashboardFragment extends Fragment {
             @Override
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
+
+                // FAB is only relevant on the Daily tab; hide on all other tabs to prevent overlap
+                binding.fabContainer.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
+
                 switch (position) {
                     case 0:
                         // If the user tapped a specific calendar day, do NOT override the

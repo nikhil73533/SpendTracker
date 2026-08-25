@@ -49,6 +49,10 @@ public class MoreFragment extends Fragment {
         binding.cardFeedback.setOnClickListener(v -> showComingSoon("Feedback"));
         binding.cardHelp.setOnClickListener(v -> showComingSoon("Help"));
         binding.cardRecommend.setOnClickListener(v -> showComingSoon("Recommend"));
+        binding.cardBillAlerts.setOnClickListener(v -> 
+            Navigation.findNavController(view).navigate(R.id.action_moreFragment_to_billAlertsFragment)
+        );
+        binding.cardBulkIngestion.setOnClickListener(v -> showComingSoon("Bulk Ingestion"));
     }
 
     private void showComingSoon(String feature) {

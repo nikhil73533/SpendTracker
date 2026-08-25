@@ -31,6 +31,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
     public void createGroup(String name, long startDate, long endDate, List<String> categoryNames) {
         executor.execute(() -> {
             TransactionGroupEntity group = new TransactionGroupEntity(0, name, startDate, endDate);
+            group.tag = TransactionGroupEntity.deriveTag(name);
             long groupId = groupDao.insertGroup(group);
             for (String cat : categoryNames) {
                 groupDao.insertGroupCategory(new TransactionGroupCategoryEntity((int) groupId, cat));
@@ -48,6 +49,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
             group.name = name;
             group.startDate = startDate;
             group.endDate = endDate;
+            group.tag = TransactionGroupEntity.deriveTag(name);
             groupDao.updateGroup(group);
 
             // Update categories

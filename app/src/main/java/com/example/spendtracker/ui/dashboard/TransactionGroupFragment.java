@@ -120,7 +120,7 @@ public class TransactionGroupFragment extends Fragment {
         }
 
         static class ViewHolder extends RecyclerView.ViewHolder {
-            TextView tvName, tvDateRange, tvStatus;
+            TextView tvName, tvDateRange, tvStatus, tvTag;
             android.widget.ImageButton btnEdit;
 
             ViewHolder(@NonNull View itemView) {
@@ -128,6 +128,7 @@ public class TransactionGroupFragment extends Fragment {
                 tvName = itemView.findViewById(R.id.tv_group_name);
                 tvDateRange = itemView.findViewById(R.id.tv_date_range);
                 tvStatus = itemView.findViewById(R.id.tv_group_status);
+                tvTag = itemView.findViewById(R.id.tv_group_tag);
                 btnEdit = itemView.findViewById(R.id.btn_edit_group);
             }
 
@@ -137,6 +138,15 @@ public class TransactionGroupFragment extends Fragment {
                 tvDateRange.setText(range);
                 tvStatus.setText(group.isActive ? "Active" : "Inactive");
                 tvStatus.setTextColor(group.isActive ? 0xFF4CAF50 : 0xFF9E9E9E);
+                // Display #tag if present
+                if (tvTag != null) {
+                    if (group.tag != null && !group.tag.isEmpty()) {
+                        tvTag.setText(group.tag);
+                        tvTag.setVisibility(View.VISIBLE);
+                    } else {
+                        tvTag.setVisibility(View.GONE);
+                    }
+                }
                 itemView.setOnClickListener(v -> listener.onClick(group));
                 if (btnEdit != null) {
                     btnEdit.setOnClickListener(v -> listener.onEdit(group));
