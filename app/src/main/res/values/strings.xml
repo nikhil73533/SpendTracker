@@ -102,4 +102,9 @@
     <string name="btn_delete_permanently">Delete Permanently</string>
     <string name="label_deleted_on">Deleted on %s</string>
     <string name="empty_trash">Trash is empty</string>
+
+    <string name="add_category">Add Category</string>
+    <string name="content_desc_add_category">Add new category</string>
+    <string name="add_group">Add Group</string>
+    <string name="content_desc_add_group">Add new group</string>
 </resources>
