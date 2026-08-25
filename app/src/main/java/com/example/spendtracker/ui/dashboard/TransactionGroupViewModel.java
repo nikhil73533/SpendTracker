@@ -42,6 +42,44 @@ public class TransactionGroupViewModel extends ViewModel {
         return groupRepository.getTransactionsForGroup(groupId);
     }
 
+    public LiveData<List<GroupedTransactionAdapter.ListItem>> getGroupedTransactionsForGroup(int groupId) {
+        return androidx.lifecycle.Transformations.map(getTransactionsForGroup(groupId), transactions -> {
+            java.util.List<GroupedTransactionAdapter.ListItem> items = new java.util.ArrayList<>();
+            if (transactions == null || transactions.isEmpty()) return items;
+
+            java.util.Map<Long, java.util.List<Transaction>> grouped = new java.util.LinkedHashMap<>();
+            for (Transaction t : transactions) {
+                long tDay = getStartOfDay(t.getDate());
+                if (!grouped.containsKey(tDay)) grouped.put(tDay, new java.util.ArrayList<>());
+                java.util.List<Transaction> list = grouped.get(tDay);
+                if (list != null) list.add(t);
+            }
+
+            for (java.util.Map.Entry<Long, java.util.List<Transaction>> entry : grouped.entrySet()) {
+                double income = 0, expense = 0;
+                for (Transaction t : entry.getValue()) {
+                    if ("INCOME".equals(t.getType())) income += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                }
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense));
+                for (Transaction t : entry.getValue()) {
+                    items.add(new GroupedTransactionAdapter.TransactionItem(t));
+                }
+            }
+            return items;
+        });
+    }
+
+    private long getStartOfDay(long timestamp) {
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+
     public LiveData<Integer> getTransactionCountForGroup(int groupId) {
         return groupRepository.getTransactionCountForGroup(groupId);
     }

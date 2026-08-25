@@ -43,7 +43,20 @@ public class TransactionGroupFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(this).get(TransactionGroupViewModel.class);
 
-        adapter = new GroupListAdapter(group -> showGroupForm(group.id));
+        adapter = new GroupListAdapter(new OnGroupClickListener() {
+            @Override
+            public void onClick(TransactionGroupEntity group) {
+                Bundle args = new Bundle();
+                args.putInt("groupId", group.id);
+                androidx.navigation.Navigation.findNavController(requireView())
+                        .navigate(R.id.action_dashboardFragment_to_groupTransactionsFragment, args);
+            }
+
+            @Override
+            public void onEdit(TransactionGroupEntity group) {
+                showGroupForm(group.id);
+            }
+        });
         binding.rvGroups.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.rvGroups.setAdapter(adapter);
 
@@ -76,6 +89,7 @@ public class TransactionGroupFragment extends Fragment {
 
     interface OnGroupClickListener {
         void onClick(TransactionGroupEntity group);
+        void onEdit(TransactionGroupEntity group);
     }
 
     static class GroupListAdapter extends ListAdapter<TransactionGroupEntity, GroupListAdapter.ViewHolder> {
@@ -107,12 +121,14 @@ public class TransactionGroupFragment extends Fragment {
 
         static class ViewHolder extends RecyclerView.ViewHolder {
             TextView tvName, tvDateRange, tvStatus;
+            android.widget.ImageButton btnEdit;
 
             ViewHolder(@NonNull View itemView) {
                 super(itemView);
                 tvName = itemView.findViewById(R.id.tv_group_name);
                 tvDateRange = itemView.findViewById(R.id.tv_date_range);
                 tvStatus = itemView.findViewById(R.id.tv_group_status);
+                btnEdit = itemView.findViewById(R.id.btn_edit_group);
             }
 
             void bind(TransactionGroupEntity group, OnGroupClickListener listener) {
@@ -122,6 +138,9 @@ public class TransactionGroupFragment extends Fragment {
                 tvStatus.setText(group.isActive ? "Active" : "Inactive");
                 tvStatus.setTextColor(group.isActive ? 0xFF4CAF50 : 0xFF9E9E9E);
                 itemView.setOnClickListener(v -> listener.onClick(group));
+                if (btnEdit != null) {
+                    btnEdit.setOnClickListener(v -> listener.onEdit(group));
+                }
             }
         }
     }

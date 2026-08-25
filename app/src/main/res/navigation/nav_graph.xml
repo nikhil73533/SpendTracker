@@ -13,6 +13,9 @@
         <action
             android:id="@+id/action_dashboardFragment_to_transactionFormFragment"
             app:destination="@id/transactionFormFragment" />
+        <action
+            android:id="@+id/action_dashboardFragment_to_groupTransactionsFragment"
+            app:destination="@id/groupTransactionsFragment" />
     </fragment>
 
     <fragment
@@ -99,6 +102,16 @@
         <argument
             android:name="transactionId"
             android:defaultValue="-1"
+            app:argType="integer" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/groupTransactionsFragment"
+        android:name="com.example.spendtracker.ui.dashboard.GroupTransactionsFragment"
+        android:label="Group Transactions"
+        tools:layout="@layout/fragment_group_transactions">
+        <argument
+            android:name="groupId"
             app:argType="integer" />
     </fragment>
 

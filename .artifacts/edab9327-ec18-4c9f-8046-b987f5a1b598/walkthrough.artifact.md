@@ -1,47 +1,21 @@
-# Walkthrough - SpendTracker Enhancements
+# Walkthrough - Transaction Form UI Standardized
 
-This document summarizes the features implemented and bugs fixed in the SpendTracker application.
+I have standardized the transaction form UI to ensure consistent field heights and improved scrollability.
 
-## Feature Overview
+## Changes Made
 
-### 1. Advanced Transaction Analytics
-The **Charts** section now provides deeper insights with three new visualizations:
-- **Weekend vs. Weekday**: A bar chart comparing total spending on weekends vs. weekdays.
-- **Bank-level Totals**: A bar chart showing the total transaction value per bank.
-- **Source Distribution**: A pie chart showing the split between Credit Card, Bank Account, and Cash transactions.
-
-### 2. Dashboard Swipe Navigation
-The Dashboard has been refactored to use `ViewPager2`, allowing smooth horizontal swiping between:
-- **Calendar** view.
-- **Monthly** summary.
-- **Total** analytics tab.
-- **Notes** section.
-The `TabLayout` at the top remains synchronized with the swipe position.
-
-### 3. Accounts: Search & Unread Indicators
-The **Accounts** section now features:
-- A **Search Bar** to quickly filter accounts and transactions.
-- **Unread Indicators**: WhatsApp-style green badges showing the number of unread transactions for each account.
-- Counts are cleared immediately upon viewing account history.
-
-### 4. Settings & More UI
-The **More** fragment has been completely redesigned:
-- **Ledger**: Quick access to account balances.
-- **Advanced Analytics**: Direct shortcut to detailed charts.
-- **Message Caching & CalcBox**: New utility widgets.
-- **Grid Layout**: A clean, icon-based grid matching the reference design.
-
-## Bug Fixes
-
-### 1. Biometric Authentication Refresh
-- Fixed an issue where dashboard widgets remained masked (`***`) after successful authentication.
-- Widgets now immediately refresh to display **integer** transaction values.
-
-### 2. Last Month Expense Calculation
-- Corrected the logic in `DashboardViewModel` to properly calculate and display the total expenses for the previous month in the **Total** tab.
+### [fragment_transaction_form.xml](file:///home/mockingj/AndroidStudioProjects/SpendTracker/app/src/main/res/layout/fragment_transaction_form.xml)
+- **Standardized Field Heights**: Removed hardcoded heights (e.g., `52dp`, `63dp`, `29dp`) that were causing visual inconsistencies. All fields now use standard Material 3 sizing (`wrap_content`).
+- **Fixed Layout Nesting**: Corrected a bug where the `et_bank_name` field was incorrectly placed inside the `til_account_info` container. It is now properly nested within `til_bank_name`.
+- **Improved Scrollability**: Added `android:fillViewport="true"` to the `NestedScrollView`. This ensures the form content fills the screen correctly and remains scrollable even when small or when the soft keyboard is visible.
 
 ## Verification Results
-- Verified that all new charts correctly handle datasets and reflect real-time data.
-- Confirmed that swipe navigation between dashboard tabs is smooth and updates state correctly.
-- Verified that search in Accounts accurately filters results.
-- Confirmed biometric authentication correctly unmasks values as integers.
+
+### UI Verification
+- All input fields (Sender, Receiver, Bank Name, Category, etc.) now have a uniform appearance.
+- The form remains scrollable and responsive to different screen heights.
+
+### UI Refinements
+- **Charts**: Percentages and category labels are now visible in Privacy Mode (masked as "Cat 1", etc.), and trend charts show shapes with masked axis values.
+- **Form Alignment**: Added consistent padding to Sender, Receiver, and Bank Name fields for perfect alignment.
+

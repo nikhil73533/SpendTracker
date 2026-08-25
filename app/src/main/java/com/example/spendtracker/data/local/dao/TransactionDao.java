@@ -42,7 +42,7 @@ public interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTotalExpense(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE sourceType = 'Account' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE sourceType = 'Account' AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTotalAccountTransaction(long start, long end);
 
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")

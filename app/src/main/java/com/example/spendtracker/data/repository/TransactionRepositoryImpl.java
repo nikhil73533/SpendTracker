@@ -370,7 +370,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                                List<TransactionDao.CategorySum> incSums, List<TransactionDao.CategorySum> incAvgs) {
         double totalIncome = income != null ? income : 0.0;
         double totalExpense = expense != null ? expense : 0.0;
-        double totalAccount = totalIncome - totalExpense;
+        double totalAccount = account != null ? account : 0.0;
 
         summaryMediator.setValue(new Summary(
             totalIncome, totalExpense, totalAccount,
