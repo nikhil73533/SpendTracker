@@ -41,7 +41,9 @@ public class MainActivity extends AppCompatActivity {
             java.io.File dbFile = getDatabasePath("spend_tracker_db");
             if (dbFile.exists()) {
                 android.util.Log.e("RECOVERY_CORE", "Attempting Startup Checkpoint...");
-                net.sqlcipher.database.SQLiteDatabase db = net.sqlcipher.database.SQLiteDatabase.openOrCreateDatabase(dbFile, new String(pass), null);
+                // pass is raw byte[] from securityRepository.getDatabasePassphrase()
+                // Use the absolute path string to match the byte[] overload
+                net.sqlcipher.database.SQLiteDatabase db = net.sqlcipher.database.SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), pass, null);
                 db.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
                 db.close();
                 android.util.Log.e("RECOVERY_CORE", "Startup Checkpoint Complete.");

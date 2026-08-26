@@ -1,6 +1,7 @@
 package com.example.spendtracker.di;
 
 import android.content.Context;
+import androidx.annotation.NonNull;
 import androidx.room.Room;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
@@ -38,7 +39,8 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
         return db;
@@ -94,6 +96,39 @@ public class DatabaseModule {
             // Create indices on transactions for the new columns
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionGroupId` ON `transactions` (`transactionGroupId`)");
             database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_status` ON `transactions` (`status`)");
+        }
+    };
+
+    /**
+     * Migration 6 → 7:
+     * - Add fromAccount, toAccount, fees to transactions
+     */
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Using try-catch to handle cases where columns might already exist due to incomplete previous migrations or manual edits
+            try {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN fromAccount TEXT");
+            } catch (Exception e) {
+                android.util.Log.w("RECOVERY_CORE", "Column fromAccount already exists or error adding it: " + e.getMessage());
+            }
+            try {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN toAccount TEXT");
+            } catch (Exception e) {
+                android.util.Log.w("RECOVERY_CORE", "Column toAccount already exists or error adding it: " + e.getMessage());
+            }
+            try {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN fees REAL NOT NULL DEFAULT 0.0");
+            } catch (Exception e) {
+                android.util.Log.w("RECOVERY_CORE", "Column fees already exists or error adding it: " + e.getMessage());
+            }
+
+            // Fix for missing tag column in transaction_groups
+            try {
+                database.execSQL("ALTER TABLE transaction_groups ADD COLUMN tag TEXT DEFAULT ''");
+            } catch (Exception e) {
+                android.util.Log.w("RECOVERY_CORE", "Column tag already exists or error adding it: " + e.getMessage());
+            }
         }
     };
 

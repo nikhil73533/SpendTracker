@@ -94,7 +94,7 @@ public class TransactionViewModel extends ViewModel {
         repository.renameCategory(oldName, newName);
     }
 
-    public LiveData<List<Transaction>> getAllTransactions() {
+    public LiveData<List<Transaction>> getTransactions() {
         return repository.getTransactions();
     }
 

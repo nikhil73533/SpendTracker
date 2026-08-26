@@ -184,7 +184,7 @@ public class DatabaseEncryptionHelper {
                 android.util.Log.e("RECOVERY_CORE", "Unzipped DB is encrypted. Attempting SQLCipher checkpoint...");
                 // Attempt to checkpoint an encrypted DB with the given passphrase
                 try {
-                    SQLiteDatabase encryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, new String(passphrase), null);
+                    SQLiteDatabase encryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
                     encryptedDb.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
                     encryptedDb.close();
                     android.util.Log.e("RECOVERY_CORE", "SQLCipher checkpoint complete.");
@@ -230,7 +230,8 @@ public class DatabaseEncryptionHelper {
 
             // Try opening with passphrase
             try {
-                SQLiteDatabase db = SQLiteDatabase.openDatabase(dbFile.getAbsolutePath(), new String(passphrase), null, SQLiteDatabase.OPEN_READONLY);
+                // Using openOrCreateDatabase with byte[] passphrase as it's known to work in this version
+                SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
                 db.rawQuery("SELECT count(*) FROM transactions", null).close();
                 db.close();
                 return true;

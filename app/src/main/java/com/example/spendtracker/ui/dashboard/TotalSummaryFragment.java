@@ -99,14 +99,14 @@ public class TotalSummaryFragment extends Fragment {
     }
 
     private void exportToExcel() {
-        transactionViewModel.getAllTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
+        transactionViewModel.getTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
             @Override
             public void onChanged(List<Transaction> transactions) {
                 if (transactions == null || transactions.isEmpty()) {
                     Toast.makeText(requireContext(), "No data to export", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                transactionViewModel.getAllTransactions().removeObserver(this);
+                transactionViewModel.getTransactions().removeObserver(this);
 
                 try {
                     File file = new File(requireContext().getExternalFilesDir(null), "SpendTracker_Export.xlsx");

@@ -18,7 +18,7 @@ import com.example.spendtracker.data.local.entity.TransactionGroupEntity;
     RegexPatternEntity.class,
     TransactionGroupEntity.class,
     TransactionGroupCategoryEntity.class
-}, version = 6, exportSchema = false)
+}, version = 7, exportSchema = false)
 public abstract class SpendTrackerDatabase extends RoomDatabase {
     public abstract TransactionDao transactionDao();
     public abstract CategoryDao categoryDao();
