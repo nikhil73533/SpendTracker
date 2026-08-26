@@ -89,6 +89,12 @@
         <action
             android:id="@+id/action_moreFragment_to_billAlertsFragment"
             app:destination="@id/billAlertsFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_repeatedAlertsFragment"
+            app:destination="@id/repeatedAlertsFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_pdfIngestionFragment"
+            app:destination="@id/pdfIngestionFragment" />
     </fragment>
 
     <fragment
@@ -141,5 +147,17 @@
         android:name="com.example.spendtracker.ui.more.BillAlertsFragment"
         android:label="Bill Alerts"
         tools:layout="@layout/fragment_bill_alerts" />
+
+    <fragment
+        android:id="@+id/repeatedAlertsFragment"
+        android:name="com.example.spendtracker.ui.more.RepeatedAlertsFragment"
+        android:label="Repeated Alerts"
+        tools:layout="@layout/fragment_repeated_alerts" />
+
+    <fragment
+        android:id="@+id/pdfIngestionFragment"
+        android:name="com.example.spendtracker.ui.pdfimport.PdfIngestionFragment"
+        android:label="PDF Bulk Ingestion"
+        tools:layout="@layout/fragment_pdf_ingestion" />
 
 </navigation>

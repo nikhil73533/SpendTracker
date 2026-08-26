@@ -89,6 +89,8 @@ public class TotalSummaryFragment extends Fragment {
         binding.tvComparedPercent.setText(data.comparedPercent + "%");
         binding.tvAccountExpenses.setText(formatAmountWithState(data.accountExpenses, masked));
         binding.tvCardExpenses.setText(formatAmountWithState(data.cardExpenses, masked));
+        binding.tvTransferIncoming.setText(formatAmountWithState(data.transferIncoming, masked));
+        binding.tvTransferOutgoing.setText(formatAmountWithState(data.transferOutgoing, masked));
         binding.tvTotalTransfers.setText(formatAmountWithState(data.transfers, masked));
         binding.tvTotalIncome.setText(formatAmountWithState(data.income, masked));
     }

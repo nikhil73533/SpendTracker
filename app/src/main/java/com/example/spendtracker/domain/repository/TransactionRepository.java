@@ -37,6 +37,8 @@ public interface TransactionRepository {
     LiveData<Double> getTotalCardExpense(long start, long end);
     LiveData<Double> getTotalAccountExpense(long start, long end);
     LiveData<Double> getTotalTransfer(long start, long end);
+    LiveData<Double> getTotalTransferIncoming(long start, long end);
+    LiveData<Double> getTotalTransferOutgoing(long start, long end);
 
     void markAsRead(String accountName);
     LiveData<List<String>> getUniqueContacts();

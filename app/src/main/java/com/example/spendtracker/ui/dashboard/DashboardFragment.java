@@ -207,7 +207,8 @@ public class DashboardFragment extends Fragment {
     private void updateSummaryUI(Summary summary, boolean masked) {
         binding.tvTotalIncome.setText(formatAmountWithState(summary.getTotalIncome(), masked));
         binding.tvTotalExpense.setText(formatAmountWithState(summary.getTotalExpense(), masked));
-        binding.tvAccountTotal.setText(formatAmountWithState(summary.getTotalAccountTransaction(), masked));
+        // Total = Income - Expense (net balance, excluding transfers)
+        binding.tvAccountTotal.setText(formatAmountWithState(summary.getNetBalance(), masked));
     }
 
     private String formatAmountWithState(double amount, boolean masked) {

@@ -96,7 +96,6 @@ public class BackupFragment extends Fragment {
                 binding.btnConnectDrive.setText(getString(R.string.label_disconnect_drive));
                 binding.btnConnectDrive.setOnClickListener(v -> {
                     viewModel.disconnectDrive(requireContext());
-                    Toast.makeText(requireContext(), "Google Drive disconnected", Toast.LENGTH_SHORT).show();
                 });
             } else {
                 binding.btnConnectDrive.setText(getString(R.string.label_connect_drive));
@@ -104,6 +103,12 @@ public class BackupFragment extends Fragment {
                     Intent signInIntent = viewModel.getGoogleSignInIntent(requireContext());
                     googleSignInLauncher.launch(signInIntent);
                 });
+            }
+        });
+
+        viewModel.getDriveStatus().observe(getViewLifecycleOwner(), status -> {
+            if (status != null && !status.isEmpty()) {
+                Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show();
             }
         });
     }

@@ -93,6 +93,12 @@ public interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTransferTotal(long start, long end);
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND toAccount IS NOT NULL AND toAccount != '' AND date BETWEEN :start AND :end")
+    LiveData<Double> getTransferOutgoing(long start, long end);
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND (toAccount IS NULL OR toAccount = '') AND date BETWEEN :start AND :end")
+    LiveData<Double> getTransferIncoming(long start, long end);
+
     @Query("UPDATE transactions SET isRead = 1 WHERE (receiverName = :accountName OR sender = :accountName)")
     void markAsRead(String accountName);
 

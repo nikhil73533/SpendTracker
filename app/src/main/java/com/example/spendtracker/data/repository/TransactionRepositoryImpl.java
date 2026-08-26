@@ -7,6 +7,8 @@ import com.example.spendtracker.data.local.dao.CategoryDao;
 import com.example.spendtracker.data.local.entity.CategoryEntity;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.dao.TransactionGroupDao;
+import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
+import com.example.spendtracker.data.local.entity.RepeatedAlertEntity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
@@ -23,6 +25,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private final TransactionDao transactionDao;
     private final CategoryDao categoryDao;
     private final TransactionGroupDao transactionGroupDao;
+    private final RepeatedAlertDao repeatedAlertDao;
     private final ExecutorService executorService;
 
     /**
@@ -62,10 +65,11 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     };
 
     @Inject
-    public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao, TransactionGroupDao transactionGroupDao) {
+    public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao, TransactionGroupDao transactionGroupDao, RepeatedAlertDao repeatedAlertDao) {
         this.transactionDao = transactionDao;
         this.categoryDao = categoryDao;
         this.transactionGroupDao = transactionGroupDao;
+        this.repeatedAlertDao = repeatedAlertDao;
         this.executorService = Executors.newSingleThreadExecutor();
         // Normalize existing bank names in the background on first run
         executorService.execute(() -> {
@@ -152,7 +156,36 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void addTransaction(Transaction transaction) {
-        executorService.execute(() -> transactionDao.insertTransaction(mapToEntity(transaction)));
+        executorService.execute(() -> {
+            long newId = transactionDao.insertTransaction(mapToEntity(transaction));
+            if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
+                // Check for duplicate transactions within 48 hours
+                long fortyEightHours = 48L * 60 * 60 * 1000;
+                long start = transaction.getDate() - fortyEightHours;
+                long end = transaction.getDate() + fortyEightHours;
+                
+                List<TransactionEntity> duplicates = repeatedAlertDao.findPotentialDuplicates(
+                        transaction.getReceiverName(), transaction.getAmount(), (int) newId, start, end);
+                
+                for (TransactionEntity dup : duplicates) {
+                    if (repeatedAlertDao.alertExistsForPair((int) newId, dup.id) == 0 &&
+                        repeatedAlertDao.alertExistsForPair(dup.id, (int) newId) == 0) {
+                        
+                        RepeatedAlertEntity alert = new RepeatedAlertEntity(
+                                transaction.getReceiverName().trim(),
+                                transaction.getAmount(),
+                                Math.min(transaction.getDate(), dup.date),
+                                Math.max(transaction.getDate(), dup.date),
+                                transaction.getDate() < dup.date ? (int) newId : dup.id,
+                                transaction.getDate() >= dup.date ? (int) newId : dup.id,
+                                transaction.getCategory()
+                        );
+                        repeatedAlertDao.insert(alert);
+                        break; // Only create one alert for the most recent match
+                    }
+                }
+            }
+        });
     }
 
     @Override
@@ -351,6 +384,16 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     @Override
     public LiveData<Double> getTotalTransfer(long start, long end) {
         return transactionDao.getTransferTotal(start, end);
+    }
+
+    @Override
+    public LiveData<Double> getTotalTransferIncoming(long start, long end) {
+        return transactionDao.getTransferIncoming(start, end);
+    }
+
+    @Override
+    public LiveData<Double> getTotalTransferOutgoing(long start, long end) {
+        return transactionDao.getTransferOutgoing(start, end);
     }
 
     @Override

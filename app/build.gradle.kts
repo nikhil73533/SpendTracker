@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.google.play.services.auth)
     implementation(project(":prediction"))
 
+    // PDF Bulk Ingestion
+    implementation(libs.pdfbox.android)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -222,48 +222,24 @@ public class ChartsFragment extends Fragment {
         });
 
         viewModel.getChartData().observe(getViewLifecycleOwner(), summary -> {
-            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
-                clearSensitiveCharts();
-                return;
-            }
             updateUIWithData(summary);
             binding.pieChartMain.invalidate();
         });
 
         viewModel.getDailyTrends().observe(getViewLifecycleOwner(), trends -> {
-            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) return;
             setupLineChart(trends);
             binding.lineChart.invalidate();
         });
 
         viewModel.getWeekdayWeekendTotals().observe(getViewLifecycleOwner(), data -> {
-            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
-                binding.barChartWeekend.clear();
-                binding.barChartWeekend.setNoDataText("Unlock to view");
-                binding.barChartWeekend.invalidate();
-                return;
-            }
             setupBarChart(binding.barChartWeekend, data, "Weekend vs Weekday");
         });
 
         viewModel.getBankTotals().observe(getViewLifecycleOwner(), data -> {
-            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
-                binding.barChartBanks.clear();
-                binding.barChartBanks.setNoDataText("Unlock to view");
-                binding.barChartBanks.invalidate();
-                return;
-            }
             setupBarChart(binding.barChartBanks, data, "Bank Totals");
         });
 
         viewModel.getSourceTypeTotals().observe(getViewLifecycleOwner(), data -> {
-            if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
-                binding.pieChartSource.clear();
-                binding.pieChartSource.setNoDataText("Unlock to view");
-                binding.pieChartSource.invalidate();
-                sourceStatsAdapter.submitList(new java.util.ArrayList<>());
-                return;
-            }
             Map<String, Double> breakdown = mapSourceLabels(data);
             double total = calculateTotal(data);
             setupSourcePieChart(binding.pieChartSource, breakdown, total, ColorTemplate.VORDIPLOM_COLORS);
@@ -273,43 +249,43 @@ public class ChartsFragment extends Fragment {
         updateSectionVisibility();
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
-            if (Boolean.TRUE.equals(enabled)) {
-                clearSensitiveCharts();
-            } else {
-                // Re-trigger data refresh from cached LiveData values
-                Summary summary = viewModel.getChartData().getValue();
-                if (summary != null) updateUIWithData(summary);
-                List<com.example.spendtracker.domain.model.DailyTrend> trends = viewModel.getDailyTrends().getValue();
-                if (trends != null) setupLineChart(trends);
+            // Re-render all charts with current data (formatters handle masking)
+            Summary summary = viewModel.getChartData().getValue();
+            if (summary != null) {
+                updateUIWithData(summary);
+                binding.pieChartMain.invalidate();
+            }
+            List<com.example.spendtracker.domain.model.DailyTrend> trends = viewModel.getDailyTrends().getValue();
+            if (trends != null) {
+                setupLineChart(trends);
+                binding.lineChart.invalidate();
             }
         });
     }
 
-    /** Clears all sensitive chart data when biometric lock is active. Data is not accessible in memory. */
-    private void clearSensitiveCharts() {
-        if (binding == null) return;
-        binding.pieChartMain.clear();
-        binding.pieChartMain.setNoDataText("Unlock to view");
-        binding.pieChartMain.invalidate();
-        binding.lineChart.clear();
-        binding.lineChart.setNoDataText("Unlock to view");
-        binding.lineChart.invalidate();
-        binding.barChartWeekend.clear();
-        binding.barChartWeekend.setNoDataText("Unlock to view");
-        binding.barChartWeekend.invalidate();
-        binding.barChartBanks.clear();
-        binding.barChartBanks.setNoDataText("Unlock to view");
-        binding.barChartBanks.invalidate();
-        binding.pieChartSource.clear();
-        binding.pieChartSource.setNoDataText("Unlock to view");
-        binding.pieChartSource.invalidate();
-        statsAdapter.submitList(new java.util.ArrayList<>());
-        sourceStatsAdapter.submitList(new java.util.ArrayList<>());
-        // Update tab texts to hide totals
-        TabLayout.Tab expTab = binding.tabChartType.getTabAt(1);
-        if (expTab != null) expTab.setText("Expenses ***");
-        TabLayout.Tab incTab = binding.tabChartType.getTabAt(0);
-        if (incTab != null) incTab.setText("Income ***");
+    /** Returns true when biometric privacy mode is active and sensitive values should be masked. */
+    private boolean isPrivacyActive() {
+        return Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+    }
+
+    /** Returns a ValueFormatter that masks values with *** when privacy mode is active. */
+    private com.github.mikephil.charting.formatter.ValueFormatter getMaskedValueFormatter() {
+        return new com.github.mikephil.charting.formatter.ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                return isPrivacyActive() ? "***" : String.format(Locale.getDefault(), "%.0f", value);
+            }
+        };
+    }
+
+    /** Returns a PercentFormatter that masks values with *** when privacy mode is active. */
+    private com.github.mikephil.charting.formatter.ValueFormatter getMaskedPercentFormatter(PieChart chart) {
+        return new com.github.mikephil.charting.formatter.ValueFormatter() {
+            @Override
+            public String getFormattedValue(float value) {
+                return isPrivacyActive() ? "***" : String.format(Locale.getDefault(), "%.1f%%", value);
+            }
+        };
     }
 
     private void updateHeaderLabel() {
@@ -341,9 +317,8 @@ public class ChartsFragment extends Fragment {
         Map<String, Double> breakdown = showingExpenses ? summary.getExpenseBreakdown() : summary.getIncomeBreakdown();
         double total = showingExpenses ? summary.getTotalExpense() : summary.getTotalIncome();
         int[] colors = showingExpenses ? ColorTemplate.COLORFUL_COLORS : ColorTemplate.JOYFUL_COLORS;
-        String label = showingExpenses ? "Expenses" : "Income";
 
-        // Update Tab Text with Total
+        // Update Tab Text with Total (masked when privacy mode is on)
         TabLayout.Tab expenseTab = binding.tabChartType.getTabAt(1);
         if (expenseTab != null) expenseTab.setText("Expenses " + viewModel.formatAmount(summary.getTotalExpense()));
         
@@ -412,7 +387,7 @@ public class ChartsFragment extends Fragment {
         dataSet.setValueLinePart2Length(0.6f);
         dataSet.setValueTextColors(colors);
         dataSet.setValueTextSize(12f);
-        dataSet.setValueFormatter(new com.github.mikephil.charting.formatter.PercentFormatter(chart));
+        dataSet.setValueFormatter(getMaskedPercentFormatter(chart));
 
         PieData pieData = new PieData(dataSet);
         chart.setData(pieData);
@@ -486,7 +461,7 @@ public class ChartsFragment extends Fragment {
         
         dataSet.setValueTextColors(colors); 
         dataSet.setValueTextSize(12f); 
-        dataSet.setValueFormatter(new com.github.mikephil.charting.formatter.PercentFormatter(chart));
+        dataSet.setValueFormatter(getMaskedPercentFormatter(chart));
 
         PieData pieData = new PieData(dataSet);
         chart.setData(pieData);
@@ -557,7 +532,7 @@ public class ChartsFragment extends Fragment {
         dataSet.setLineWidth(2.5f);
         dataSet.setCircleRadius(3.5f);
         dataSet.setDrawCircleHole(false);
-        dataSet.setDrawValues(false);
+        dataSet.setDrawValues(!isPrivacyActive());
         dataSet.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
 
         LineData lineData = new LineData(dataSet);
@@ -573,6 +548,9 @@ public class ChartsFragment extends Fragment {
         
         binding.lineChart.getAxisLeft().setTextColor(Color.GRAY);
         binding.lineChart.getAxisLeft().setGridColor(Color.DKGRAY);
+        if (isPrivacyActive()) {
+            binding.lineChart.getAxisLeft().setValueFormatter(getMaskedValueFormatter());
+        }
         binding.lineChart.getAxisRight().setEnabled(false);
         
         binding.lineChart.animateX(1000);
@@ -598,6 +576,7 @@ public class ChartsFragment extends Fragment {
         dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
         dataSet.setValueTextColor(Color.WHITE);
         dataSet.setValueTextSize(10f);
+        dataSet.setValueFormatter(getMaskedValueFormatter());
 
         BarData barData = new BarData(dataSet);
         chart.setData(barData);

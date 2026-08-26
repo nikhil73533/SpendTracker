@@ -243,6 +243,25 @@
                     android:text="Bill Alerts" />
             </LinearLayout>
 
+            <!-- Item 10b: Repeated Alerts -->
+            <LinearLayout
+                android:id="@+id/card_repeated_alerts"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Repeated Alerts"
+                    android:src="@android:drawable/ic_dialog_alert"
+                    app:tint="#F44336" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="Repeated Alerts" />
+            </LinearLayout>
+
             <!-- Item 11: Bulk Ingestion -->
             <LinearLayout
                 android:id="@+id/card_bulk_ingestion"

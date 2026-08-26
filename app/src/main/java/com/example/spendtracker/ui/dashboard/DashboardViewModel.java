@@ -407,6 +407,8 @@ public class DashboardViewModel extends ViewModel {
             LiveData<Double>  cardExpLive        = repository.getTotalCardExpense(range.start, range.end);
             LiveData<Double>  acctExpLive        = repository.getTotalAccountExpense(range.start, range.end);
             LiveData<Double>  transferLive       = repository.getTotalTransfer(range.start, range.end);
+            LiveData<Double>  transferInLive     = repository.getTotalTransferIncoming(range.start, range.end);
+            LiveData<Double>  transferOutLive    = repository.getTotalTransferOutgoing(range.start, range.end);
 
             MediatorLiveData<TotalPageData> mediator = new MediatorLiveData<>();
 
@@ -419,12 +421,14 @@ public class DashboardViewModel extends ViewModel {
                     int percent = 0;
                     if (lastExp > 0) percent = (int) (((currentExp - lastExp) / lastExp) * 100);
 
-                    double cardExp  = cardExpLive.getValue()  != null ? cardExpLive.getValue()  : 0;
-                    double acctExp  = acctExpLive.getValue()  != null ? acctExpLive.getValue()  : 0;
-                    double transfer = transferLive.getValue() != null ? transferLive.getValue() : 0;
-                    double income   = current.getTotalIncome();
+                    double cardExp    = cardExpLive.getValue()    != null ? cardExpLive.getValue()    : 0;
+                    double acctExp    = acctExpLive.getValue()    != null ? acctExpLive.getValue()    : 0;
+                    double transfer   = transferLive.getValue()   != null ? transferLive.getValue()   : 0;
+                    double transferIn = transferInLive.getValue() != null ? transferInLive.getValue() : 0;
+                    double transferOut= transferOutLive.getValue()!= null ? transferOutLive.getValue(): 0;
+                    double income     = current.getTotalIncome();
 
-                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, income));
+                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, transferIn, transferOut, income));
                 }
             };
 
@@ -433,6 +437,8 @@ public class DashboardViewModel extends ViewModel {
             mediator.addSource(cardExpLive,        v -> update.run());
             mediator.addSource(acctExpLive,        v -> update.run());
             mediator.addSource(transferLive,       v -> update.run());
+            mediator.addSource(transferInLive,     v -> update.run());
+            mediator.addSource(transferOutLive,    v -> update.run());
 
             return mediator;
         });
@@ -463,13 +469,17 @@ public class DashboardViewModel extends ViewModel {
         public final double accountExpenses;
         public final double cardExpenses;
         public final double transfers;
+        public final double transferIncoming;
+        public final double transferOutgoing;
         public final double income;
 
-        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double income) {
+        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double transferIncoming, double transferOutgoing, double income) {
             this.comparedPercent = comparedPercent;
             this.accountExpenses = accountExpenses;
             this.cardExpenses = cardExpenses;
             this.transfers = transfers;
+            this.transferIncoming = transferIncoming;
+            this.transferOutgoing = transferOutgoing;
             this.income = income;
         }
     }

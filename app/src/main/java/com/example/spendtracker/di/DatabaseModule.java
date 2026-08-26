@@ -9,6 +9,7 @@ import com.example.spendtracker.data.local.dao.CategoryDao;
 import com.example.spendtracker.data.local.dao.RegexPatternDao;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.dao.TransactionGroupDao;
+import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 
@@ -39,7 +40,7 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
@@ -132,6 +133,28 @@ public class DatabaseModule {
         }
     };
 
+    /**
+     * Migration 7 → 8:
+     * - Create repeated_transaction_alerts table
+     */
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS `repeated_transaction_alerts` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`merchantName` TEXT, "
+                    + "`amount` REAL NOT NULL, "
+                    + "`firstTransactionDate` INTEGER NOT NULL, "
+                    + "`secondTransactionDate` INTEGER NOT NULL, "
+                    + "`firstTransactionId` INTEGER NOT NULL, "
+                    + "`secondTransactionId` INTEGER NOT NULL, "
+                    + "`enabled` INTEGER NOT NULL DEFAULT 1, "
+                    + "`dismissed` INTEGER NOT NULL DEFAULT 0, "
+                    + "`createdAt` INTEGER NOT NULL, "
+                    + "`category` TEXT)");
+        }
+    };
+
     @Provides
     public TransactionDao provideTransactionDao(SpendTrackerDatabase database) {
         return database.transactionDao();
@@ -150,5 +173,10 @@ public class DatabaseModule {
     @Provides
     public TransactionGroupDao provideTransactionGroupDao(SpendTrackerDatabase database) {
         return database.transactionGroupDao();
+    }
+
+    @Provides
+    public RepeatedAlertDao provideRepeatedAlertDao(SpendTrackerDatabase database) {
+        return database.repeatedAlertDao();
     }
 }

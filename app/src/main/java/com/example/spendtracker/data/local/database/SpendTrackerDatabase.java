@@ -11,17 +11,21 @@ import com.example.spendtracker.data.local.entity.RegexPatternEntity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import com.example.spendtracker.data.local.entity.TransactionGroupCategoryEntity;
 import com.example.spendtracker.data.local.entity.TransactionGroupEntity;
+import com.example.spendtracker.data.local.entity.RepeatedAlertEntity;
+import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
 
 @Database(entities = {
     TransactionEntity.class,
     CategoryEntity.class,
     RegexPatternEntity.class,
     TransactionGroupEntity.class,
-    TransactionGroupCategoryEntity.class
-}, version = 7, exportSchema = false)
+    TransactionGroupCategoryEntity.class,
+    RepeatedAlertEntity.class
+}, version = 8, exportSchema = false)
 public abstract class SpendTrackerDatabase extends RoomDatabase {
     public abstract TransactionDao transactionDao();
     public abstract CategoryDao categoryDao();
     public abstract RegexPatternDao regexPatternDao();
     public abstract TransactionGroupDao transactionGroupDao();
+    public abstract RepeatedAlertDao repeatedAlertDao();
 }

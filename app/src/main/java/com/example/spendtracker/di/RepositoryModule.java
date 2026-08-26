@@ -6,6 +6,8 @@ import com.example.spendtracker.data.repository.TransactionRepositoryImpl;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 import com.example.spendtracker.domain.repository.TransactionGroupRepository;
 import com.example.spendtracker.domain.repository.TransactionRepository;
+import com.example.spendtracker.domain.repository.RepeatedAlertRepository;
+import com.example.spendtracker.data.repository.RepeatedAlertRepositoryImpl;
 import dagger.Binds;
 import dagger.Module;
 import dagger.hilt.InstallIn;
@@ -27,4 +29,8 @@ public abstract class RepositoryModule {
     @Binds
     @Singleton
     public abstract TransactionGroupRepository bindTransactionGroupRepository(TransactionGroupRepositoryImpl implementation);
+
+    @Binds
+    @Singleton
+    public abstract RepeatedAlertRepository bindRepeatedAlertRepository(RepeatedAlertRepositoryImpl implementation);
 }
