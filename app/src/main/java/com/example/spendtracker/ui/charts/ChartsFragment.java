@@ -76,6 +76,11 @@ public class ChartsFragment extends Fragment {
             private static final int SWIPE_VELOCITY_THRESHOLD = 100;
 
             @Override
+            public boolean onDown(@Nullable android.view.MotionEvent e) {
+                return true; // Must return true to receive subsequent events
+            }
+
+            @Override
             public boolean onFling(@Nullable android.view.MotionEvent e1, @NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
                 if (e1 == null) return false;
                 float deltaX = e2.getX() - e1.getX();
@@ -87,17 +92,11 @@ public class ChartsFragment extends Fragment {
                         // Swipe right → switch to Income tab (index 0)
                         if (showingExpenses) {
                             binding.tabChartType.getTabAt(0).select();
-                        } else {
-                            // Already on Income, swipe right → previous period
-                            viewModel.movePrev();
                         }
                     } else {
                         // Swipe left → switch to Expense tab (index 1)
                         if (!showingExpenses) {
                             binding.tabChartType.getTabAt(1).select();
-                        } else {
-                            // Already on Expense, swipe left → next period
-                            viewModel.moveNext();
                         }
                     }
                     return true;
@@ -106,9 +105,11 @@ public class ChartsFragment extends Fragment {
             }
         });
 
-        // Attach swipe listener to the NestedScrollView content only (not charts)
-        // We intercept at the root but allow scroll views to handle vertical scrolling
-        binding.getRoot().setOnTouchListener((v, event) -> {
+        // Attach swipe listener to the NestedScrollView content
+        // Using a touch listener that delegates horizontal flings to the detector
+        // while allowing vertical scrolls to pass through
+        View contentArea = binding.getRoot();
+        contentArea.setOnTouchListener((v, event) -> {
             boolean consumed = gestureDetector.onTouchEvent(event);
             if (event.getAction() == android.view.MotionEvent.ACTION_UP && !consumed) {
                 v.performClick();
@@ -150,17 +151,17 @@ public class ChartsFragment extends Fragment {
     }
 
     private void updateSectionVisibility() {
-        int visibility = showingExpenses ? View.VISIBLE : View.GONE;
-        binding.tvTrendsTitle.setVisibility(View.VISIBLE); // Trends are kept for both
+        // All chart sections visible for both Income and Expense views;
+        // data is already filtered by type in the ViewModel
+        binding.tvTrendsTitle.setVisibility(View.VISIBLE);
         binding.lineChart.setVisibility(View.VISIBLE);
-        
-        binding.tvWeekendTitle.setVisibility(visibility);
-        binding.barChartWeekend.setVisibility(visibility);
-        binding.tvBanksTitle.setVisibility(visibility);
-        binding.barChartBanks.setVisibility(visibility);
-        binding.tvSourceTitle.setVisibility(visibility);
-        binding.pieChartSource.setVisibility(visibility);
-        binding.rvSourceStats.setVisibility(visibility);
+        binding.tvWeekendTitle.setVisibility(View.VISIBLE);
+        binding.barChartWeekend.setVisibility(View.VISIBLE);
+        binding.tvBanksTitle.setVisibility(View.VISIBLE);
+        binding.barChartBanks.setVisibility(View.VISIBLE);
+        binding.tvSourceTitle.setVisibility(View.VISIBLE);
+        binding.pieChartSource.setVisibility(View.VISIBLE);
+        binding.rvSourceStats.setVisibility(View.VISIBLE);
     }
 
     private void showGranularityMenu(View v) {

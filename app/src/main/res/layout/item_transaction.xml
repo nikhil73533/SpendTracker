@@ -46,9 +46,21 @@
             android:layout_height="wrap_content"
             android:textColor="@color/text_secondary"
             android:textSize="10sp"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btn_edit_transaction"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="10:30 AM" />
+
+        <ImageView
+            android:id="@+id/btn_edit_transaction"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="4dp"
+            android:src="@android:drawable/ic_menu_edit"
+            android:contentDescription="Edit"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@color/text_secondary"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/tv_receiver"

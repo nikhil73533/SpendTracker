@@ -136,6 +136,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
     static class TransactionViewHolder extends RecyclerView.ViewHolder {
         private final android.widget.ImageView ivIcon;
+        private final android.widget.ImageView btnEdit;
         private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime, tvGroupTag;
         private final DataFormatter formatter;
 
@@ -143,6 +144,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             super(itemView);
             this.formatter = formatter;
             ivIcon = itemView.findViewById(R.id.iv_category_icon);
+            btnEdit = itemView.findViewById(R.id.btn_edit_transaction);
             tvCategory = itemView.findViewById(R.id.tv_category);
             tvReceiver = itemView.findViewById(R.id.tv_receiver);
             tvDescription = itemView.findViewById(R.id.tv_description);
@@ -206,7 +208,9 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             
             ivIcon.setImageResource(iconRes);
 
-            itemView.setOnClickListener(v -> listener.onEdit(transaction));
+            // Edit button: dedicated visible icon
+            btnEdit.setOnClickListener(v -> listener.onEdit(transaction));
+
             itemView.setOnLongClickListener(v -> {
                 new android.app.AlertDialog.Builder(v.getContext())
                     .setTitle("Delete Transaction")

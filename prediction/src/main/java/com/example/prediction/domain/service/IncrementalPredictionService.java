@@ -73,6 +73,7 @@ public class IncrementalPredictionService {
         if ("TRANSFER".equalsIgnoreCase(tx.type)) return null; // No features needed
 
         String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
+        String txType = normalizeType(tx.type);
 
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(tx.timestamp);
@@ -81,16 +82,16 @@ public class IncrementalPredictionService {
         boolean weekend = (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY);
         int timeBucket = TransactionFeatures.timeBucketFor(hour);
 
-        // Load merchant stats from DB
+        // Load merchant stats filtered by transaction type (separate income/expense pipelines)
         List<MerchantCategoryStatsEntity> merchantStats =
-            db.merchantCategoryStatsDao().getStatsForMerchant(merchantKey);
+            db.merchantCategoryStatsDao().getStatsForMerchantByType(merchantKey, txType);
 
         Map<String, Double> merchantProbs = categoryProbabilitiesFromStats(merchantStats);
         int merchantTotal = merchantStats.stream().mapToInt(e -> e.count).sum();
         int merchantCatCount = merchantStats.size();
 
-        // Load global stats from DB
-        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAll();
+        // Load global stats filtered by transaction type
+        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAllByType(txType);
         Map<String, Double> globalProbs = globalProbabilities(globalStats);
 
         return new TransactionFeatures(
@@ -133,10 +134,12 @@ public class IncrementalPredictionService {
         }
 
         String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
-        PredictionLogger.log(TAG + ": predicting for merchant='" + merchantKey + "' type=" + tx.type);
+        String txType = normalizeType(tx.type);
+        PredictionLogger.log(TAG + ": predicting for merchant='" + merchantKey + "' type=" + txType);
 
+        // Use type-filtered merchant stats (separate income/expense pipelines)
         List<MerchantCategoryStatsEntity> merchantStats =
-            db.merchantCategoryStatsDao().getStatsForMerchant(merchantKey);
+            db.merchantCategoryStatsDao().getStatsForMerchantByType(merchantKey, txType);
 
         int merchantTotal = merchantStats.stream().mapToInt(e -> e.count).sum();
         Map<String, Double> merchantProbs = categoryProbabilitiesFromStats(merchantStats);
@@ -154,16 +157,16 @@ public class IncrementalPredictionService {
             }
         }
 
-        // Rule 3: weighted ensemble (merchant + global prior)
-        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAll();
+        // Rule 3: weighted ensemble (merchant + global prior) — type-filtered
+        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAllByType(txType);
         Map<String, Double> globalProbs = globalProbabilities(globalStats);
 
         Map<String, Double> ensemble = ensembleScore(merchantProbs, globalProbs);
 
         if (ensemble.isEmpty()) {
             // Completely cold start: no data at all
-            String defaultCat = "INCOME".equalsIgnoreCase(tx.type) ? "Other Income" : "Other";
-            PredictionLogger.log(TAG + ": cold start, returning default=" + defaultCat);
+            String defaultCat = "INCOME".equalsIgnoreCase(txType) ? "Other Income" : "Other";
+            PredictionLogger.log(TAG + ": cold start (" + txType + "), returning default=" + defaultCat);
             return new IncrementalPredictionResult(
                 defaultCat, 0.0,
                 IncrementalPredictionResult.Source.GLOBAL_PRIOR,
@@ -173,7 +176,7 @@ public class IncrementalPredictionService {
         Map.Entry<String, Double> top = argMax(ensemble);
         boolean needsConfirm = (top == null || top.getValue() < CONFIRM_THRESHOLD);
 
-        PredictionLogger.log(TAG + ": ensemble → " + (top != null ? top.getKey() : "null")
+        PredictionLogger.log(TAG + ": ensemble (" + txType + ") → " + (top != null ? top.getKey() : "null")
             + " conf=" + (top != null ? top.getValue() : 0));
 
         return new IncrementalPredictionResult(
@@ -201,30 +204,32 @@ public class IncrementalPredictionService {
 
         executor.execute(() -> {
             String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
-            String compositeId = merchantKey + "|" + category;
+            String txType = normalizeType(tx.type);
+            String compositeId = merchantKey + "|" + txType + "|" + category;
             long now = System.currentTimeMillis();
 
-            // 1. Update merchant_category_stats
+            // 1. Update merchant_category_stats (type-scoped)
             MerchantCategoryStatsEntity existing = db.merchantCategoryStatsDao().getById(compositeId);
             if (existing == null) {
                 db.merchantCategoryStatsDao().insert(
-                    new MerchantCategoryStatsEntity(merchantKey, category, 1, now));
+                    new MerchantCategoryStatsEntity(merchantKey, category, txType, 1, now));
             } else {
                 existing.count++;
                 existing.lastSeenMs = now;
                 db.merchantCategoryStatsDao().update(existing);
             }
 
-            // 2. Update global_category_stats
-            GlobalCategoryStatsEntity global = db.globalCategoryStatsDao().getByCategory(category);
+            // 2. Update global_category_stats (type-scoped)
+            String globalId = txType + "|" + category;
+            GlobalCategoryStatsEntity global = db.globalCategoryStatsDao().getById(globalId);
             if (global == null) {
-                db.globalCategoryStatsDao().insert(new GlobalCategoryStatsEntity(category, 1));
+                db.globalCategoryStatsDao().insert(new GlobalCategoryStatsEntity(category, txType, 1));
             } else {
                 global.count++;
                 db.globalCategoryStatsDao().update(global);
             }
 
-            PredictionLogger.log(TAG + ": learned merchant='" + merchantKey + "' → " + category);
+            PredictionLogger.log(TAG + ": learned merchant='" + merchantKey + "' (" + txType + ") → " + category);
         });
     }
 
@@ -295,5 +300,12 @@ public class IncrementalPredictionService {
         return map.entrySet().stream()
             .max(Map.Entry.comparingByValue())
             .orElse(null);
+    }
+
+    /** Normalizes transaction type to upper-case INCOME or EXPENSE. */
+    private static String normalizeType(String type) {
+        if (type == null) return "EXPENSE";
+        String upper = type.trim().toUpperCase();
+        return "INCOME".equals(upper) ? "INCOME" : "EXPENSE";
     }
 }

@@ -22,7 +22,7 @@ import com.example.prediction.util.Converters;
         MerchantCategoryStatsEntity.class,
         GlobalCategoryStatsEntity.class
     },
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters({Converters.class})

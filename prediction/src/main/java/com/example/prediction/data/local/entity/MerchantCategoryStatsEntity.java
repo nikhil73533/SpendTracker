@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey;
 @Entity(tableName = "merchant_category_stats")
 public class MerchantCategoryStatsEntity {
 
-    /** Composite key: "{merchantKey}|{category}" */
+    /** Composite key: "{merchantKey}|{transactionType}|{category}" */
     @PrimaryKey
     @NonNull
     public String id;
@@ -25,6 +25,10 @@ public class MerchantCategoryStatsEntity {
     @NonNull
     public String category;
 
+    /** Transaction direction: "INCOME" or "EXPENSE". */
+    @NonNull
+    public String transactionType;
+
     /** Raw observation count for this merchant+category combination. */
     public int count;
 
@@ -33,11 +37,12 @@ public class MerchantCategoryStatsEntity {
 
     public MerchantCategoryStatsEntity() {}
 
-    public MerchantCategoryStatsEntity(@NonNull String merchantKey, @NonNull String category, int count, long lastSeenMs) {
+    public MerchantCategoryStatsEntity(@NonNull String merchantKey, @NonNull String category, @NonNull String transactionType, int count, long lastSeenMs) {
         this.merchantKey = merchantKey;
         this.category = category;
+        this.transactionType = transactionType;
         this.count = count;
         this.lastSeenMs = lastSeenMs;
-        this.id = merchantKey + "|" + category;
+        this.id = merchantKey + "|" + transactionType + "|" + category;
     }
 }

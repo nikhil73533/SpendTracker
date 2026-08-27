@@ -14,6 +14,9 @@ public interface MerchantCategoryStatsDao {
     @Query("SELECT * FROM merchant_category_stats WHERE merchantKey = :merchantKey")
     List<MerchantCategoryStatsEntity> getStatsForMerchant(String merchantKey);
 
+    @Query("SELECT * FROM merchant_category_stats WHERE merchantKey = :merchantKey AND transactionType = :transactionType")
+    List<MerchantCategoryStatsEntity> getStatsForMerchantByType(String merchantKey, String transactionType);
+
     @Query("SELECT * FROM merchant_category_stats WHERE id = :id LIMIT 1")
     MerchantCategoryStatsEntity getById(String id);
 
