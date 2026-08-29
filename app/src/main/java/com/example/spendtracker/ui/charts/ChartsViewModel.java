@@ -76,62 +76,54 @@ public class ChartsViewModel extends ViewModel {
 
     public LiveData<Summary> getChartData() {
         return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> 
-                Transformations.switchMap(transactionType, type -> {
-                    Calendar cal = Calendar.getInstance();
-                    cal.setTimeInMillis(start);
-                    
-                    long end;
-                    if (g == Granularity.ANNUALLY) {
-                        cal.set(Calendar.MONTH, 11);
-                        cal.set(Calendar.DAY_OF_MONTH, 31);
-                    } else if (g == Granularity.WEEKLY) {
-                        cal.add(Calendar.DAY_OF_YEAR, 6);
-                    } else {
-                        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
-                    }
-                    
-                    cal.set(Calendar.HOUR_OF_DAY, 23);
-                    cal.set(Calendar.MINUTE, 59);
-                    cal.set(Calendar.SECOND, 59);
-                    end = cal.getTimeInMillis();
-                    
-                    return repository.getSummary(start, end);
-                })
-            )
+            Transformations.switchMap(granularity, g -> {
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(start);
+                
+                long end;
+                if (g == Granularity.ANNUALLY) {
+                    cal.set(Calendar.MONTH, 11);
+                    cal.set(Calendar.DAY_OF_MONTH, 31);
+                } else if (g == Granularity.WEEKLY) {
+                    cal.add(Calendar.DAY_OF_YEAR, 6);
+                } else {
+                    cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+                }
+                
+                cal.set(Calendar.HOUR_OF_DAY, 23);
+                cal.set(Calendar.MINUTE, 59);
+                cal.set(Calendar.SECOND, 59);
+                end = cal.getTimeInMillis();
+                
+                return repository.getSummary(start, end);
+            })
         );
     }
 
-    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals() {
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getWeekdayWeekendTotals(String type) {
         return Transformations.switchMap(currentMonthStart, start ->
-            Transformations.switchMap(granularity, g ->
-                Transformations.switchMap(transactionType, type -> {
-                    long end = calculateEndTime(start, g);
-                    return repository.getWeekdayWeekendTotals(start, end, type);
-                })
-            )
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getWeekdayWeekendTotals(start, end, type);
+            })
         );
     }
 
-    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals(String type) {
         return Transformations.switchMap(currentMonthStart, start ->
-            Transformations.switchMap(granularity, g ->
-                Transformations.switchMap(transactionType, type -> {
-                    long end = calculateEndTime(start, g);
-                    return repository.getBankTotals(start, end, type);
-                })
-            )
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getBankTotals(start, end, type);
+            })
         );
     }
 
-    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals() {
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getSourceTypeTotals(String type) {
         return Transformations.switchMap(currentMonthStart, start ->
-            Transformations.switchMap(granularity, g ->
-                Transformations.switchMap(transactionType, type -> {
-                    long end = calculateEndTime(start, g);
-                    return repository.getSourceTypeTotals(start, end, type);
-                })
-            )
+            Transformations.switchMap(granularity, g -> {
+                long end = calculateEndTime(start, g);
+                return repository.getSourceTypeTotals(start, end, type);
+            })
         );
     }
 
@@ -152,48 +144,46 @@ public class ChartsViewModel extends ViewModel {
         return cal.getTimeInMillis();
     }
 
-    public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTrends() {
+    public LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTrends(String type) {
         return Transformations.switchMap(currentMonthStart, start -> 
-            Transformations.switchMap(granularity, g -> 
-                Transformations.switchMap(transactionType, type -> {
-                    Calendar cal = Calendar.getInstance();
+            Transformations.switchMap(granularity, g -> {
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(start);
+                
+                // Requirement: Previous 2 months + Current month (or weeks/years)
+                if (g == Granularity.ANNUALLY) {
+                    cal.add(Calendar.YEAR, -2);
+                    long rangeStart = cal.getTimeInMillis();
                     cal.setTimeInMillis(start);
-                    
-                    // Requirement: Previous 2 months + Current month (or weeks/years)
-                    if (g == Granularity.ANNUALLY) {
-                        cal.add(Calendar.YEAR, -2);
-                        long rangeStart = cal.getTimeInMillis();
-                        cal.setTimeInMillis(start);
-                        cal.set(Calendar.MONTH, 11);
-                        cal.set(Calendar.DAY_OF_MONTH, 31);
-                        cal.set(Calendar.HOUR_OF_DAY, 23);
-                        cal.set(Calendar.MINUTE, 59);
-                        cal.set(Calendar.SECOND, 59);
-                        return repository.getAnnuallyTotals(rangeStart, cal.getTimeInMillis(), type);
-                    } else if (g == Granularity.MONTHLY) {
-                        cal.add(Calendar.MONTH, -2);
-                        long rangeStart = cal.getTimeInMillis();
-                        cal.setTimeInMillis(start);
-                        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
-                        cal.set(Calendar.HOUR_OF_DAY, 23);
-                        cal.set(Calendar.MINUTE, 59);
-                        cal.set(Calendar.SECOND, 59);
-                        return repository.getMonthlyTotals(rangeStart, cal.getTimeInMillis(), type);
-                    } else if (g == Granularity.WEEKLY) {
-                        cal.add(Calendar.WEEK_OF_YEAR, -2);
-                        long rangeStart = cal.getTimeInMillis();
-                        cal.setTimeInMillis(start);
-                        cal.add(Calendar.DAY_OF_YEAR, 6);
-                        cal.set(Calendar.HOUR_OF_DAY, 23);
-                        cal.set(Calendar.MINUTE, 59);
-                        cal.set(Calendar.SECOND, 59);
-                        return repository.getWeeklyTotals(rangeStart, cal.getTimeInMillis(), type);
-                    } else {
-                        cal.add(Calendar.DAY_OF_MONTH, -30);
-                        return repository.getDailyTotals(cal.getTimeInMillis(), System.currentTimeMillis(), type);
-                    }
-                })
-            )
+                    cal.set(Calendar.MONTH, 11);
+                    cal.set(Calendar.DAY_OF_MONTH, 31);
+                    cal.set(Calendar.HOUR_OF_DAY, 23);
+                    cal.set(Calendar.MINUTE, 59);
+                    cal.set(Calendar.SECOND, 59);
+                    return repository.getAnnuallyTotals(rangeStart, cal.getTimeInMillis(), type);
+                } else if (g == Granularity.MONTHLY) {
+                    cal.add(Calendar.MONTH, -2);
+                    long rangeStart = cal.getTimeInMillis();
+                    cal.setTimeInMillis(start);
+                    cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+                    cal.set(Calendar.HOUR_OF_DAY, 23);
+                    cal.set(Calendar.MINUTE, 59);
+                    cal.set(Calendar.SECOND, 59);
+                    return repository.getMonthlyTotals(rangeStart, cal.getTimeInMillis(), type);
+                } else if (g == Granularity.WEEKLY) {
+                    cal.add(Calendar.WEEK_OF_YEAR, -2);
+                    long rangeStart = cal.getTimeInMillis();
+                    cal.setTimeInMillis(start);
+                    cal.add(Calendar.DAY_OF_YEAR, 6);
+                    cal.set(Calendar.HOUR_OF_DAY, 23);
+                    cal.set(Calendar.MINUTE, 59);
+                    cal.set(Calendar.SECOND, 59);
+                    return repository.getWeeklyTotals(rangeStart, cal.getTimeInMillis(), type);
+                } else {
+                    cal.add(Calendar.DAY_OF_MONTH, -30);
+                    return repository.getDailyTotals(cal.getTimeInMillis(), System.currentTimeMillis(), type);
+                }
+            })
         );
     }
 }

@@ -134,7 +134,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
             List<TransactionGroupEntity> groups = groupDao.getActiveGroupsForDate(txn.date);
             for (TransactionGroupEntity group : groups) {
                 List<String> categories = groupDao.getGroupCategoriesSync(group.id);
-                if (categories.contains(txn.category)) {
+                if (categories.contains(txn.categoryName)) {
                     txn.transactionGroupId = group.id;
                     transactionDao.updateTransaction(txn);
                     return; // First match (most recent due to ORDER BY createdAt DESC)
@@ -152,13 +152,13 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         Transaction t = new Transaction(
-            entity.id, entity.amount, entity.category, entity.description,
+            entity.id, entity.amount, entity.categoryName, entity.categoryEmoji, entity.description,
             entity.type, entity.date, entity.source, entity.sender, entity.upiId,
             entity.receiverName, entity.bankName, entity.sourceType,
             entity.fromAccount, entity.toAccount, entity.fees
         );
         t.setTransactionGroupId(entity.transactionGroupId);
-        t.setStatus(entity.status);
+        t.setStatus(entity.status != null ? entity.status : "ACTIVE");
         t.setDeletedAt(entity.deletedAt);
         return t;
     }

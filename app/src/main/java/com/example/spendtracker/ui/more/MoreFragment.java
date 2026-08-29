@@ -28,17 +28,14 @@ public class MoreFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         
-        binding.cardLedger.setOnClickListener(v -> safeNavigate(view, R.id.accountsFragment));
         binding.cardAdvancedAnalytics.setOnClickListener(v -> safeNavigate(view, R.id.chartsFragment));
         binding.cardConfiguration.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_trashFragment));
-        binding.cardMessageCaching.setOnClickListener(v -> showComingSoon("Message Caching"));
         binding.cardCalcbox.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_calculatorFragment));
         binding.cardBackup.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_backupFragment));
         binding.cardFeedback.setOnClickListener(v -> showComingSoon("Feedback"));
         binding.cardHelp.setOnClickListener(v -> showComingSoon("Help"));
         binding.cardRecommend.setOnClickListener(v -> showComingSoon("Recommend"));
         binding.cardBillAlerts.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_billAlertsFragment));
-        binding.cardRepeatedAlerts.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_repeatedAlertsFragment));
         binding.cardBulkIngestion.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_pdfIngestionFragment));
     }
 

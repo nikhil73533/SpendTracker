@@ -79,23 +79,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer Incoming" android:textColor="#9E9E9E" />
-                    <TextView android:id="@+id/tv_transfer_incoming" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#4CAF50" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer Outgoing" android:textColor="#9E9E9E" />
-                    <TextView android:id="@+id/tv_transfer_outgoing" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#FF5252" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer (Total)" android:textColor="#9E9E9E" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfers" android:textColor="#9E9E9E" />
                     <TextView android:id="@+id/tv_total_transfers" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#9E9E9E" tools:text="₹ 0" />
                 </RelativeLayout>
 

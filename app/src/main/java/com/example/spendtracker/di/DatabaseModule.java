@@ -3,6 +3,7 @@ package com.example.spendtracker.di;
 import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.room.Room;
+import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.example.spendtracker.data.local.dao.CategoryDao;
@@ -11,6 +12,7 @@ import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
+import com.example.spendtracker.data.local.entity.CategoryEntity;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 
 import javax.inject.Singleton;
@@ -40,7 +42,21 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addCallback(new RoomDatabase.Callback() {
+                    @Override
+                    public void onOpen(@NonNull SupportSQLiteDatabase sdb) {
+                        super.onOpen(sdb);
+                        // Ensure "Transfer" category exists for both types
+                        new Thread(() -> {
+                            try {
+                                // Unique constraint on (name, type) handles duplicates
+                                sdb.execSQL("INSERT OR IGNORE INTO categories (name, isDefault, type) VALUES ('Transfer', 1, 'EXPENSE')");
+                                sdb.execSQL("INSERT OR IGNORE INTO categories (name, isDefault, type) VALUES ('Transfer', 1, 'INCOME')");
+                            } catch (Exception ignored) {}
+                        }).start();
+                    }
+                })
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
@@ -152,6 +168,47 @@ public class DatabaseModule {
                     + "`dismissed` INTEGER NOT NULL DEFAULT 0, "
                     + "`createdAt` INTEGER NOT NULL, "
                     + "`category` TEXT)");
+        }
+    };
+
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Clean up duplicate categories before adding unique index
+            database.execSQL("DELETE FROM categories WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY name, type)");
+
+            // TransactionEntity: Split category into categoryName and categoryEmoji
+            database.execSQL("CREATE TABLE `transactions_new` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`amount` REAL NOT NULL, "
+                    + "`categoryName` TEXT, "
+                    + "`categoryEmoji` TEXT, "
+                    + "`description` TEXT, "
+                    + "`type` TEXT, "
+                    + "`date` INTEGER NOT NULL, "
+                    + "`source` TEXT, "
+                    + "`sender` TEXT, "
+                    + "`upiId` TEXT, "
+                    + "`receiverName` TEXT, "
+                    + "`bankName` TEXT, "
+                    + "`sourceType` TEXT, "
+                    + "`isRead` INTEGER NOT NULL DEFAULT 1, "
+                    + "`fromAccount` TEXT, "
+                    + "`toAccount` TEXT, "
+                    + "`fees` REAL NOT NULL DEFAULT 0.0, "
+                    + "`transactionGroupId` INTEGER NOT NULL DEFAULT 0, "
+                    + "`status` TEXT NOT NULL DEFAULT 'ACTIVE', "
+                    + "`deletedAt` INTEGER NOT NULL DEFAULT 0)");
+
+            database.execSQL("INSERT INTO `transactions_new` (id, amount, categoryName, categoryEmoji, description, type, date, source, sender, upiId, receiverName, bankName, sourceType, isRead, fromAccount, toAccount, fees, transactionGroupId, status, deletedAt) "
+                    + "SELECT id, amount, category, NULL, description, type, date, source, sender, upiId, receiverName, bankName, sourceType, isRead, fromAccount, toAccount, fees, transactionGroupId, status, deletedAt FROM `transactions` ");
+            database.execSQL("DROP TABLE `transactions` ");
+            database.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions` ");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionGroupId` ON `transactions` (`transactionGroupId`) ");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_status` ON `transactions` (`status`) ");
+
+            // CategoryEntity: Add unique index on (name, type)
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name_type` ON `categories` (`name`, `type`) ");
         }
     };
 

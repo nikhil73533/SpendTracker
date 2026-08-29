@@ -56,7 +56,7 @@ public interface TransactionGroupDao {
     List<String> getGroupCategoriesSync(int groupId);
 
     // Transaction association
-    @Query("UPDATE transactions SET transactionGroupId = :groupId WHERE date BETWEEN :startDate AND :endDate AND category IN (SELECT categoryName FROM transaction_group_categories WHERE groupId = :groupId) AND status = 'ACTIVE'")
+    @Query("UPDATE transactions SET transactionGroupId = :groupId WHERE date BETWEEN :startDate AND :endDate AND categoryName IN (SELECT categoryName FROM transaction_group_categories WHERE groupId = :groupId) AND status = 'ACTIVE'")
     void associateTransactionsWithGroup(int groupId, long startDate, long endDate);
 
     @Query("UPDATE transactions SET transactionGroupId = 0 WHERE transactionGroupId = :groupId")

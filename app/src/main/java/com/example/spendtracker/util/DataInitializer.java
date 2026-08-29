@@ -56,23 +56,23 @@ public class DataInitializer {
             if (transactionDao.getAllTransactionsSync().isEmpty()) {
                 Calendar cal = Calendar.getInstance();
                 cal.set(2026, Calendar.JULY, 24, 10, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 30.0, "Food", "Chai", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Tea Stall", "ICICI", "Card"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 30.0, "Food", null, "Chai", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Tea Stall", "ICICI", "Card"));
 
                 cal.set(2026, Calendar.JULY, 23, 14, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 80.0, "Food", "Panipuri", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Street Food", "HDFC", "Account"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 80.0, "Food", null, "Panipuri", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Street Food", "HDFC", "Account"));
                 cal.set(2026, Calendar.JULY, 23, 15, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 215.0, "Food", "Online food", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Zomato", "ICICI", "Card"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 215.0, "Food", null, "Online food", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Zomato", "ICICI", "Card"));
 
                 cal.set(2026, Calendar.JULY, 22, 18, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 2000.0, "Gift", "Wife", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Jeweller", "HDFC", "Account"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 2000.0, "Gift", null, "Wife", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Jeweller", "HDFC", "Account"));
 
                 cal.set(2026, Calendar.JULY, 21, 12, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 1800.0, "Food", "Demart groceries", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "DMart", "ICICI", "Card"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 1800.0, "Food", null, "Demart groceries", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "DMart", "ICICI", "Card"));
                 cal.set(2026, Calendar.JULY, 21, 13, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 564.0, "Transport", "Patrol", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Petrol Pump", "ICICI", "Card"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 564.0, "Transport", null, "Patrol", "EXPENSE", cal.getTimeInMillis(), "ICICI (Card)", "ICICI", "", "Petrol Pump", "ICICI", "Card"));
 
                 cal.set(2026, Calendar.JULY, 20, 9, 0);
-                transactionDao.insertTransaction(new TransactionEntity(0, 2315.0, "Food", "Kachori", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Kachori Shop", "HDFC", "Account"));
+                transactionDao.insertTransaction(new TransactionEntity(0, 2315.0, "Food", null, "Kachori", "EXPENSE", cal.getTimeInMillis(), "HDFC (Account)", "HDFC", "", "Kachori Shop", "HDFC", "Account"));
             }
         });
     }

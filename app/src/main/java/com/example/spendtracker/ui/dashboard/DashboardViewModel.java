@@ -324,19 +324,25 @@ public class DashboardViewModel extends ViewModel {
     public void updateTransactionCategory(Transaction transaction, String newCategory) {
         executor.execute(() -> {
             String updatedType = transaction.getType();
-            if ("Transfer".equalsIgnoreCase(newCategory)) {
-                updatedType = "TRANSFER";
-            } else if ("TRANSFER".equals(transaction.getType())) {
-                // If it was a transfer and changed to something else, default to EXPENSE
-                // (or you could try to guess based on context, but EXPENSE is safer for most corrections)
+            if ("TRANSFER".equals(transaction.getType()) && !"Transfer".equalsIgnoreCase(newCategory)) {
+                // If it was a system-detected TRANSFER and changed to a normal category, default to EXPENSE
                 updatedType = "EXPENSE";
+            }
+
+            // Simple split logic for manual entry if it contains emoji (for future proofing)
+            String name = newCategory;
+            String emoji = null;
+            if (newCategory.length() > 2 && Character.isSurrogate(newCategory.charAt(0))) {
+                emoji = newCategory.substring(0, 2);
+                name = newCategory.substring(2).trim();
             }
 
             // Create a new Transaction instance to ensure DiffUtil detects the change
             Transaction updated = new Transaction(
                 transaction.getId(),
                 transaction.getAmount(),
-                newCategory,
+                name,
+                emoji,
                 transaction.getDescription(),
                 updatedType,
                 transaction.getDate(),
@@ -345,8 +351,15 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getUpiId(),
                 transaction.getReceiverName(),
                 transaction.getBankName(),
-                transaction.getSourceType()
+                transaction.getSourceType(),
+                transaction.getFromAccount(),
+                transaction.getToAccount(),
+                transaction.getFees()
             );
+            updated.setTransactionGroupId(transaction.getTransactionGroupId());
+            updated.setStatus(transaction.getStatus());
+            updated.setDeletedAt(transaction.getDeletedAt());
+            
             repository.updateTransaction(updated);
 
             // Incremental learning: user correction teaches the model
@@ -374,18 +387,22 @@ public class DashboardViewModel extends ViewModel {
             if (transactions == null || transactions.isEmpty()) return;
 
             for (Transaction t : transactions) {
-                if ("PENDING".equals(t.getCategory()) || t.getCategory().isEmpty()) {
+                if ("PENDING".equals(t.getCategoryName()) || t.getCategoryName() == null || t.getCategoryName().isEmpty()) {
                     com.example.prediction.domain.model.PredictionTransaction pt = 
                         new com.example.prediction.domain.model.PredictionTransaction(
                             t.getReceiverName(), t.getUpiId(), t.getAmount(), t.getType(), t.getDate());
                     String predicted = predictionService.predict(pt).getCategory();
-                    if (!predicted.equals(t.getCategory())) {
+                    if (predicted != null && !predicted.equals(t.getCategoryName())) {
                         // Create new instance for DiffUtil reliability
                         Transaction updated = new Transaction(
-                            t.getId(), t.getAmount(), predicted, t.getDescription(),
+                            t.getId(), t.getAmount(), predicted, t.getCategoryEmoji(), t.getDescription(),
                             t.getType(), t.getDate(), t.getSource(), t.getSender(),
-                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType()
+                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType(),
+                            t.getFromAccount(), t.getToAccount(), t.getFees()
                         );
+                        updated.setTransactionGroupId(t.getTransactionGroupId());
+                        updated.setStatus(t.getStatus());
+                        updated.setDeletedAt(t.getDeletedAt());
                         repository.updateTransaction(updated);
                     }
                 }
@@ -407,8 +424,6 @@ public class DashboardViewModel extends ViewModel {
             LiveData<Double>  cardExpLive        = repository.getTotalCardExpense(range.start, range.end);
             LiveData<Double>  acctExpLive        = repository.getTotalAccountExpense(range.start, range.end);
             LiveData<Double>  transferLive       = repository.getTotalTransfer(range.start, range.end);
-            LiveData<Double>  transferInLive     = repository.getTotalTransferIncoming(range.start, range.end);
-            LiveData<Double>  transferOutLive    = repository.getTotalTransferOutgoing(range.start, range.end);
 
             MediatorLiveData<TotalPageData> mediator = new MediatorLiveData<>();
 
@@ -424,11 +439,9 @@ public class DashboardViewModel extends ViewModel {
                     double cardExp    = cardExpLive.getValue()    != null ? cardExpLive.getValue()    : 0;
                     double acctExp    = acctExpLive.getValue()    != null ? acctExpLive.getValue()    : 0;
                     double transfer   = transferLive.getValue()   != null ? transferLive.getValue()   : 0;
-                    double transferIn = transferInLive.getValue() != null ? transferInLive.getValue() : 0;
-                    double transferOut= transferOutLive.getValue()!= null ? transferOutLive.getValue(): 0;
                     double income     = current.getTotalIncome();
 
-                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, transferIn, transferOut, income));
+                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, income));
                 }
             };
 
@@ -437,8 +450,6 @@ public class DashboardViewModel extends ViewModel {
             mediator.addSource(cardExpLive,        v -> update.run());
             mediator.addSource(acctExpLive,        v -> update.run());
             mediator.addSource(transferLive,       v -> update.run());
-            mediator.addSource(transferInLive,     v -> update.run());
-            mediator.addSource(transferOutLive,    v -> update.run());
 
             return mediator;
         });
@@ -453,13 +464,17 @@ public class DashboardViewModel extends ViewModel {
     /** Updates only the transaction type and persists to DB. */
     public void updateTransactionType(Transaction transaction, String newType) {
         executor.execute(() -> {
-            String newCategory = "TRANSFER".equals(newType) ? "Transfer" : transaction.getCategory();
+            String newCategory = "TRANSFER".equals(newType) ? "Transfer" : transaction.getCategoryName();
             Transaction updated = new Transaction(
-                transaction.getId(), transaction.getAmount(), newCategory,
+                transaction.getId(), transaction.getAmount(), newCategory, transaction.getCategoryEmoji(),
                 transaction.getDescription(), newType, transaction.getDate(),
                 transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
-                transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType()
+                transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType(),
+                transaction.getFromAccount(), transaction.getToAccount(), transaction.getFees()
             );
+            updated.setTransactionGroupId(transaction.getTransactionGroupId());
+            updated.setStatus(transaction.getStatus());
+            updated.setDeletedAt(transaction.getDeletedAt());
             repository.updateTransaction(updated);
         });
     }
@@ -469,17 +484,13 @@ public class DashboardViewModel extends ViewModel {
         public final double accountExpenses;
         public final double cardExpenses;
         public final double transfers;
-        public final double transferIncoming;
-        public final double transferOutgoing;
         public final double income;
 
-        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double transferIncoming, double transferOutgoing, double income) {
+        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double income) {
             this.comparedPercent = comparedPercent;
             this.accountExpenses = accountExpenses;
             this.cardExpenses = cardExpenses;
             this.transfers = transfers;
-            this.transferIncoming = transferIncoming;
-            this.transferOutgoing = transferOutgoing;
             this.income = income;
         }
     }

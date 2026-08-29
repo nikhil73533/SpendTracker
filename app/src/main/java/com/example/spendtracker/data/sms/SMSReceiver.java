@@ -90,10 +90,10 @@ public class SMSReceiver extends BroadcastReceiver {
                 // Prediction pipeline for INCOME / EXPENSE
                 Transaction transactionToSave = originalTransaction;
 
-                boolean isCategorized = originalTransaction.getCategory() != null
-                    && !originalTransaction.getCategory().isBlank()
-                    && !originalTransaction.getCategory().equalsIgnoreCase("Other")
-                    && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
+                boolean isCategorized = originalTransaction.getCategoryName() != null
+                    && !originalTransaction.getCategoryName().isBlank()
+                    && !originalTransaction.getCategoryName().equalsIgnoreCase("Other")
+                    && !originalTransaction.getCategoryName().equalsIgnoreCase("Uncategorized");
 
                 if (!isCategorized) {
                     PredictionTransaction pt = new PredictionTransaction(
@@ -110,6 +110,7 @@ public class SMSReceiver extends BroadcastReceiver {
                             originalTransaction.getId(),
                             originalTransaction.getAmount(),
                             result.getCategory(),
+                            null, // emoji
                             originalTransaction.getDescription(),
                             originalTransaction.getType(),
                             originalTransaction.getDate(),
@@ -118,8 +119,15 @@ public class SMSReceiver extends BroadcastReceiver {
                             originalTransaction.getUpiId(),
                             originalTransaction.getReceiverName(),
                             originalTransaction.getBankName(),
-                            originalTransaction.getSourceType()
+                            originalTransaction.getSourceType(),
+                            originalTransaction.getFromAccount(),
+                            originalTransaction.getToAccount(),
+                            originalTransaction.getFees()
                         );
+                        transactionToSave.setTransactionGroupId(originalTransaction.getTransactionGroupId());
+                        transactionToSave.setStatus(originalTransaction.getStatus());
+                        transactionToSave.setDeletedAt(originalTransaction.getDeletedAt());
+                        
                         Log.d(TAG, "ML categorized as: " + result.getCategory()
                             + " (conf=" + result.getConfidence() + ", needsConfirm=" + result.needsUserConfirmation() + ")");
                     }

@@ -89,8 +89,6 @@ public class TotalSummaryFragment extends Fragment {
         binding.tvComparedPercent.setText(data.comparedPercent + "%");
         binding.tvAccountExpenses.setText(formatAmountWithState(data.accountExpenses, masked));
         binding.tvCardExpenses.setText(formatAmountWithState(data.cardExpenses, masked));
-        binding.tvTransferIncoming.setText(formatAmountWithState(data.transferIncoming, masked));
-        binding.tvTransferOutgoing.setText(formatAmountWithState(data.transferOutgoing, masked));
         binding.tvTotalTransfers.setText(formatAmountWithState(data.transfers, masked));
         binding.tvTotalIncome.setText(formatAmountWithState(data.income, masked));
     }
@@ -129,7 +127,7 @@ public class TotalSummaryFragment extends Fragment {
 
                         for (Transaction t : transactions) {
                             sheet.value(rowNum, 0, sdf.format(new Date(t.getDate())));
-                            sheet.value(rowNum, 1, t.getCategory());
+                            sheet.value(rowNum, 1, t.getCategoryName());
                             sheet.value(rowNum, 2, masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
                             if (masked) sheet.value(rowNum, 3, "***");
                             else sheet.value(rowNum, 3, t.getAmount());

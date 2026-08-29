@@ -260,9 +260,9 @@ public class SMSParser {
                     if (amount <= 0) continue;
 
                     return new Transaction(
-                        0, amount, "Other", body, type, System.currentTimeMillis(),
+                        0, amount, "Other", null, cleanText(body), type, System.currentTimeMillis(),
                         bankName + " (" + sourceType + ")",
-                        sender, upiId, receiver, bankName, sourceType
+                        sender, upiId, cleanText(receiver), bankName, sourceType
                     );
                 }
             }
@@ -325,8 +325,8 @@ public class SMSParser {
             }
         } catch (Exception ignored) {}
 
-        return new Transaction(0, amount, "Uncategorized", body, type,
-            System.currentTimeMillis(), "SMS", sender, "", "", "", "");
+        return new Transaction(0, amount, "Uncategorized", null, cleanText(body), type,
+            System.currentTimeMillis(), "SMS", sender, "", "", "", "SMS");
     }
 
     // -------------------------------------------------------------------------
@@ -350,8 +350,8 @@ public class SMSParser {
         String upiId      = extractUpiOrRef(body);
 
         String source = bankName + " (" + sourceType + ")";
-        return new Transaction(0, amount, "Other", body, type,
-            System.currentTimeMillis(), source, sender, upiId, receiver, bankName, sourceType);
+        return new Transaction(0, amount, "Other", null, cleanText(body), type,
+            System.currentTimeMillis(), source, sender, upiId, cleanText(receiver), bankName, sourceType);
     }
 
     // ---- Helper extractors --------------------------------------------------
@@ -490,6 +490,12 @@ public class SMSParser {
         if (tx.getAmount() <= 0 || tx.getAmount() > 10_000_000) return false;
         if (tx.getType() == null || tx.getType().isEmpty()) return false;
         return true;
+    }
+
+    private String cleanText(String text) {
+        if (text == null) return "";
+        // Remove emojis (Regex for characters outside the basic multilingual plane or specific emoji blocks)
+        return text.replaceAll("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]", "").trim();
     }
 
     // -------------------------------------------------------------------------

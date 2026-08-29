@@ -155,7 +155,12 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
         public void bind(TransactionItem item, OnTransactionClickListener listener) {
             Transaction transaction = item.getTransaction();
-            tvCategory.setText(transaction.getCategory());
+            // Requirement: Join categoryEmoji and categoryName
+            String displayCategory = transaction.getCategoryName();
+            if (transaction.getCategoryEmoji() != null && !transaction.getCategoryEmoji().isEmpty()) {
+                displayCategory = transaction.getCategoryEmoji() + " " + displayCategory;
+            }
+            tvCategory.setText(displayCategory);
             
             // Requirement 12: Mask PII (Receiver, Description)
             tvReceiver.setText(formatter.maskPII("INCOME".equals(transaction.getType()) ? transaction.getSender() : transaction.getReceiverName()));

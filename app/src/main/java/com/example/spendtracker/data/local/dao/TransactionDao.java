@@ -36,28 +36,28 @@ public interface TransactionDao {
     @Delete
     void deleteTransaction(TransactionEntity transaction);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND categoryName != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTotalIncome(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND categoryName != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTotalExpense(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE sourceType = 'Account' AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE sourceType = 'Account' AND categoryName != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTotalAccountTransaction(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT categoryName as category, SUM(amount) as total FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY categoryName")
     LiveData<List<CategorySum>> getCategorySummaries(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT categoryName as category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND categoryName != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY categoryName")
     LiveData<List<CategorySum>> getExpenseCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT categoryName as category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND categoryName != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY categoryName")
     LiveData<List<CategorySum>> getExpenseCategoryAverages(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'INCOME' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT categoryName as category, SUM(amount) as total FROM transactions WHERE type = 'INCOME' AND categoryName != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY categoryName")
     LiveData<List<CategorySum>> getIncomeCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND category != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT categoryName as category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND categoryName != 'Transfer' AND type != 'TRANSFER' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY categoryName")
     LiveData<List<CategorySum>> getIncomeCategoryAverages(long start, long end);
 
     @Query("SELECT date as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (date / 86400000) ORDER BY date ASC")
@@ -78,26 +78,26 @@ public interface TransactionDao {
     @Query("SELECT (CASE WHEN strftime('%w', date/1000, 'unixepoch') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END) as category, SUM(amount) as total FROM transactions WHERE type = :type AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (CASE WHEN strftime('%w', date/1000, 'unixepoch') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END)")
     LiveData<List<CategorySum>> getWeekdayWeekendTotals(long start, long end, String type);
 
-    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE type = :type AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY bankName")
+    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE type = :type AND categoryName != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY bankName")
     LiveData<List<CategorySum>> getBankTotals(long start, long end, String type);
 
-    @Query("SELECT sourceType as category, SUM(amount) as total FROM transactions WHERE type = :type AND category != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY sourceType")
+    @Query("SELECT sourceType as category, SUM(amount) as total FROM transactions WHERE type = :type AND categoryName != 'Transfer' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY sourceType")
     LiveData<List<CategorySum>> getSourceTypeTotals(long start, long end, String type);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND sourceType = 'Credit Card' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND categoryName != 'Transfer' AND sourceType = 'Credit Card' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getCreditCardExpense(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND category != 'Transfer' AND sourceType = 'Account' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND categoryName != 'Transfer' AND sourceType = 'Account' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getAccountExpense(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(categoryName) = 'transfer') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTransferTotal(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND toAccount IS NOT NULL AND toAccount != '' AND date BETWEEN :start AND :end")
-    LiveData<Double> getTransferOutgoing(long start, long end);
-
-    @Query("SELECT SUM(amount) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) = 'transfer') AND status = 'ACTIVE' AND (toAccount IS NULL OR toAccount = '') AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND (LOWER(categoryName) = 'transfer') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getTransferIncoming(long start, long end);
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND (LOWER(categoryName) = 'transfer') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    LiveData<Double> getTransferOutgoing(long start, long end);
 
     @Query("UPDATE transactions SET isRead = 1 WHERE (receiverName = :accountName OR sender = :accountName)")
     void markAsRead(String accountName);
@@ -105,7 +105,7 @@ public interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE (receiverName = :accountName OR sender = :accountName) AND status = 'ACTIVE' AND date BETWEEN :start AND :end ORDER BY date DESC")
     LiveData<List<TransactionEntity>> getAccountHistory(String accountName, long start, long end);
 
-    @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
+    @Query("UPDATE transactions SET categoryName = :newName WHERE categoryName = :oldName")
     void renameCategory(String oldName, String newName);
 
     @Query("SELECT DISTINCT name FROM (SELECT sender AS name FROM transactions WHERE sender IS NOT NULL AND sender != '' AND status = 'ACTIVE' UNION SELECT receiverName AS name FROM transactions WHERE receiverName IS NOT NULL AND receiverName != '' AND status = 'ACTIVE') ORDER BY name ASC")

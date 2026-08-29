@@ -80,41 +80,6 @@
                     android:text="@string/label_trash" />
             </LinearLayout>
 
-            <!-- Item 2: Ledger -->
-            <LinearLayout
-                android:id="@+id/card_ledger"
-                style="@style/SettingsWidgetItemStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1">
-
-                <ImageView
-                    style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="@string/label_ledger"
-                    android:src="@android:drawable/ic_menu_agenda" />
-
-                <TextView
-                    style="@style/SettingsWidgetLabelStyle"
-                    android:text="@string/label_ledger" />
-            </LinearLayout>
-
-            <!-- Item 3: Message Caching -->
-            <LinearLayout
-                android:id="@+id/card_message_caching"
-                style="@style/SettingsWidgetItemStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1">
-
-                <ImageView
-                    style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="@string/label_message_caching"
-                    android:src="@android:drawable/ic_menu_manage" />
-
-                <TextView
-                    style="@style/SettingsWidgetLabelStyle"
-                    android:text="@string/label_message_caching" />
-            </LinearLayout>
 
             <!-- Item 4: CalcBox -->
             <LinearLayout
@@ -243,24 +208,6 @@
                     android:text="Bill Alerts" />
             </LinearLayout>
 
-            <!-- Item 10b: Repeated Alerts -->
-            <LinearLayout
-                android:id="@+id/card_repeated_alerts"
-                style="@style/SettingsWidgetItemStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1">
-
-                <ImageView
-                    style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="Repeated Alerts"
-                    android:src="@android:drawable/ic_dialog_alert"
-                    app:tint="#F44336" />
-
-                <TextView
-                    style="@style/SettingsWidgetLabelStyle"
-                    android:text="Repeated Alerts" />
-            </LinearLayout>
 
             <!-- Item 11: Bulk Ingestion -->
             <LinearLayout

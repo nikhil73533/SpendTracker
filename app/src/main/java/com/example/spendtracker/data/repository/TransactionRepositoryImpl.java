@@ -117,7 +117,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         try {
             List<TransactionEntity> all = transactionDao.getAllTransactionsSync();
             for (TransactionEntity e : all) {
-                if ("Transfer".equalsIgnoreCase(e.category) && !"TRANSFER".equals(e.type)) {
+                if ("Transfer".equalsIgnoreCase(e.categoryName) && !"TRANSFER".equals(e.type)) {
                     e.type = "TRANSFER";
                     transactionDao.updateTransaction(e);
                 }
@@ -178,7 +178,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                                 Math.max(transaction.getDate(), dup.date),
                                 transaction.getDate() < dup.date ? (int) newId : dup.id,
                                 transaction.getDate() >= dup.date ? (int) newId : dup.id,
-                                transaction.getCategory()
+                                transaction.getCategoryName()
                         );
                         repeatedAlertDao.insert(alert);
                         break; // Only create one alert for the most recent match
@@ -432,7 +432,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         Transaction t = new Transaction(
-            entity.id, entity.amount, entity.category, entity.description,
+            entity.id, entity.amount, entity.categoryName, entity.categoryEmoji, entity.description,
             entity.type, entity.date, entity.source, entity.sender, entity.upiId,
             entity.receiverName, entity.bankName, entity.sourceType,
             entity.fromAccount, entity.toAccount, entity.fees
@@ -440,24 +440,20 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         t.setTransactionGroupId(entity.transactionGroupId);
         t.setStatus(entity.status != null ? entity.status : "ACTIVE");
         t.setDeletedAt(entity.deletedAt);
-        // Populate group name for display
-        if (entity.transactionGroupId > 0 && transactionGroupDao != null) {
-            try {
-                String groupName = transactionGroupDao.getGroupNameSync(entity.transactionGroupId);
-                t.setTransactionGroupName(groupName);
-            } catch (Exception ignored) {}
-        }
+        
+        // Removed synchronous group name lookup to avoid main-thread crash in LiveData transformations
         return t;
     }
 
     private TransactionEntity mapToEntity(Transaction transaction) {
         if (transaction == null) return null;
         TransactionEntity entity = new TransactionEntity(
-            transaction.getId(), transaction.getAmount(), transaction.getCategory(),
-            transaction.getDescription(), transaction.getType(), transaction.getDate(),
-            transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
-            transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType(),
-            transaction.getFromAccount(), transaction.getToAccount(), transaction.getFees()
+            transaction.getId(), transaction.getAmount(), transaction.getCategoryName(),
+            transaction.getCategoryEmoji(), transaction.getDescription(), transaction.getType(),
+            transaction.getDate(), transaction.getSource(), transaction.getSender(),
+            transaction.getUpiId(), transaction.getReceiverName(), transaction.getBankName(),
+            transaction.getSourceType(), transaction.getFromAccount(), transaction.getToAccount(),
+            transaction.getFees()
         );
         entity.transactionGroupId = transaction.getTransactionGroupId();
         entity.status = transaction.getStatus() != null ? transaction.getStatus() : "ACTIVE";

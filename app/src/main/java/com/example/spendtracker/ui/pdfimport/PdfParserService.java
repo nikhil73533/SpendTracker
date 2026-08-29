@@ -70,8 +70,8 @@ public class PdfParserService {
                     Transaction t = new Transaction();
                     t.setDate(date != null ? date.getTime() : System.currentTimeMillis());
                     t.setAmount(amount);
-                    t.setReceiverName(description);
-                    t.setCategory("Uncategorized");
+                    t.setReceiverName(cleanText(description));
+                    t.setCategoryName("Uncategorized");
                     t.setType("EXPENSE"); // Default to expense for this simple parser
                     t.setSource("PDF Import");
                     t.setStatus("ACTIVE");
@@ -93,5 +93,10 @@ public class PdfParserService {
         }
 
         return result;
+    }
+
+    private String cleanText(String text) {
+        if (text == null) return "";
+        return text.replaceAll("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]", "").trim();
     }
 }
