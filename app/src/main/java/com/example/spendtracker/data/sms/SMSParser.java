@@ -21,7 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext;
  *
  * <p>Parsing pipeline:
  * <ol>
- *   <li>OTP / non-transactional filter (fast-reject)</li>
+ *   <li>Non-transactional filter (fast-reject)</li>
  *   <li>JSON bank-config assets ({@code assets/bank_configs/})</li>
  *   <li>DB-stored custom regex patterns</li>
  *   <li>Generic rule-based fallback (amount + credit/debit keywords)</li>
@@ -161,7 +161,7 @@ public class SMSParser {
         if (body == null || body.isEmpty()) return null;
 
         if (isOtpOrNonTransactional(body)) {
-            safeLog("Message identified as OTP or non-transactional. Skipping.");
+            safeLog("Message identified as non-transactional. Skipping.");
             return null;
         }
 
@@ -194,7 +194,7 @@ public class SMSParser {
     }
 
     // -------------------------------------------------------------------------
-    // OTP / non-transactional guard
+    // non-transactional guard
     // -------------------------------------------------------------------------
 
     /**
@@ -202,18 +202,12 @@ public class SMSParser {
      *
      * <p>Rejection conditions (in order):
      * <ol>
-     *   <li>Explicit OTP keyword patterns</li>
      *   <li>Login-alert patterns without financial keywords</li>
      *   <li>Promotional/marketing patterns without financial keywords</li>
      *   <li>No credit or debit keyword present</li>
      * </ol>
      */
     private boolean isOtpOrNonTransactional(String body) {
-        // OTP signals → always reject
-        for (Pattern p : OTP_PATTERNS) {
-            if (p.matcher(body).find()) return true;
-        }
-
         boolean hasDebit  = DEBIT_PATTERN.matcher(body).find();
         boolean hasCredit = CREDIT_PATTERN.matcher(body).find();
 

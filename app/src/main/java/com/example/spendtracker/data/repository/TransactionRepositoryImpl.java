@@ -157,7 +157,20 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     @Override
     public void addTransaction(Transaction transaction) {
         executorService.execute(() -> {
-            long newId = transactionDao.insertTransaction(mapToEntity(transaction));
+            TransactionEntity entity = mapToEntity(transaction);
+            
+            // Re-evaluate group
+            entity.transactionGroupId = 0; // Reset
+            List<TransactionGroupEntity> groups = transactionGroupDao.getActiveGroupsForDate(entity.date);
+            for (TransactionGroupEntity group : groups) {
+                List<String> categories = transactionGroupDao.getGroupCategoriesSync(group.id);
+                if (categories.contains(entity.category)) {
+                    entity.transactionGroupId = group.id;
+                    break;
+                }
+            }
+            
+            long newId = transactionDao.insertTransaction(entity);
             if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
                 // Check for duplicate transactions within 48 hours
                 long fortyEightHours = 48L * 60 * 60 * 1000;
@@ -190,7 +203,22 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void updateTransaction(Transaction transaction) {
-        executorService.execute(() -> transactionDao.updateTransaction(mapToEntity(transaction)));
+        executorService.execute(() -> {
+            TransactionEntity entity = mapToEntity(transaction);
+            
+            // Re-evaluate group
+            entity.transactionGroupId = 0; // Reset
+            List<TransactionGroupEntity> groups = transactionGroupDao.getActiveGroupsForDate(entity.date);
+            for (TransactionGroupEntity group : groups) {
+                List<String> categories = transactionGroupDao.getGroupCategoriesSync(group.id);
+                if (categories.contains(entity.category)) {
+                    entity.transactionGroupId = group.id;
+                    break;
+                }
+            }
+            
+            transactionDao.updateTransaction(entity);
+        });
     }
 
     @Override

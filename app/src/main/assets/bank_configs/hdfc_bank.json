@@ -1,5 +1,6 @@
 {
   "bankName": "HDFC Bank",
+  "senders": ["HDFCBK", "HDFC"],
   "patterns": [
     {
       "name": "Account Debit UPI",
@@ -8,6 +9,16 @@
       "accountGroup": 2,
       "upiGroup": 3,
       "receiverGroup": 3,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Account Debit Generic",
+      "regex": "(?i)(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:debited|spent)\\s+from\\s+(?:A/c|Acct|Account)\\s+(?:XX+)?([0-9]+)",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
       "type": "EXPENSE",
       "sourceType": "Account"
     },
@@ -23,13 +34,23 @@
     },
     {
       "name": "Credit Card Debit",
-      "regex": "(?i)HDFC Bank:\\s*(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:charged|debited)\\s+on\\s+HDFC\\s+Bank\\s+(?:Credit\\s+Card|Debit\\s+Card)\\s+(?:XX+)?([0-9]+)",
+      "regex": "(?i)HDFC Bank[:\\s]+(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:charged|debited)\\s+on\\s+HDFC\\s+Bank\\s+(?:Credit\\s+Card|Debit\\s+Card)\\s+(?:XX+)?([0-9]+)",
       "amountGroup": 1,
       "accountGroup": 2,
       "receiverGroup": 0,
       "upiGroup": 0,
       "type": "EXPENSE",
       "sourceType": "Credit Card"
+    },
+    {
+      "name": "Fund Transfer",
+      "regex": "(?i)(?:INR|Rs\\.?)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+transferred\\s+from\\s+(?:A/c|Acct|Account)\\s+(?:XX+)?([0-9]+)\\s+to\\s+(?:A/c|Acct|Account)\\s+(?:XX+)?([0-9]+)",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
+      "type": "TRANSFER",
+      "sourceType": "Account"
     }
   ]
 }

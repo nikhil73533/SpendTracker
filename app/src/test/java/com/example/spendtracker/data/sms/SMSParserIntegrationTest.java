@@ -77,10 +77,9 @@ public class SMSParserIntegrationTest {
             "Rs.1,200.00 debited from A/c XX9999 on 18-Aug-26 for VPA merchant@hdfc. Avl Bal Rs.3000 - HDFC Bank",
             "INR 750.00 has been debited from your Axis Bank A/c XX3344 on 12-Aug-26.",
             "Rs.450 debited from Kotak A/c XX5566 on 15-Aug-26.",
-            "Your OTP is 123456. Do not share with anyone.",
             "Dear Customer, you've spent Rs.299 at NETFLIX.",
         };
-        String[] senders = { "SBIUPI", "HDFCBK", "AXISBK", "KOTAK", "VM-OTP", "VM-CARD" };
+        String[] senders = { "SBIUPI", "HDFCBK", "AXISBK", "KOTAK", "VM-CARD" };
 
         int transactionCount = 0;
         for (int i = 0; i < messages.length; i++) {
@@ -88,8 +87,8 @@ public class SMSParserIntegrationTest {
             if (t != null) transactionCount++;
         }
 
-        // All non-OTP messages (5 of 6) should parse as transactions
-        assertEquals("Expected 5 transactions (OTP should be skipped)", 5, transactionCount);
+        // All messages (5 of 5) should parse as transactions
+        assertEquals("Expected 5 transactions", 5, transactionCount);
     }
 
     @Test

@@ -25,7 +25,7 @@ import java.util.ArrayList;
  *   <li>Axis Bank – account debit / credit</li>
  *   <li>Kotak Bank – account debit</li>
  *   <li>Generic / multi-bank – various wording and abbreviation styles</li>
- *   <li>OTP filter – must return null for OTP and non-transactional messages</li>
+ *   <li>Non-transactional filter – must return null for non-transactional messages</li>
  *   <li>Edge cases – huge amounts, missing amount, partial messages, ambiguous wording</li>
  * </ul>
  */
@@ -271,29 +271,8 @@ public class SMSParserTest {
     }
 
     // =========================================================================
-    // OTP / non-transactional rejection
+    // non-transactional rejection
     // =========================================================================
-
-    @Test
-    public void testOTPMessageRejected() {
-        String msg = "Your OTP for login is 482910. Do not share this with anyone. Valid for 5 mins.";
-        Transaction t = parser.parseSMS("VM-OTP", msg, new ArrayList<>());
-        assertNull("OTP message must return null", t);
-    }
-
-    @Test
-    public void testOneTimePasswordRejected() {
-        String msg = "Your one-time-password for banking access is 123456. Expires in 10 minutes.";
-        Transaction t = parser.parseSMS("VM-OTP", msg, new ArrayList<>());
-        assertNull("One-time-password message must return null", t);
-    }
-
-    @Test
-    public void testVerificationCodeRejected() {
-        String msg = "Your verification code is 998877. Use it within 15 minutes.";
-        Transaction t = parser.parseSMS("VM-OTP", msg, new ArrayList<>());
-        assertNull("Verification code message must return null", t);
-    }
 
     @Test
     public void testLoginAlertRejected() {

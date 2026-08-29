@@ -7,15 +7,13 @@ import android.os.Bundle;
 import android.telephony.SmsMessage;
 import android.util.Log;
 
+import com.example.spendtracker.data.sms.model.ParseResult;
 import com.example.spendtracker.domain.usecase.AddTransactionUseCase;
 import com.example.spendtracker.domain.model.Transaction;
-import com.example.spendtracker.data.local.dao.RegexPatternDao;
-import com.example.spendtracker.data.local.entity.RegexPatternEntity;
 import com.example.prediction.domain.service.IncrementalPredictionService;
 import com.example.prediction.domain.model.PredictionTransaction;
 import com.example.prediction.domain.model.IncrementalPredictionResult;
 
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -23,19 +21,30 @@ import javax.inject.Inject;
 
 import dagger.hilt.android.AndroidEntryPoint;
 
+/**
+ * Receives incoming SMS messages and delegates to {@link SMSParsingService}.
+ *
+ * <p>This class has minimal responsibility:
+ * <ol>
+ *   <li>Receive the SMS</li>
+ *   <li>Extract sender and body</li>
+ *   <li>Delegate to the parsing service</li>
+ *   <li>Run category prediction for parsed transactions</li>
+ *   <li>Save to repository</li>
+ * </ol>
+ *
+ * <p>No parsing logic, bank-specific regexes, or extraction code belongs here.
+ */
 @AndroidEntryPoint
 public class SMSReceiver extends BroadcastReceiver {
     private static final String TAG = "SMSReceiver";
     private final Executor executor = Executors.newSingleThreadExecutor();
 
     @Inject
-    SMSParser smsParser;
+    SMSParsingService parsingService;
 
     @Inject
     AddTransactionUseCase addTransactionUseCase;
-
-    @Inject
-    RegexPatternDao regexPatternDao;
 
     private IncrementalPredictionService predictionService;
 
@@ -70,63 +79,72 @@ public class SMSReceiver extends BroadcastReceiver {
             SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdu, format);
             String sender = smsMessage.getDisplayOriginatingAddress();
             String messageBody = smsMessage.getMessageBody();
+            long timestamp = smsMessage.getTimestampMillis();
 
-            Log.d(TAG, "SMS Received from: " + sender + ", Body: " + messageBody);
+            // Parse through the modular pipeline
+            ParseResult result = parsingService.parse(sender, messageBody, timestamp);
 
-            // SMSParser already filters OTP/promotional messages — this service only
-            // receives genuine financial transaction SMS.
-            List<RegexPatternEntity> patterns = regexPatternDao.getAllPatternsSync();
-            Transaction originalTransaction = smsParser.parseSMS(sender, messageBody, patterns);
+            Log.d(TAG, "Parse result: " + result.getStatus()
+                    + " (confidence=" + String.format("%.2f", result.getConfidence()) + ")");
 
-            if (originalTransaction != null) {
-                Log.d(TAG, "Transaction detected: " + originalTransaction.getAmount());
-
-                // TRANSFER type — category is always "Transfer", no ML needed
-                if ("TRANSFER".equalsIgnoreCase(originalTransaction.getType())) {
-                    addTransactionUseCase.execute(originalTransaction);
-                    return;
+            if (!result.isSuccess() || result.getTransaction() == null) {
+                if (result.getStatus() != null) {
+                    Log.d(TAG, "SMS not stored: " + result.getStatus());
                 }
-
-                // Prediction pipeline for INCOME / EXPENSE
-                Transaction transactionToSave = originalTransaction;
-
-                boolean isCategorized = originalTransaction.getCategory() != null
-                    && !originalTransaction.getCategory().isBlank()
-                    && !originalTransaction.getCategory().equalsIgnoreCase("Other")
-                    && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
-
-                if (!isCategorized) {
-                    PredictionTransaction pt = new PredictionTransaction(
-                        originalTransaction.getReceiverName(),
-                        originalTransaction.getUpiId(),
-                        originalTransaction.getAmount(),
-                        originalTransaction.getType(),
-                        originalTransaction.getDate()
-                    );
-
-                    IncrementalPredictionResult result = predictionService.predict(pt);
-                    if (result != null && result.getCategory() != null) {
-                        transactionToSave = new Transaction(
-                            originalTransaction.getId(),
-                            originalTransaction.getAmount(),
-                            result.getCategory(),
-                            originalTransaction.getDescription(),
-                            originalTransaction.getType(),
-                            originalTransaction.getDate(),
-                            originalTransaction.getSource(),
-                            originalTransaction.getSender(),
-                            originalTransaction.getUpiId(),
-                            originalTransaction.getReceiverName(),
-                            originalTransaction.getBankName(),
-                            originalTransaction.getSourceType()
-                        );
-                        Log.d(TAG, "ML categorized as: " + result.getCategory()
-                            + " (conf=" + result.getConfidence() + ", needsConfirm=" + result.needsUserConfirmation() + ")");
-                    }
-                }
-
-                addTransactionUseCase.execute(transactionToSave);
+                return;
             }
+
+            Transaction originalTransaction = result.getTransaction();
+            Log.d(TAG, "Transaction detected: " + originalTransaction.getAmount()
+                    + " " + originalTransaction.getType()
+                    + " bank=" + result.getDetectedBank());
+
+            // TRANSFER type — category is always "Transfer", no ML needed
+            if ("TRANSFER".equalsIgnoreCase(originalTransaction.getType())) {
+                addTransactionUseCase.execute(originalTransaction);
+                return;
+            }
+
+            // Prediction pipeline for INCOME / EXPENSE
+            Transaction transactionToSave = originalTransaction;
+
+            boolean isCategorized = originalTransaction.getCategory() != null
+                && !originalTransaction.getCategory().isBlank()
+                && !originalTransaction.getCategory().equalsIgnoreCase("Other")
+                && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
+
+            if (!isCategorized) {
+                PredictionTransaction pt = new PredictionTransaction(
+                    originalTransaction.getReceiverName(),
+                    originalTransaction.getUpiId(),
+                    originalTransaction.getAmount(),
+                    originalTransaction.getType(),
+                    originalTransaction.getDate()
+                );
+
+                IncrementalPredictionResult predResult = predictionService.predict(pt);
+                if (predResult != null && predResult.getCategory() != null) {
+                    transactionToSave = new Transaction(
+                        originalTransaction.getId(),
+                        originalTransaction.getAmount(),
+                        predResult.getCategory(),
+                        originalTransaction.getDescription(),
+                        originalTransaction.getType(),
+                        originalTransaction.getDate(),
+                        originalTransaction.getSource(),
+                        originalTransaction.getSender(),
+                        originalTransaction.getUpiId(),
+                        originalTransaction.getReceiverName(),
+                        originalTransaction.getBankName(),
+                        originalTransaction.getSourceType()
+                    );
+                    Log.d(TAG, "ML categorized as: " + predResult.getCategory()
+                        + " (conf=" + predResult.getConfidence()
+                        + ", needsConfirm=" + predResult.needsUserConfirmation() + ")");
+                }
+            }
+
+            addTransactionUseCase.execute(transactionToSave);
         }
     }
 }
