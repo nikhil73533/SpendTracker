@@ -156,18 +156,20 @@ public class TransactionFormFragment extends Fragment {
     private void updateCategoryAdapter(List<String> categories) {
         List<String> filtered = new ArrayList<>();
         if (categories != null) {
-            for (String c : categories) {
-                if (!"Transfer".equalsIgnoreCase(c)) filtered.add(c);
-            }
+            filtered.addAll(categories);
         }
 
         // Add default categories if empty (initial bootstrap)
         if (filtered.isEmpty()) {
             if ("INCOME".equals(selectedType)) {
-                filtered.addAll(Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Other"));
+                filtered.addAll(Arrays.asList("Transfer", "Salary", "Allowance", "Bonus", "Petty Cash", "Other"));
             } else {
-                filtered.addAll(Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other"));
+                filtered.addAll(Arrays.asList("Transfer", "Food", "Rent", "Travel", "Shopping", "Medical", "Other"));
             }
+        }
+        
+        if (binding.actvCategory.getText().toString().isEmpty()) {
+            binding.actvCategory.setText("Transfer", false);
         }
 
         if (!filtered.contains("Create New Category...")) {
@@ -223,7 +225,13 @@ public class TransactionFormFragment extends Fragment {
             if (transaction != null) {
                 this.existingTransaction = transaction;
                 binding.etAmount.setText(String.valueOf(transaction.getAmount()));
-                binding.actvCategory.setText(transaction.getCategory(), false);
+                
+                String displayCategory = transaction.getCategoryName();
+                if (transaction.getCategoryEmoji() != null && !transaction.getCategoryEmoji().isEmpty()) {
+                    displayCategory = transaction.getCategoryEmoji() + " " + displayCategory;
+                }
+                binding.actvCategory.setText(displayCategory, false);
+                
                 binding.etDescription.setText(transaction.getDescription());
                 binding.etSender.setText(transaction.getSender());
                 binding.etReceiver.setText(transaction.getReceiverName());
@@ -256,8 +264,7 @@ public class TransactionFormFragment extends Fragment {
         viewModel.getCategoriesByType(selectedType).observe(getViewLifecycleOwner(), categories -> {
             if (categories == null) return;
 
-            List<String> filtered = new ArrayList<>();
-            for (String c : categories) if (!"Transfer".equalsIgnoreCase(c)) filtered.add(c);
+            List<String> filtered = new ArrayList<>(categories);
 
             String[] items = filtered.toArray(new String[0]);
             new android.app.AlertDialog.Builder(requireContext())
@@ -309,12 +316,20 @@ public class TransactionFormFragment extends Fragment {
         }
 
         double amount = Double.parseDouble(amountStr);
-        String category = "TRANSFER".equals(selectedType) ? "Transfer" : binding.actvCategory.getText().toString();
-        String description = binding.etDescription.getText().toString();
-        String sender = binding.etSender.getText().toString();
-        String receiver = binding.etReceiver.getText().toString();
-        String bankName = binding.etBankName.getText().toString();
-        String accountInfo = binding.etAccountInfo.getText().toString();
+        String categoryInput = "TRANSFER".equals(selectedType) ? "Transfer" : binding.actvCategory.getText().toString().trim();
+        
+        String categoryName = categoryInput;
+        String categoryEmoji = "";
+        if (categoryInput.length() >= 2 && Character.isSurrogate(categoryInput.charAt(0))) {
+            categoryEmoji = categoryInput.substring(0, 2);
+            categoryName = categoryInput.substring(2).trim();
+        }
+
+        String description = cleanText(binding.etDescription.getText().toString());
+        String sender = cleanText(binding.etSender.getText().toString());
+        String receiver = cleanText(binding.etReceiver.getText().toString());
+        String bankName = cleanText(binding.etBankName.getText().toString());
+        String accountInfo = cleanText(binding.etAccountInfo.getText().toString());
         String sourceType = accountInfo.isEmpty() ? "Manual" : accountInfo;
         String source = bankName.isEmpty() ? "Manual" : bankName + " (" + sourceType + ")";
 
@@ -323,7 +338,8 @@ public class TransactionFormFragment extends Fragment {
             transaction = new Transaction(
                     transactionId,
                     amount,
-                    category,
+                    categoryName,
+                    categoryEmoji,
                     description,
                     selectedType,
                     calendar.getTimeInMillis(),
@@ -341,7 +357,8 @@ public class TransactionFormFragment extends Fragment {
             transaction = new Transaction(
                     0,
                     amount,
-                    category,
+                    categoryName,
+                    categoryEmoji,
                     description,
                     selectedType,
                     calendar.getTimeInMillis(),
@@ -370,5 +387,10 @@ public class TransactionFormFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
+    }
+
+    private String cleanText(String text) {
+        if (text == null) return "";
+        return text.replaceAll("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]", "").trim();
     }
 }

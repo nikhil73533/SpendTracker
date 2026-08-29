@@ -19,38 +19,15 @@ import java.util.concurrent.Executors;
 
 /**
  * Incremental, fully-offline transaction categorization service.
- *
- * <h3>Prediction Ensemble (in priority order)</h3>
- * <ol>
- *   <li><b>Transfer rule</b> – type == TRANSFER → always "Transfer", no ML needed.</li>
- *   <li><b>Merchant memory</b> – if merchantKey seen ≥ 3 times and P(best_cat|merchant) ≥ 0.85,
- *       return directly (high-confidence fast path).</li>
- *   <li><b>Weighted ensemble</b> – combine P(cat|merchant) + P(cat|global) with learned weights.</li>
- *   <li><b>Global prior fallback</b> – when merchant is new/cold, use the global distribution.</li>
- * </ol>
- *
- * <h3>Learning (incremental, per-sample)</h3>
- * <ul>
- *   <li>User correction → atomically updates merchant_category_stats and global_category_stats.</li>
- *   <li>OTP messages are rejected upstream by SMSParser; this service never sees them.</li>
- * </ul>
  */
 public class IncrementalPredictionService {
 
     private static final String TAG = "IncrementalPredSvc";
-
-    // Confidence threshold below which we request user confirmation
     private static final double CONFIRM_THRESHOLD = 0.70;
-
-    // Merchant fast-path: require at least this many samples and this probability
     private static final int MERCHANT_MIN_SAMPLES = 3;
     private static final double MERCHANT_HIGH_CONFIDENCE = 0.85;
-
-    // Ensemble weights (must sum to 1.0)
     private static final double W_MERCHANT = 0.80;
     private static final double W_GLOBAL   = 0.20;
-
-    // Laplace smoothing pseudo-count
     private static final double LAPLACE_ALPHA = 0.5;
 
     private final PredictionDatabase db;
@@ -60,17 +37,9 @@ public class IncrementalPredictionService {
         this.db = PredictionDatabase.getDatabase(context);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Feature Extraction
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Extracts a {@link TransactionFeatures} from a raw {@link PredictionTransaction}.
-     * Must be called on a background thread (reads from DB).
-     */
     public TransactionFeatures extractFeatures(PredictionTransaction tx) {
         if (tx == null) return null;
-        if ("TRANSFER".equalsIgnoreCase(tx.type)) return null; // No features needed
+        if ("TRANSFER".equalsIgnoreCase(tx.type)) return null;
 
         String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
         String txType = normalizeType(tx.type);
@@ -102,30 +71,20 @@ public class IncrementalPredictionService {
             weekend,
             timeBucket,
             merchantKey,
-            "", // bankName not on PredictionTransaction; use "" for now
+            "",
             tx.type,
             tx.type,
             merchantTotal,
             merchantCatCount,
             merchantProbs,
-            new HashMap<>(), // time-context probabilities reserved for future
+            new HashMap<>(),
             globalProbs
         );
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Prediction
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Predicts the best category for a transaction.
-     * Returns null only for TRANSFER transactions (caller assigns "Transfer" directly).
-     * Must be called on a background thread.
-     */
     public IncrementalPredictionResult predict(PredictionTransaction tx) {
         if (tx == null) return null;
 
-        // Rule 1: TRANSFER → no prediction needed
         if ("TRANSFER".equalsIgnoreCase(tx.type)) {
             return new IncrementalPredictionResult(
                 "Transfer", 1.0,
@@ -144,7 +103,6 @@ public class IncrementalPredictionService {
         int merchantTotal = merchantStats.stream().mapToInt(e -> e.count).sum();
         Map<String, Double> merchantProbs = categoryProbabilitiesFromStats(merchantStats);
 
-        // Rule 2: merchant fast-path (high confidence memorized mapping)
         if (merchantTotal >= MERCHANT_MIN_SAMPLES && !merchantProbs.isEmpty()) {
             Map.Entry<String, Double> best = argMax(merchantProbs);
             if (best != null && best.getValue() >= MERCHANT_HIGH_CONFIDENCE) {
@@ -187,20 +145,9 @@ public class IncrementalPredictionService {
             needsConfirm);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Learning (called from background thread)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Incremental update triggered by a user-confirmed category correction.
-     * All DB writes happen asynchronously on the single executor thread.
-     *
-     * @param tx       the transaction that was corrected
-     * @param category the user-confirmed category
-     */
     public void learn(PredictionTransaction tx, String category) {
-        if (tx == null || category == null || category.isBlank()) return;
-        if ("Transfer".equalsIgnoreCase(category)) return; // No learning for transfers
+        if (tx == null || category == null || category.trim().isEmpty()) return;
+        if ("Transfer".equalsIgnoreCase(category)) return;
 
         executor.execute(() -> {
             String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
@@ -233,12 +180,10 @@ public class IncrementalPredictionService {
         });
     }
 
-    /** Convenience: enqueue learning on the background executor (safe to call from main thread). */
     public void learnAsync(PredictionTransaction tx, String category) {
         executor.execute(() -> learn(tx, category));
     }
 
-    /** Clears all incremental learning state (merchant stats, global stats, prototypes). */
     public void resetAllData() {
         db.merchantCategoryStatsDao().deleteAll();
         db.globalCategoryStatsDao().deleteAll();
@@ -247,11 +192,6 @@ public class IncrementalPredictionService {
         PredictionLogger.log(TAG + ": all model data cleared");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /** Compute P(category|merchant) from raw counts using Laplace smoothing. */
     private Map<String, Double> categoryProbabilitiesFromStats(List<MerchantCategoryStatsEntity> stats) {
         Map<String, Double> probs = new HashMap<>();
         if (stats == null || stats.isEmpty()) return probs;
@@ -263,7 +203,6 @@ public class IncrementalPredictionService {
         return probs;
     }
 
-    /** Compute P(category) from global counts using Laplace smoothing. */
     private Map<String, Double> globalProbabilities(List<GlobalCategoryStatsEntity> stats) {
         Map<String, Double> probs = new HashMap<>();
         if (stats == null || stats.isEmpty()) return probs;
@@ -275,13 +214,10 @@ public class IncrementalPredictionService {
         return probs;
     }
 
-    /** Weighted sum of merchant and global probability maps. */
     private Map<String, Double> ensembleScore(
             Map<String, Double> merchantProbs, Map<String, Double> globalProbs) {
 
         Map<String, Double> result = new HashMap<>();
-
-        // Collect all known categories
         for (String cat : merchantProbs.keySet()) result.put(cat, 0.0);
         for (String cat : globalProbs.keySet())   result.put(cat, 0.0);
 
@@ -295,7 +231,6 @@ public class IncrementalPredictionService {
         return result;
     }
 
-    /** Returns the entry with the highest value, or null if the map is empty. */
     private static <K> Map.Entry<K, Double> argMax(Map<K, Double> map) {
         return map.entrySet().stream()
             .max(Map.Entry.comparingByValue())

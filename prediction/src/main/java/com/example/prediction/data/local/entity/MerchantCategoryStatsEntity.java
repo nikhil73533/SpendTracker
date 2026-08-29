@@ -6,10 +6,7 @@ import androidx.room.PrimaryKey;
 
 /**
  * Stores per-category observation counts for a normalized merchant key.
- * Each row = one (merchantKey, category) pair.
- *
- * <p>Primary key is composite: (merchantKey, category).
- * Room requires a single @PrimaryKey column, so we use a composite string.
+ * Each row = one (merchantKey, type, category) pair.
  */
 @Entity(tableName = "merchant_category_stats")
 public class MerchantCategoryStatsEntity {
@@ -32,7 +29,7 @@ public class MerchantCategoryStatsEntity {
     /** Raw observation count for this merchant+category combination. */
     public int count;
 
-    /** Last corrected timestamp (epoch millis). Used to weight recent corrections higher. */
+    /** Last corrected timestamp (epoch millis). */
     public long lastSeenMs;
 
     public MerchantCategoryStatsEntity() {}

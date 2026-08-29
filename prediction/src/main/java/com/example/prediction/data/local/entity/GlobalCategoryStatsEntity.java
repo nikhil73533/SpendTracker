@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey;
 
 /**
  * Per-category global observation count (all merchants combined).
- * Used to compute P(category) — the global prior.
+ * Primary key is composite: "{type}|{category}".
  */
 @Entity(tableName = "global_category_stats")
 public class GlobalCategoryStatsEntity {
