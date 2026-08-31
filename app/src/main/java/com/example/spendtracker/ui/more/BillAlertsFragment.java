@@ -46,6 +46,13 @@ public class BillAlertsFragment extends Fragment {
     private TextView tvAlertsHeader;
     private BillAlertAdapter adapter;
 
+    @javax.inject.Inject
+    com.example.spendtracker.data.sms.AlertParsingService alertParsingService;
+
+    // Custom keyword UI
+    private com.google.android.material.textfield.TextInputEditText etKeywordInput;
+    private com.google.android.material.chip.ChipGroup chipGroupKeywords;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -72,8 +79,47 @@ public class BillAlertsFragment extends Fragment {
 
         view.findViewById(R.id.btn_scan_bills).setOnClickListener(v -> scanForBills());
 
+        // ── Custom Alert Keyword Section ──────────────────────────────────
+        etKeywordInput = view.findViewById(R.id.et_keyword_input);
+        chipGroupKeywords = view.findViewById(R.id.chip_group_keywords);
+
+        View btnAddKeyword = view.findViewById(R.id.btn_add_keyword);
+        if (btnAddKeyword != null && etKeywordInput != null) {
+            btnAddKeyword.setOnClickListener(v -> {
+                String keyword = etKeywordInput.getText() != null ? etKeywordInput.getText().toString().trim() : "";
+                if (!keyword.isEmpty()) {
+                    alertParsingService.addCustomKeyword(keyword);
+                    etKeywordInput.setText("");
+                    refreshKeywordChips();
+                    Toast.makeText(requireContext(), "Alert keyword added: \"" + keyword + "\"", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        refreshKeywordChips();
+
         // Show empty state initially
         layoutEmptyState.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Refreshes the ChipGroup to display all user-defined alert keywords.
+     * Each chip has a close icon to allow removal.
+     */
+    private void refreshKeywordChips() {
+        if (chipGroupKeywords == null) return;
+        chipGroupKeywords.removeAllViews();
+        java.util.Set<String> keywords = alertParsingService.getCustomKeywords();
+        for (String keyword : keywords) {
+            com.google.android.material.chip.Chip chip = new com.google.android.material.chip.Chip(requireContext());
+            chip.setText(keyword);
+            chip.setCloseIconVisible(true);
+            chip.setOnCloseIconClickListener(v -> {
+                alertParsingService.removeCustomKeyword(keyword);
+                refreshKeywordChips();
+            });
+            chipGroupKeywords.addView(chip);
+        }
     }
 
     private void scanForBills() {

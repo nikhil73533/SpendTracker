@@ -21,12 +21,15 @@ public class Transaction {
     private String transactionGroupName; // Transient, populated from join
     private String status;
     private long deletedAt;
+    /** Transient: ML prediction confidence score (0.0–1.0), not persisted to DB */
+    private double confidenceScore;
 
     public Transaction() {
         this.status = "ACTIVE";
         this.deletedAt = 0;
         this.transactionGroupId = 0;
         this.categoryEmoji = "";
+        this.confidenceScore = 1.0; // Default: fully confident (user-entered or confirmed)
     }
 
     public Transaction(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType) {
@@ -91,4 +94,6 @@ public class Transaction {
     public void setStatus(String status) { this.status = status; }
     public long getDeletedAt() { return deletedAt; }
     public void setDeletedAt(long deletedAt) { this.deletedAt = deletedAt; }
+    public double getConfidenceScore() { return confidenceScore; }
+    public void setConfidenceScore(double confidenceScore) { this.confidenceScore = confidenceScore; }
 }

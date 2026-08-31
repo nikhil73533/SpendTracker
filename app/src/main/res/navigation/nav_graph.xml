@@ -16,6 +16,9 @@
         <action
             android:id="@+id/action_dashboardFragment_to_groupTransactionsFragment"
             app:destination="@id/groupTransactionsFragment" />
+        <action
+            android:id="@+id/action_dashboardFragment_to_suspiciousTransactionsFragment"
+            app:destination="@id/suspiciousTransactionsFragment" />
     </fragment>
 
     <fragment
@@ -153,5 +156,11 @@
         android:name="com.example.spendtracker.ui.pdfimport.PdfIngestionFragment"
         android:label="PDF Bulk Ingestion"
         tools:layout="@layout/fragment_pdf_ingestion" />
+
+    <fragment
+        android:id="@+id/suspiciousTransactionsFragment"
+        android:name="com.example.spendtracker.ui.dashboard.SuspiciousTransactionsFragment"
+        android:label="Suspicious Transactions"
+        tools:layout="@layout/fragment_suspicious_transactions" />
 
 </navigation>

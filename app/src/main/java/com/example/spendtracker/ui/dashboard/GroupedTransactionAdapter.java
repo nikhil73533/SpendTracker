@@ -80,11 +80,13 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         private final long date;
         private final double totalIncome;
         private final double totalExpense;
+        private final double totalTransfer;
 
-        public HeaderItem(long date, double totalIncome, double totalExpense) {
+        public HeaderItem(long date, double totalIncome, double totalExpense, double totalTransfer) {
             this.date = date;
             this.totalIncome = totalIncome;
             this.totalExpense = totalExpense;
+            this.totalTransfer = totalTransfer;
         }
 
         @Override
@@ -92,6 +94,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         public long getDate() { return date; }
         public double getTotalIncome() { return totalIncome; }
         public double getTotalExpense() { return totalExpense; }
+        public double getTotalTransfer() { return totalTransfer; }
     }
 
     public static class TransactionItem extends ListItem {
@@ -112,6 +115,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         private final TextView tvMonthYear;
         private final TextView tvDayIncome;
         private final TextView tvDayExpense;
+        private final TextView tvDayTransfer;
         private final DataFormatter formatter;
 
         public HeaderViewHolder(@NonNull View itemView, DataFormatter formatter) {
@@ -122,6 +126,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvMonthYear = itemView.findViewById(R.id.tv_month_year);
             tvDayIncome = itemView.findViewById(R.id.tv_day_income);
             tvDayExpense = itemView.findViewById(R.id.tv_day_expense);
+            tvDayTransfer = itemView.findViewById(R.id.tv_day_transfer);
         }
 
         public void bind(HeaderItem item) {
@@ -131,6 +136,15 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvMonthYear.setText(monthYearFormat.format(date));
             tvDayIncome.setText(formatter.formatAmount(item.getTotalIncome()));
             tvDayExpense.setText(formatter.formatAmount(item.getTotalExpense()));
+            // Show Transfer column only when transfers exist for the day
+            if (tvDayTransfer != null) {
+                if (item.getTotalTransfer() != 0) {
+                    tvDayTransfer.setVisibility(View.VISIBLE);
+                    tvDayTransfer.setText("↔ " + formatter.formatAmount(item.getTotalTransfer()));
+                } else {
+                    tvDayTransfer.setVisibility(View.GONE);
+                }
+            }
         }
     }
 
@@ -247,7 +261,8 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 HeaderItem oldHeader = (HeaderItem) oldItem;
                 HeaderItem newHeader = (HeaderItem) newItem;
                 return Double.compare(oldHeader.totalIncome, newHeader.totalIncome) == 0 &&
-                       Double.compare(oldHeader.totalExpense, newHeader.totalExpense) == 0;
+                       Double.compare(oldHeader.totalExpense, newHeader.totalExpense) == 0 &&
+                       Double.compare(oldHeader.totalTransfer, newHeader.totalTransfer) == 0;
             } else {
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();

@@ -144,6 +144,8 @@ public class SMSReceiver extends BroadcastReceiver {
                         originalTransaction.getBankName(),
                         originalTransaction.getSourceType()
                     );
+                    // Store confidence score for suspicious transaction detection
+                    transactionToSave.setConfidenceScore(predResult.getConfidence());
                     Log.d(TAG, "ML categorized as: " + predResult.getCategory()
                         + " (conf=" + predResult.getConfidence()
                         + ", needsConfirm=" + predResult.needsUserConfirmation() + ")");

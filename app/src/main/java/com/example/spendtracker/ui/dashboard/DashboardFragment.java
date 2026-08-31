@@ -4,6 +4,8 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.PopupWindow;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -43,6 +45,7 @@ public class DashboardFragment extends Fragment {
         setupSearch();
         setupViewPager();
         setupFab();
+        setupNotificationBell();
         observeViewModel();
     }
 
@@ -164,6 +167,17 @@ public class DashboardFragment extends Fragment {
         });
     }
 
+    /**
+     * Sets up the notification bell icon that shows suspicious transaction count
+     * and navigates to the full suspicious transactions list on click.
+     */
+    private void setupNotificationBell() {
+        binding.btnNotifications.setOnClickListener(v -> {
+            Navigation.findNavController(requireView())
+                .navigate(R.id.action_dashboardFragment_to_suspiciousTransactionsFragment);
+        });
+    }
+
     private void observeViewModel() {
         viewModel.getDateRange().observe(getViewLifecycleOwner(), range -> {
             if (range.start == 0) {
@@ -200,6 +214,16 @@ public class DashboardFragment extends Fragment {
         viewModel.getSelectedTab().observe(getViewLifecycleOwner(), index -> {
             if (binding.viewPager.getCurrentItem() != index) {
                 binding.viewPager.setCurrentItem(index, true);
+            }
+        });
+
+        // ── Suspicious Transaction Notification Badge ────────────────
+        viewModel.getSuspiciousTransactions().observe(getViewLifecycleOwner(), suspiciousList -> {
+            if (suspiciousList != null && !suspiciousList.isEmpty()) {
+                binding.tvNotificationBadge.setVisibility(View.VISIBLE);
+                binding.tvNotificationBadge.setText(String.valueOf(Math.min(suspiciousList.size(), 99)));
+            } else {
+                binding.tvNotificationBadge.setVisibility(View.GONE);
             }
         });
     }

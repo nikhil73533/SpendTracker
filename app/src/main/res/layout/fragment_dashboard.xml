@@ -59,6 +59,39 @@
                         app:tint="?attr/colorOnSurface" />
                 </LinearLayout>
 
+                <FrameLayout
+                    android:id="@+id/layout_notification_bell"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_toStartOf="@id/btn_search"
+                    android:layout_centerVertical="true"
+                    android:layout_marginEnd="4dp">
+
+                    <ImageView
+                        android:id="@+id/btn_notifications"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:padding="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Suspicious transactions"
+                        android:src="@android:drawable/ic_popup_reminder"
+                        app:tint="?attr/colorOnSurface" />
+
+                    <TextView
+                        android:id="@+id/tv_notification_badge"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_gravity="top|end"
+                        android:background="@android:color/holo_orange_dark"
+                        android:gravity="center"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        tools:text="3"
+                        tools:visibility="visible" />
+                </FrameLayout>
+
                 <ImageView
                     android:id="@+id/btn_search"
                     android:layout_width="40dp"

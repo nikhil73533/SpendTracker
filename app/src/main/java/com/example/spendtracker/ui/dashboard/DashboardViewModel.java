@@ -182,13 +182,18 @@ public class DashboardViewModel extends ViewModel {
             }
 
             for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
-                double income = 0, expense = 0;
+                double income = 0, expense = 0, transfer = 0;
                 for (Transaction t : entry.getValue()) {
-                    if ("INCOME".equals(t.getType())) income += t.getAmount();
-                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
-                    // TRANSFER: not counted in income or expense header
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+                    if (isTransfer) {
+                        transfer += t.getAmount();
+                    } else if ("INCOME".equals(t.getType())) {
+                        income += t.getAmount();
+                    } else if ("EXPENSE".equals(t.getType())) {
+                        expense += t.getAmount();
+                    }
                 }
-                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense));
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
                 for (Transaction t : entry.getValue()) {
                     items.add(new GroupedTransactionAdapter.TransactionItem(t));
                 }
@@ -423,12 +428,12 @@ public class DashboardViewModel extends ViewModel {
 
                     double cardExp    = cardExpLive.getValue()    != null ? cardExpLive.getValue()    : 0;
                     double acctExp    = acctExpLive.getValue()    != null ? acctExpLive.getValue()    : 0;
-                    double transfer   = transferLive.getValue()   != null ? transferLive.getValue()   : 0;
                     double transferIn = transferInLive.getValue() != null ? transferInLive.getValue() : 0;
                     double transferOut= transferOutLive.getValue()!= null ? transferOutLive.getValue(): 0;
+                    double netTransfer = transferIn - transferOut;
                     double income     = current.getTotalIncome();
 
-                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, transfer, transferIn, transferOut, income));
+                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, netTransfer, transferIn, transferOut, income));
                 }
             };
 
@@ -461,6 +466,73 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType()
             );
             repository.updateTransaction(updated);
+        });
+    }
+
+    // ── Suspicious Transaction Detection ────────────────────────────────────
+
+    /** Configurable confidence threshold — transactions below this are flagged as suspicious. */
+    private final MutableLiveData<Double> suspiciousThreshold = new MutableLiveData<>(0.6);
+
+    public void setSuspiciousThreshold(double threshold) {
+        suspiciousThreshold.setValue(threshold);
+    }
+
+    public LiveData<Double> getSuspiciousThreshold() {
+        return suspiciousThreshold;
+    }
+
+    /**
+     * Returns all transactions in the current date range that have a confidence score
+     * below the configured threshold — i.e., the model was uncertain about its categorization.
+     */
+    public LiveData<List<Transaction>> getSuspiciousTransactions() {
+        return Transformations.switchMap(getTransactions(), transactions -> {
+            MutableLiveData<List<Transaction>> result = new MutableLiveData<>();
+            if (transactions == null) {
+                result.setValue(new ArrayList<>());
+                return result;
+            }
+            Double threshold = suspiciousThreshold.getValue();
+            double thresh = threshold != null ? threshold : 0.6;
+            List<Transaction> suspicious = new ArrayList<>();
+            for (Transaction t : transactions) {
+                if (t.getConfidenceScore() < thresh && t.getConfidenceScore() > 0) {
+                    suspicious.add(t);
+                }
+            }
+            result.setValue(suspicious);
+            return result;
+        });
+    }
+
+    /** Returns suspicious transactions grouped by date, using the same grouped structure as Daily view. */
+    public LiveData<List<GroupedTransactionAdapter.ListItem>> getGroupedSuspiciousTransactions() {
+        return Transformations.map(getSuspiciousTransactions(), transactions -> {
+            List<GroupedTransactionAdapter.ListItem> items = new ArrayList<>();
+            if (transactions == null || transactions.isEmpty()) return items;
+
+            Map<Long, List<Transaction>> grouped = new LinkedHashMap<>();
+            for (Transaction t : transactions) {
+                long tDay = getStartOfDay(t.getDate());
+                if (!grouped.containsKey(tDay)) grouped.put(tDay, new ArrayList<>());
+                grouped.get(tDay).add(t);
+            }
+
+            for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
+                double income = 0, expense = 0, transfer = 0;
+                for (Transaction t : entry.getValue()) {
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+                    if (isTransfer) transfer += t.getAmount();
+                    else if ("INCOME".equals(t.getType())) income += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                }
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
+                for (Transaction t : entry.getValue()) {
+                    items.add(new GroupedTransactionAdapter.TransactionItem(t));
+                }
+            }
+            return items;
         });
     }
 

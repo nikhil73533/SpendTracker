@@ -51,6 +51,7 @@ public class TotalSummaryFragment extends Fragment {
 
         setupRecyclerView();
         binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
+        binding.btnDownloadPdf.setOnClickListener(v -> downloadPdfReport());
         observeViewModel();
     }
 
@@ -153,6 +154,46 @@ public class TotalSummaryFragment extends Fragment {
                     e.printStackTrace();
                     Toast.makeText(requireContext(), "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
+            }
+        });
+    }
+
+    private void downloadPdfReport() {
+        DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
+        if (data == null) {
+            Toast.makeText(requireContext(), "Summary data not ready", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        transactionViewModel.getTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
+            @Override
+            public void onChanged(List<Transaction> transactions) {
+                if (transactions == null || transactions.isEmpty()) {
+                    Toast.makeText(requireContext(), "No transactions to report", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                transactionViewModel.getTransactions().removeObserver(this);
+
+                new Thread(() -> {
+                    try {
+                        File pdfFile = com.example.spendtracker.util.PdfReportService.generateReport(
+                                requireContext(), data, transactions, null);
+                        
+                        requireActivity().runOnUiThread(() -> {
+                            Intent intent = new Intent(Intent.ACTION_SEND);
+                            intent.setType("application/pdf");
+                            Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", pdfFile);
+                            intent.putExtra(Intent.EXTRA_STREAM, uri);
+                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            startActivity(Intent.createChooser(intent, "Share PDF Report"));
+                        });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        requireActivity().runOnUiThread(() -> 
+                            Toast.makeText(requireContext(), "PDF Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
+                        );
+                    }
+                }).start();
             }
         });
     }
