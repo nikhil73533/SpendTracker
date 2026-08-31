@@ -82,12 +82,20 @@ public class BackupFragment extends Fragment {
         });
 
         binding.btnRestore.setOnClickListener(v -> {
-            boolean success = viewModel.restoreNow();
-            if (success) {
-                Toast.makeText(requireContext(), R.string.msg_restore_success, Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(requireContext(), getString(R.string.msg_restore_failed, "Backup file not found"), Toast.LENGTH_SHORT).show();
-            }
+            new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Restore Backup")
+                .setMessage("The application will restart to apply the backup. Continue?")
+                .setPositiveButton("Restore & Restart", (dialog, which) -> {
+                    boolean success = viewModel.restoreNow();
+                    if (success) {
+                        Toast.makeText(requireContext(), "Restoring... restarting app.", Toast.LENGTH_LONG).show();
+                        binding.getRoot().postDelayed(() -> System.exit(0), 1500);
+                    } else {
+                        Toast.makeText(requireContext(), "Backup file not found in external storage.", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
         });
 
         // Google Drive Connect/Disconnect

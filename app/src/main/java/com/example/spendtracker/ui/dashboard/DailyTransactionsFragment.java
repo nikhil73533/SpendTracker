@@ -56,7 +56,7 @@ public class DailyTransactionsFragment extends Fragment {
 
             @Override
             public void onDelete(Transaction transaction) {
-                showDeleteConfirmation(transaction);
+                transactionViewModel.deleteTransaction(transaction);
             }
 
             @Override
@@ -82,17 +82,6 @@ public class DailyTransactionsFragment extends Fragment {
         });
         binding.rvTransactions.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
         binding.rvTransactions.setAdapter(adapter);
-    }
-
-    private void showDeleteConfirmation(Transaction transaction) {
-        new android.app.AlertDialog.Builder(requireContext())
-                .setTitle("Delete Transaction")
-                .setMessage("Are you sure you want to delete this transaction?")
-                .setPositiveButton("Delete", (dialog, which) -> {
-                    transactionViewModel.deleteTransaction(transaction);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
     }
 
     private void observeViewModel() {

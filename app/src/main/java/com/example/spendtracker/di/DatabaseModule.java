@@ -10,8 +10,10 @@ import com.example.spendtracker.data.local.dao.RegexPatternDao;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
+import com.example.spendtracker.data.local.dao.BillAlertDao;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
 import com.example.spendtracker.domain.repository.SecurityRepository;
+import java.io.File;
 
 import javax.inject.Singleton;
 import dagger.Module;
@@ -27,9 +29,24 @@ public class DatabaseModule {
 
     @Provides
     @Singleton
+    @MainDatabase
     public SpendTrackerDatabase provideDatabase(@ApplicationContext Context context, SecurityRepository securityRepository) {
         byte[] passphrase = securityRepository.getDatabasePassphrase();
         
+        File dbFile = context.getDatabasePath("spend_tracker_db");
+        // If DB is missing or empty (< 10KB), try to recover from external backup if available
+        if (!dbFile.exists() || dbFile.length() < 10240) {
+            File extBackup = new File(context.getExternalFilesDir(null), "backup.zip");
+            if (extBackup.exists()) {
+                android.util.Log.e("RECOVERY_CORE", "DB is missing or empty. Staging external backup for recovery.");
+                try {
+                    com.example.spendtracker.util.StorageHelper.copyFile(extBackup, new File(context.getCacheDir(), "backup.zip"));
+                } catch (java.io.IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
         // ULTIMATE RECOVERY: If a backup ZIP exists in cache, it likely has the missing August data
         com.example.spendtracker.util.DatabaseEncryptionHelper.ultimateRecoveryFromCache(context, "spend_tracker_db", passphrase);
 
@@ -40,12 +57,123 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
         return db;
     }
+
+    @Provides
+    @Singleton
+    @ClonedDatabase
+    public SpendTrackerDatabase provideClonedDatabase(@ApplicationContext Context context, SecurityRepository securityRepository) {
+        byte[] passphrase = securityRepository.getDatabasePassphrase();
+        SupportFactory factory = new SupportFactory(passphrase);
+
+        return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
+                .openHelperFactory(factory)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .fallbackToDestructiveMigrationOnDowngrade()
+                .build();
+    }
+
+    /**
+     * Migration 9 → 10:
+     * Robust recreation of the transactions table to fix schema inconsistencies
+     * and missing columns/defaults from previous migrations.
+     */
+    static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            android.util.Log.e("RECOVERY_CORE", "Starting Migration 9 -> 10 (Robust Table Recreation)");
+            
+            // ── TRANSACTIONS TABLE ───────────────────────────────────────────
+            database.execSQL("CREATE TABLE IF NOT EXISTS `transactions_new` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`amount` REAL NOT NULL, "
+                    + "`category` TEXT, "
+                    + "`categoryEmoji` TEXT DEFAULT '', "
+                    + "`description` TEXT, "
+                    + "`type` TEXT, "
+                    + "`date` INTEGER NOT NULL, "
+                    + "`source` TEXT, "
+                    + "`sender` TEXT, "
+                    + "`upiId` TEXT, "
+                    + "`receiverName` TEXT, "
+                    + "`bankName` TEXT, "
+                    + "`sourceType` TEXT, "
+                    + "`isRead` INTEGER NOT NULL DEFAULT 1, "
+                    + "`fromAccount` TEXT DEFAULT '', "
+                    + "`toAccount` TEXT DEFAULT '', "
+                    + "`fees` REAL NOT NULL DEFAULT 0.0, "
+                    + "`transactionGroupId` INTEGER NOT NULL DEFAULT 0, "
+                    + "`status` TEXT NOT NULL DEFAULT 'ACTIVE', "
+                    + "`deletedAt` INTEGER NOT NULL DEFAULT 0)");
+
+            String[] txnTarget = {"id", "amount", "category", "categoryEmoji", "description", "type", "date", "source", "sender", "upiId", "receiverName", "bankName", "sourceType", "isRead", "fromAccount", "toAccount", "fees", "transactionGroupId", "status", "deletedAt"};
+            java.util.List<String> txnExisting = getColumnNames(database, "transactions");
+            
+            StringBuilder txnSelect = new StringBuilder();
+            for (int i = 0; i < txnTarget.length; i++) {
+                String col = txnTarget[i];
+                if (txnExisting.contains(col)) txnSelect.append("`").append(col).append("` ");
+                else {
+                    if (col.equals("categoryEmoji")) txnSelect.append("'' ");
+                    else if (col.equals("isRead")) txnSelect.append("1 ");
+                    else if (col.equals("fromAccount")) txnSelect.append("'' ");
+                    else if (col.equals("toAccount")) txnSelect.append("'' ");
+                    else if (col.equals("fees")) txnSelect.append("0.0 ");
+                    else if (col.equals("transactionGroupId")) txnSelect.append("0 ");
+                    else if (col.equals("status")) txnSelect.append("'ACTIVE' ");
+                    else if (col.equals("deletedAt")) txnSelect.append("0 ");
+                    else txnSelect.append("NULL ");
+                }
+                txnSelect.append("AS `").append(col).append("`").append(i < txnTarget.length - 1 ? ", " : "");
+            }
+            database.execSQL("INSERT INTO `transactions_new` (" + String.join(", ", txnTarget) + ") SELECT " + txnSelect + " FROM `transactions` ");
+            database.execSQL("DROP TABLE `transactions` ");
+            database.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions` ");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionGroupId` ON `transactions` (`transactionGroupId`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_status` ON `transactions` (`status`)");
+
+            // ── CATEGORIES TABLE ─────────────────────────────────────────────
+            database.execSQL("CREATE TABLE IF NOT EXISTS `categories_new` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`name` TEXT, "
+                    + "`icon` TEXT, "
+                    + "`isDefault` INTEGER NOT NULL, "
+                    + "`type` TEXT DEFAULT 'EXPENSE')");
+
+            String[] catTarget = {"id", "name", "icon", "isDefault", "type"};
+            java.util.List<String> catExisting = getColumnNames(database, "categories");
+            
+            StringBuilder catSelect = new StringBuilder();
+            for (int i = 0; i < catTarget.length; i++) {
+                String col = catTarget[i];
+                if (catExisting.contains(col)) catSelect.append("`").append(col).append("` ");
+                else {
+                    if (col.equals("type")) catSelect.append("'EXPENSE' ");
+                    else if (col.equals("isDefault")) catSelect.append("0 ");
+                    else catSelect.append("NULL ");
+                }
+                catSelect.append("AS `").append(col).append("`").append(i < catTarget.length - 1 ? ", " : "");
+            }
+            database.execSQL("INSERT INTO `categories_new` (" + String.join(", ", catTarget) + ") SELECT " + catSelect + " FROM `categories` ");
+            database.execSQL("DROP TABLE `categories` ");
+            database.execSQL("ALTER TABLE `categories_new` RENAME TO `categories` ");
+
+            android.util.Log.e("RECOVERY_CORE", "Migration 9 -> 10 Complete.");
+        }
+
+        private java.util.List<String> getColumnNames(SupportSQLiteDatabase database, String tableName) {
+            java.util.List<String> names = new java.util.ArrayList<>();
+            try (android.database.Cursor cursor = database.query("PRAGMA table_info(" + tableName + ")")) {
+                while (cursor.moveToNext()) names.add(cursor.getString(cursor.getColumnIndexOrThrow("name")));
+            }
+            return names;
+        }
+    };
 
     static final Migration MIGRATION_3_4 = new Migration(3, 4) {
         @Override
@@ -155,28 +283,74 @@ public class DatabaseModule {
         }
     };
 
+    /**
+     * Migration 8 → 9:
+     * - Add categoryEmoji to transactions
+     */
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            try {
+                database.execSQL("ALTER TABLE transactions ADD COLUMN categoryEmoji TEXT DEFAULT ''");
+            } catch (Exception e) {
+                android.util.Log.w("RECOVERY_CORE", "Column categoryEmoji already exists or error adding it: " + e.getMessage());
+            }
+        }
+    };
+
+    /**
+     * Migration 10 → 11:
+     * - Create bill_alerts table
+     */
+    static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS `bill_alerts` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`sender` TEXT, "
+                    + "`template` TEXT, "
+                    + "`lastMessage` TEXT, "
+                    + "`occurrenceCount` INTEGER NOT NULL, "
+                    + "`lastSeen` INTEGER NOT NULL, "
+                    + "`amount` REAL NOT NULL, "
+                    + "`isResolved` INTEGER NOT NULL)");
+        }
+    };
+
     @Provides
-    public TransactionDao provideTransactionDao(SpendTrackerDatabase database) {
+    @MainDatabase
+    public TransactionDao provideTransactionDao(@MainDatabase SpendTrackerDatabase database) {
         return database.transactionDao();
     }
 
     @Provides
-    public CategoryDao provideCategoryDao(SpendTrackerDatabase database) {
+    @ClonedDatabase
+    public TransactionDao provideClonedTransactionDao(@ClonedDatabase SpendTrackerDatabase database) {
+        return database.transactionDao();
+    }
+
+    @Provides
+    public CategoryDao provideCategoryDao(@MainDatabase SpendTrackerDatabase database) {
         return database.categoryDao();
     }
 
     @Provides
-    public RegexPatternDao provideRegexPatternDao(SpendTrackerDatabase database) {
+    public RegexPatternDao provideRegexPatternDao(@MainDatabase SpendTrackerDatabase database) {
         return database.regexPatternDao();
     }
 
     @Provides
-    public TransactionGroupDao provideTransactionGroupDao(SpendTrackerDatabase database) {
+    public TransactionGroupDao provideTransactionGroupDao(@MainDatabase SpendTrackerDatabase database) {
         return database.transactionGroupDao();
     }
 
     @Provides
-    public RepeatedAlertDao provideRepeatedAlertDao(SpendTrackerDatabase database) {
+    public RepeatedAlertDao provideRepeatedAlertDao(@MainDatabase SpendTrackerDatabase database) {
         return database.repeatedAlertDao();
+    }
+
+    @Provides
+    public BillAlertDao provideBillAlertDao(@MainDatabase SpendTrackerDatabase database) {
+        return database.billAlertDao();
     }
 }

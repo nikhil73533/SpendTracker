@@ -1,5 +1,6 @@
 package com.example.spendtracker.data.local.entity;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
@@ -10,6 +11,7 @@ public class CategoryEntity {
     public String name;
     public String icon;
     public boolean isDefault;
+    @ColumnInfo(defaultValue = "EXPENSE")
     public String type; // EXPENSE or INCOME
 
     public CategoryEntity() {

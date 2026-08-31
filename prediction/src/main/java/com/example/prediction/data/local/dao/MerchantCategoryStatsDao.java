@@ -11,7 +11,7 @@ import java.util.List;
 @Dao
 public interface MerchantCategoryStatsDao {
 
-    @Query("SELECT * FROM merchant_category_stats WHERE merchantKey = :merchantKey AND type = :type")
+    @Query("SELECT * FROM merchant_category_stats WHERE merchantKey = :merchantKey AND transactionType = :type")
     List<MerchantCategoryStatsEntity> getStatsForMerchant(String merchantKey, String type);
 
     @Query("SELECT * FROM merchant_category_stats WHERE merchantKey = :merchantKey AND transactionType = :transactionType")

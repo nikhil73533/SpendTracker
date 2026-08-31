@@ -68,6 +68,26 @@ public interface TransactionGroupDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE transactionGroupId = :groupId AND status = 'ACTIVE'")
     LiveData<Integer> getTransactionCountForGroup(int groupId);
 
+    @Transaction
+    default void insertGroupWithCategories(TransactionGroupEntity group, List<String> categories) {
+        long groupId = insertGroup(group);
+        for (String cat : categories) {
+            insertGroupCategory(new TransactionGroupCategoryEntity((int) groupId, cat));
+        }
+        associateTransactionsWithGroup((int) groupId, group.startDate, group.endDate);
+    }
+
+    @Transaction
+    default void updateGroupWithCategories(TransactionGroupEntity group, List<String> categories) {
+        updateGroup(group);
+        deleteGroupCategories(group.id);
+        for (String cat : categories) {
+            insertGroupCategory(new TransactionGroupCategoryEntity(group.id, cat));
+        }
+        disassociateTransactionsFromGroup(group.id);
+        associateTransactionsWithGroup(group.id, group.startDate, group.endDate);
+    }
+
     /** Group name lookup for a given transaction's group id. Returns null if groupId is 0 or no group found. */
     @Query("SELECT name FROM transaction_groups WHERE id = :groupId LIMIT 1")
     String getGroupNameSync(int groupId);

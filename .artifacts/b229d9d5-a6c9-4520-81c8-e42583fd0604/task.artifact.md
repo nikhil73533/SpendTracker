@@ -1,0 +1,6 @@
+- [x] Add `copyFile` to `StorageHelper.java`
+- [x] Implement safe restore logic in `BackupViewModel.java`
+- [x] Enhance `ultimateRecoveryFromCache` in `DatabaseEncryptionHelper.java`
+- [x] Add auto-recovery check in `DatabaseModule.java`
+- [x] Fix Room migration crash by adding `MIGRATION_8_9`
+- [x] Verify build and functionality

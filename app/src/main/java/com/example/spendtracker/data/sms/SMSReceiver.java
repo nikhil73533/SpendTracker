@@ -44,6 +44,9 @@ public class SMSReceiver extends BroadcastReceiver {
     SMSParsingService parsingService;
 
     @Inject
+    AlertParsingService alertParsingService;
+
+    @Inject
     AddTransactionUseCase addTransactionUseCase;
 
     private IncrementalPredictionService predictionService;
@@ -80,6 +83,9 @@ public class SMSReceiver extends BroadcastReceiver {
             String sender = smsMessage.getDisplayOriginatingAddress();
             String messageBody = smsMessage.getMessageBody();
             long timestamp = smsMessage.getTimestampMillis();
+
+            // Proactive alert system for repeating messages
+            alertParsingService.processMessage(sender, messageBody, timestamp);
 
             // Parse through the modular pipeline
             ParseResult result = parsingService.parse(sender, messageBody, timestamp);

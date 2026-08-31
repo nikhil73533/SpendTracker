@@ -16,6 +16,8 @@ public class TransactionEntity {
     public int id;
     public double amount;
     public String category;
+    @ColumnInfo(defaultValue = "")
+    public String categoryEmoji;
     public String description;
     public String type;
     public long date;
@@ -29,8 +31,11 @@ public class TransactionEntity {
     public boolean isRead = true;
     
     // Transfer specific fields
+    @ColumnInfo(defaultValue = "")
     public String fromAccount;
+    @ColumnInfo(defaultValue = "")
     public String toAccount;
+    @ColumnInfo(defaultValue = "0.0")
     public double fees;
 
     // Transaction Group association (nullable)
@@ -49,13 +54,18 @@ public class TransactionEntity {
     public TransactionEntity() {}
 
     public TransactionEntity(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType) {
-        this(id, amount, category, description, type, date, source, sender, upiId, receiverName, bankName, sourceType, null, null, 0.0);
+        this(id, amount, category, "", description, type, date, source, sender, upiId, receiverName, bankName, sourceType, null, null, 0.0);
     }
 
     public TransactionEntity(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType, String fromAccount, String toAccount, double fees) {
+        this(id, amount, category, "", description, type, date, source, sender, upiId, receiverName, bankName, sourceType, fromAccount, toAccount, fees);
+    }
+
+    public TransactionEntity(int id, double amount, String category, String categoryEmoji, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType, String fromAccount, String toAccount, double fees) {
         this.id = id;
         this.amount = amount;
         this.category = category;
+        this.categoryEmoji = categoryEmoji != null ? categoryEmoji : "";
         this.description = description;
         this.type = type;
         this.date = date;

@@ -48,4 +48,7 @@ public interface TransactionRepository {
     void restoreTransaction(int transactionId);
     LiveData<List<Transaction>> getDeletedTransactions();
     void permanentlyDeleteTransaction(int transactionId);
+
+    // ── Cloned Database Sync ────────────────────────────────────────────────
+    void restoreFromClone();
 }

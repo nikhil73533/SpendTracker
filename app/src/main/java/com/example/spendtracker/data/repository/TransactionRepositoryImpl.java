@@ -10,6 +10,9 @@ import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.dao.RepeatedAlertDao;
 import com.example.spendtracker.data.local.entity.RepeatedAlertEntity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
+import com.example.spendtracker.data.local.entity.TransactionGroupEntity;
+import com.example.spendtracker.di.ClonedDatabase;
+import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.TransactionRepository;
@@ -23,6 +26,7 @@ import javax.inject.Inject;
 
 public class TransactionRepositoryImpl implements TransactionRepository {
     private final TransactionDao transactionDao;
+    private final TransactionDao clonedTransactionDao;
     private final CategoryDao categoryDao;
     private final TransactionGroupDao transactionGroupDao;
     private final RepeatedAlertDao repeatedAlertDao;
@@ -65,8 +69,13 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     };
 
     @Inject
-    public TransactionRepositoryImpl(TransactionDao transactionDao, CategoryDao categoryDao, TransactionGroupDao transactionGroupDao, RepeatedAlertDao repeatedAlertDao) {
+    public TransactionRepositoryImpl(@MainDatabase TransactionDao transactionDao,
+                                   @ClonedDatabase TransactionDao clonedTransactionDao,
+                                   CategoryDao categoryDao,
+                                   TransactionGroupDao transactionGroupDao,
+                                   RepeatedAlertDao repeatedAlertDao) {
         this.transactionDao = transactionDao;
+        this.clonedTransactionDao = clonedTransactionDao;
         this.categoryDao = categoryDao;
         this.transactionGroupDao = transactionGroupDao;
         this.repeatedAlertDao = repeatedAlertDao;
@@ -171,6 +180,8 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             
             long newId = transactionDao.insertTransaction(entity);
+            clonedTransactionDao.insertTransaction(entity); // Mirror to cloned database
+
             if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
                 // Check for duplicate transactions within 48 hours
                 long fortyEightHours = 48L * 60 * 60 * 1000;
@@ -218,23 +229,35 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             
             transactionDao.updateTransaction(entity);
+            clonedTransactionDao.updateTransaction(entity); // Mirror to cloned database
         });
     }
 
     @Override
     public void deleteTransaction(Transaction transaction) {
         // Soft delete: mark as DELETED instead of removing
-        executorService.execute(() -> transactionDao.softDeleteTransaction(transaction.getId(), System.currentTimeMillis()));
+        executorService.execute(() -> {
+            long deletedAt = System.currentTimeMillis();
+            transactionDao.softDeleteTransaction(transaction.getId(), deletedAt);
+            clonedTransactionDao.softDeleteTransaction(transaction.getId(), deletedAt);
+        });
     }
 
     @Override
     public void softDeleteTransaction(int transactionId) {
-        executorService.execute(() -> transactionDao.softDeleteTransaction(transactionId, System.currentTimeMillis()));
+        executorService.execute(() -> {
+            long deletedAt = System.currentTimeMillis();
+            transactionDao.softDeleteTransaction(transactionId, deletedAt);
+            clonedTransactionDao.softDeleteTransaction(transactionId, deletedAt);
+        });
     }
 
     @Override
     public void restoreTransaction(int transactionId) {
-        executorService.execute(() -> transactionDao.restoreTransaction(transactionId));
+        executorService.execute(() -> {
+            transactionDao.restoreTransaction(transactionId);
+            clonedTransactionDao.restoreTransaction(transactionId);
+        });
     }
 
     @Override
@@ -250,7 +273,20 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void permanentlyDeleteTransaction(int transactionId) {
-        executorService.execute(() -> transactionDao.permanentlyDeleteTransaction(transactionId));
+        executorService.execute(() -> {
+            transactionDao.permanentlyDeleteTransaction(transactionId);
+            clonedTransactionDao.permanentlyDeleteTransaction(transactionId);
+        });
+    }
+
+    @Override
+    public void restoreFromClone() {
+        executorService.execute(() -> {
+            List<TransactionEntity> clonedTransactions = clonedTransactionDao.getAllTransactionsSync();
+            for (TransactionEntity entity : clonedTransactions) {
+                transactionDao.insertTransaction(entity);
+            }
+        });
     }
 
     // ── Summary ───────────────────────────────────────────────────────────────
@@ -460,7 +496,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         Transaction t = new Transaction(
-            entity.id, entity.amount, entity.category, entity.description,
+            entity.id, entity.amount, entity.category, entity.categoryEmoji, entity.description,
             entity.type, entity.date, entity.source, entity.sender, entity.upiId,
             entity.receiverName, entity.bankName, entity.sourceType,
             entity.fromAccount, entity.toAccount, entity.fees
@@ -482,10 +518,11 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         if (transaction == null) return null;
         TransactionEntity entity = new TransactionEntity(
             transaction.getId(), transaction.getAmount(), transaction.getCategory(),
-            transaction.getDescription(), transaction.getType(), transaction.getDate(),
-            transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
-            transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType(),
-            transaction.getFromAccount(), transaction.getToAccount(), transaction.getFees()
+            transaction.getCategoryEmoji(), transaction.getDescription(), transaction.getType(),
+            transaction.getDate(), transaction.getSource(), transaction.getSender(),
+            transaction.getUpiId(), transaction.getReceiverName(), transaction.getBankName(),
+            transaction.getSourceType(), transaction.getFromAccount(), transaction.getToAccount(),
+            transaction.getFees()
         );
         entity.transactionGroupId = transaction.getTransactionGroupId();
         entity.status = transaction.getStatus() != null ? transaction.getStatus() : "ACTIVE";

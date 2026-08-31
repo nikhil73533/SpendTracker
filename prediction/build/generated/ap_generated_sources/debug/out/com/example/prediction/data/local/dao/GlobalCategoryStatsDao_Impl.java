@@ -37,40 +37,60 @@ public final class GlobalCategoryStatsDao_Impl implements GlobalCategoryStatsDao
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `global_category_stats` (`category`,`count`) VALUES (?,?)";
+        return "INSERT OR REPLACE INTO `global_category_stats` (`id`,`category`,`transactionType`,`count`) VALUES (?,?,?,?)";
       }
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
           final GlobalCategoryStatsEntity entity) {
-        if (entity.category == null) {
+        if (entity.id == null) {
           statement.bindNull(1);
         } else {
-          statement.bindString(1, entity.category);
+          statement.bindString(1, entity.id);
         }
-        statement.bindLong(2, entity.count);
+        if (entity.category == null) {
+          statement.bindNull(2);
+        } else {
+          statement.bindString(2, entity.category);
+        }
+        if (entity.transactionType == null) {
+          statement.bindNull(3);
+        } else {
+          statement.bindString(3, entity.transactionType);
+        }
+        statement.bindLong(4, entity.count);
       }
     };
     this.__updateAdapterOfGlobalCategoryStatsEntity = new EntityDeletionOrUpdateAdapter<GlobalCategoryStatsEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `global_category_stats` SET `category` = ?,`count` = ? WHERE `category` = ?";
+        return "UPDATE OR ABORT `global_category_stats` SET `id` = ?,`category` = ?,`transactionType` = ?,`count` = ? WHERE `id` = ?";
       }
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
           final GlobalCategoryStatsEntity entity) {
-        if (entity.category == null) {
+        if (entity.id == null) {
           statement.bindNull(1);
         } else {
-          statement.bindString(1, entity.category);
+          statement.bindString(1, entity.id);
         }
-        statement.bindLong(2, entity.count);
         if (entity.category == null) {
+          statement.bindNull(2);
+        } else {
+          statement.bindString(2, entity.category);
+        }
+        if (entity.transactionType == null) {
           statement.bindNull(3);
         } else {
-          statement.bindString(3, entity.category);
+          statement.bindString(3, entity.transactionType);
+        }
+        statement.bindLong(4, entity.count);
+        if (entity.id == null) {
+          statement.bindNull(5);
+        } else {
+          statement.bindString(5, entity.id);
         }
       }
     };
@@ -126,25 +146,89 @@ public final class GlobalCategoryStatsDao_Impl implements GlobalCategoryStatsDao
   }
 
   @Override
-  public List<GlobalCategoryStatsEntity> getAll() {
-    final String _sql = "SELECT * FROM global_category_stats";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+  public List<GlobalCategoryStatsEntity> getAllByType(final String transactionType) {
+    final String _sql = "SELECT * FROM global_category_stats WHERE transactionType = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    if (transactionType == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, transactionType);
+    }
     __db.assertNotSuspendingTransaction();
     final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
     try {
+      final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
       final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
       final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
       final List<GlobalCategoryStatsEntity> _result = new ArrayList<GlobalCategoryStatsEntity>(_cursor.getCount());
       while (_cursor.moveToNext()) {
         final GlobalCategoryStatsEntity _item;
         _item = new GlobalCategoryStatsEntity();
+        if (_cursor.isNull(_cursorIndexOfId)) {
+          _item.id = null;
+        } else {
+          _item.id = _cursor.getString(_cursorIndexOfId);
+        }
         if (_cursor.isNull(_cursorIndexOfCategory)) {
           _item.category = null;
         } else {
           _item.category = _cursor.getString(_cursorIndexOfCategory);
         }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _item.transactionType = null;
+        } else {
+          _item.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
+        }
         _item.count = _cursor.getInt(_cursorIndexOfCount);
         _result.add(_item);
+      }
+      return _result;
+    } finally {
+      _cursor.close();
+      _statement.release();
+    }
+  }
+
+  @Override
+  public GlobalCategoryStatsEntity getById(final String id) {
+    final String _sql = "SELECT * FROM global_category_stats WHERE id = ? LIMIT 1";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    if (id == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, id);
+    }
+    __db.assertNotSuspendingTransaction();
+    final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+    try {
+      final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+      final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
+      final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
+      final GlobalCategoryStatsEntity _result;
+      if (_cursor.moveToFirst()) {
+        _result = new GlobalCategoryStatsEntity();
+        if (_cursor.isNull(_cursorIndexOfId)) {
+          _result.id = null;
+        } else {
+          _result.id = _cursor.getString(_cursorIndexOfId);
+        }
+        if (_cursor.isNull(_cursorIndexOfCategory)) {
+          _result.category = null;
+        } else {
+          _result.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _result.transactionType = null;
+        } else {
+          _result.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
+        }
+        _result.count = _cursor.getInt(_cursorIndexOfCount);
+      } else {
+        _result = null;
       }
       return _result;
     } finally {
@@ -166,15 +250,27 @@ public final class GlobalCategoryStatsDao_Impl implements GlobalCategoryStatsDao
     __db.assertNotSuspendingTransaction();
     final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
     try {
+      final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
       final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
       final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
       final GlobalCategoryStatsEntity _result;
       if (_cursor.moveToFirst()) {
         _result = new GlobalCategoryStatsEntity();
+        if (_cursor.isNull(_cursorIndexOfId)) {
+          _result.id = null;
+        } else {
+          _result.id = _cursor.getString(_cursorIndexOfId);
+        }
         if (_cursor.isNull(_cursorIndexOfCategory)) {
           _result.category = null;
         } else {
           _result.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _result.transactionType = null;
+        } else {
+          _result.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
         }
         _result.count = _cursor.getInt(_cursorIndexOfCount);
       } else {

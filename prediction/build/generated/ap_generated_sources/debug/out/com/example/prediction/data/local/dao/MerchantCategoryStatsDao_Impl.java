@@ -37,7 +37,7 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `merchant_category_stats` (`id`,`merchantKey`,`category`,`count`,`lastSeenMs`) VALUES (?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `merchant_category_stats` (`id`,`merchantKey`,`category`,`transactionType`,`count`,`lastSeenMs`) VALUES (?,?,?,?,?,?)";
       }
 
       @Override
@@ -58,15 +58,20 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
         } else {
           statement.bindString(3, entity.category);
         }
-        statement.bindLong(4, entity.count);
-        statement.bindLong(5, entity.lastSeenMs);
+        if (entity.transactionType == null) {
+          statement.bindNull(4);
+        } else {
+          statement.bindString(4, entity.transactionType);
+        }
+        statement.bindLong(5, entity.count);
+        statement.bindLong(6, entity.lastSeenMs);
       }
     };
     this.__updateAdapterOfMerchantCategoryStatsEntity = new EntityDeletionOrUpdateAdapter<MerchantCategoryStatsEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `merchant_category_stats` SET `id` = ?,`merchantKey` = ?,`category` = ?,`count` = ?,`lastSeenMs` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `merchant_category_stats` SET `id` = ?,`merchantKey` = ?,`category` = ?,`transactionType` = ?,`count` = ?,`lastSeenMs` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -87,12 +92,17 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
         } else {
           statement.bindString(3, entity.category);
         }
-        statement.bindLong(4, entity.count);
-        statement.bindLong(5, entity.lastSeenMs);
-        if (entity.id == null) {
-          statement.bindNull(6);
+        if (entity.transactionType == null) {
+          statement.bindNull(4);
         } else {
-          statement.bindString(6, entity.id);
+          statement.bindString(4, entity.transactionType);
+        }
+        statement.bindLong(5, entity.count);
+        statement.bindLong(6, entity.lastSeenMs);
+        if (entity.id == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, entity.id);
         }
       }
     };
@@ -148,14 +158,21 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
   }
 
   @Override
-  public List<MerchantCategoryStatsEntity> getStatsForMerchant(final String merchantKey) {
-    final String _sql = "SELECT * FROM merchant_category_stats WHERE merchantKey = ?";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+  public List<MerchantCategoryStatsEntity> getStatsForMerchant(final String merchantKey,
+      final String type) {
+    final String _sql = "SELECT * FROM merchant_category_stats WHERE merchantKey = ? AND transactionType = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
     int _argIndex = 1;
     if (merchantKey == null) {
       _statement.bindNull(_argIndex);
     } else {
       _statement.bindString(_argIndex, merchantKey);
+    }
+    _argIndex = 2;
+    if (type == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, type);
     }
     __db.assertNotSuspendingTransaction();
     final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
@@ -163,6 +180,7 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
       final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
       final int _cursorIndexOfMerchantKey = CursorUtil.getColumnIndexOrThrow(_cursor, "merchantKey");
       final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
       final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
       final int _cursorIndexOfLastSeenMs = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeenMs");
       final List<MerchantCategoryStatsEntity> _result = new ArrayList<MerchantCategoryStatsEntity>(_cursor.getCount());
@@ -183,6 +201,72 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
           _item.category = null;
         } else {
           _item.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _item.transactionType = null;
+        } else {
+          _item.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
+        }
+        _item.count = _cursor.getInt(_cursorIndexOfCount);
+        _item.lastSeenMs = _cursor.getLong(_cursorIndexOfLastSeenMs);
+        _result.add(_item);
+      }
+      return _result;
+    } finally {
+      _cursor.close();
+      _statement.release();
+    }
+  }
+
+  @Override
+  public List<MerchantCategoryStatsEntity> getStatsForMerchantByType(final String merchantKey,
+      final String transactionType) {
+    final String _sql = "SELECT * FROM merchant_category_stats WHERE merchantKey = ? AND transactionType = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
+    int _argIndex = 1;
+    if (merchantKey == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, merchantKey);
+    }
+    _argIndex = 2;
+    if (transactionType == null) {
+      _statement.bindNull(_argIndex);
+    } else {
+      _statement.bindString(_argIndex, transactionType);
+    }
+    __db.assertNotSuspendingTransaction();
+    final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+    try {
+      final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+      final int _cursorIndexOfMerchantKey = CursorUtil.getColumnIndexOrThrow(_cursor, "merchantKey");
+      final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
+      final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
+      final int _cursorIndexOfLastSeenMs = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeenMs");
+      final List<MerchantCategoryStatsEntity> _result = new ArrayList<MerchantCategoryStatsEntity>(_cursor.getCount());
+      while (_cursor.moveToNext()) {
+        final MerchantCategoryStatsEntity _item;
+        _item = new MerchantCategoryStatsEntity();
+        if (_cursor.isNull(_cursorIndexOfId)) {
+          _item.id = null;
+        } else {
+          _item.id = _cursor.getString(_cursorIndexOfId);
+        }
+        if (_cursor.isNull(_cursorIndexOfMerchantKey)) {
+          _item.merchantKey = null;
+        } else {
+          _item.merchantKey = _cursor.getString(_cursorIndexOfMerchantKey);
+        }
+        if (_cursor.isNull(_cursorIndexOfCategory)) {
+          _item.category = null;
+        } else {
+          _item.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _item.transactionType = null;
+        } else {
+          _item.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
         }
         _item.count = _cursor.getInt(_cursorIndexOfCount);
         _item.lastSeenMs = _cursor.getLong(_cursorIndexOfLastSeenMs);
@@ -211,6 +295,7 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
       final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
       final int _cursorIndexOfMerchantKey = CursorUtil.getColumnIndexOrThrow(_cursor, "merchantKey");
       final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
       final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
       final int _cursorIndexOfLastSeenMs = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeenMs");
       final MerchantCategoryStatsEntity _result;
@@ -230,6 +315,11 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
           _result.category = null;
         } else {
           _result.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _result.transactionType = null;
+        } else {
+          _result.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
         }
         _result.count = _cursor.getInt(_cursorIndexOfCount);
         _result.lastSeenMs = _cursor.getLong(_cursorIndexOfLastSeenMs);

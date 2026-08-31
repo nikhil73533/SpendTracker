@@ -45,15 +45,15 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(4) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `prototypes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `category` TEXT, `vector` BLOB, `merchantName` TEXT, `upiId` TEXT, `amount` REAL NOT NULL, `type` TEXT, `dayOfWeek` INTEGER NOT NULL, `hourOfDay` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `merchant_stats` (`merchantName` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `totalAmount` REAL NOT NULL, `averageAmount` REAL NOT NULL, `preferredCategory` TEXT, `lastCategory` TEXT, `lastTransactionDate` INTEGER NOT NULL, PRIMARY KEY(`merchantName`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `merchant_category_stats` (`id` TEXT NOT NULL, `merchantKey` TEXT NOT NULL, `category` TEXT NOT NULL, `count` INTEGER NOT NULL, `lastSeenMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `global_category_stats` (`category` TEXT NOT NULL, `count` INTEGER NOT NULL, PRIMARY KEY(`category`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `merchant_category_stats` (`id` TEXT NOT NULL, `merchantKey` TEXT NOT NULL, `category` TEXT NOT NULL, `transactionType` TEXT NOT NULL, `count` INTEGER NOT NULL, `lastSeenMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `global_category_stats` (`id` TEXT NOT NULL, `category` TEXT NOT NULL, `transactionType` TEXT NOT NULL, `count` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3324b4f5c85f7a53796aea4e3666311b')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f3ea8647a3b01bc6d4125ebb9f24ce1c')");
       }
 
       @Override
@@ -141,10 +141,11 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
                   + " Expected:\n" + _infoMerchantStats + "\n"
                   + " Found:\n" + _existingMerchantStats);
         }
-        final HashMap<String, TableInfo.Column> _columnsMerchantCategoryStats = new HashMap<String, TableInfo.Column>(5);
+        final HashMap<String, TableInfo.Column> _columnsMerchantCategoryStats = new HashMap<String, TableInfo.Column>(6);
         _columnsMerchantCategoryStats.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMerchantCategoryStats.put("merchantKey", new TableInfo.Column("merchantKey", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMerchantCategoryStats.put("category", new TableInfo.Column("category", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMerchantCategoryStats.put("transactionType", new TableInfo.Column("transactionType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMerchantCategoryStats.put("count", new TableInfo.Column("count", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMerchantCategoryStats.put("lastSeenMs", new TableInfo.Column("lastSeenMs", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysMerchantCategoryStats = new HashSet<TableInfo.ForeignKey>(0);
@@ -156,8 +157,10 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
                   + " Expected:\n" + _infoMerchantCategoryStats + "\n"
                   + " Found:\n" + _existingMerchantCategoryStats);
         }
-        final HashMap<String, TableInfo.Column> _columnsGlobalCategoryStats = new HashMap<String, TableInfo.Column>(2);
-        _columnsGlobalCategoryStats.put("category", new TableInfo.Column("category", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashMap<String, TableInfo.Column> _columnsGlobalCategoryStats = new HashMap<String, TableInfo.Column>(4);
+        _columnsGlobalCategoryStats.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsGlobalCategoryStats.put("category", new TableInfo.Column("category", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsGlobalCategoryStats.put("transactionType", new TableInfo.Column("transactionType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsGlobalCategoryStats.put("count", new TableInfo.Column("count", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysGlobalCategoryStats = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesGlobalCategoryStats = new HashSet<TableInfo.Index>(0);
@@ -170,7 +173,7 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "3324b4f5c85f7a53796aea4e3666311b", "ec89942b2120de523db3ff415eaadcac");
+    }, "f3ea8647a3b01bc6d4125ebb9f24ce1c", "6ee49051c45b6f7dfa45e342aae6da3b");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

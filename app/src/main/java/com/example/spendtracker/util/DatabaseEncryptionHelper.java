@@ -145,24 +145,42 @@ public class DatabaseEncryptionHelper {
     public static void ultimateRecoveryFromCache(Context context, String dbName, byte[] passphrase) {
         File cacheDir = context.getCacheDir();
         File backupZip = new File(cacheDir, "backup.zip");
-        if (!backupZip.exists()) return;
+        if (!backupZip.exists()) {
+            // Also check external storage if cache is empty and DB is missing
+            File extZip = new File(context.getExternalFilesDir(null), "backup.zip");
+            if (extZip.exists() && !context.getDatabasePath(dbName).exists()) {
+                backupZip = extZip;
+                android.util.Log.e("RECOVERY_CORE", "Using EXTERNAL backup for fresh install recovery.");
+            } else {
+                return;
+            }
+        }
 
         android.util.Log.e("RECOVERY_CORE", "STARTING ULTIMATE RECOVERY FROM ZIP...");
         try {
             File dbFile = context.getDatabasePath(dbName);
             File dbDir = dbFile.getParentFile();
+            if (!dbDir.exists()) dbDir.mkdirs();
             
+            // Backup existing if it exists, just in case
+            if (dbFile.exists()) {
+                File emergencyBackup = new File(dbFile.getAbsolutePath() + ".emergency");
+                copyFile(dbFile, emergencyBackup);
+            }
+
             // 1. Unzip to databases folder
             com.example.spendtracker.util.StorageHelper.unzipFile(backupZip, dbDir);
             android.util.Log.e("RECOVERY_CORE", "Unzipped files to databases folder.");
 
             // 2. Check if unencrypted
             boolean isUnencrypted = false;
-            try (FileInputStream fis = new FileInputStream(dbFile)) {
-                byte[] header = new byte[16];
-                if (fis.read(header) == 16) {
-                    if (new String(header).startsWith("SQLite format 3")) {
-                        isUnencrypted = true;
+            if (dbFile.exists()) {
+                try (FileInputStream fis = new FileInputStream(dbFile)) {
+                    byte[] header = new byte[16];
+                    if (fis.read(header) == 16) {
+                        if (new String(header).startsWith("SQLite format 3")) {
+                            isUnencrypted = true;
+                        }
                     }
                 }
             }
@@ -170,11 +188,15 @@ public class DatabaseEncryptionHelper {
             if (isUnencrypted) {
                 android.util.Log.e("RECOVERY_CORE", "Unzipped DB is unencrypted. Merging WAL...");
                 // 3. Merge WAL
-                android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(
-                        dbFile.getAbsolutePath(), null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE);
-                db.rawQuery("PRAGMA wal_checkpoint(FULL);", null).close();
-                db.close();
-                android.util.Log.e("RECOVERY_CORE", "WAL Merged. New size: " + dbFile.length());
+                try {
+                    android.database.sqlite.SQLiteDatabase db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                            dbFile.getAbsolutePath(), null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE);
+                    db.rawQuery("PRAGMA wal_checkpoint(FULL);", null).close();
+                    db.close();
+                    android.util.Log.e("RECOVERY_CORE", "WAL Merged. New size: " + dbFile.length());
+                } catch (Exception e) {
+                    android.util.Log.e("RECOVERY_CORE", "WAL Merge failed (might be empty): " + e.getMessage());
+                }
 
                 // 4. Encrypt
                 SQLiteDatabase unencryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, "", null);
@@ -182,7 +204,6 @@ public class DatabaseEncryptionHelper {
                 android.util.Log.e("RECOVERY_CORE", "Re-encryption complete.");
             } else {
                 android.util.Log.e("RECOVERY_CORE", "Unzipped DB is encrypted. Attempting SQLCipher checkpoint...");
-                // Attempt to checkpoint an encrypted DB with the given passphrase
                 try {
                     SQLiteDatabase encryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
                     encryptedDb.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
@@ -193,8 +214,10 @@ public class DatabaseEncryptionHelper {
                 }
             }
 
-            // 5. Cleanup ZIP to prevent loops
-            backupZip.delete();
+            // 5. Cleanup ZIP if it was from cache
+            if (backupZip.getAbsolutePath().contains(context.getCacheDir().getAbsolutePath())) {
+                backupZip.delete();
+            }
             android.util.Log.e("RECOVERY_CORE", "ULTIMATE RECOVERY SUCCESSFUL.");
 
         } catch (Exception e) {

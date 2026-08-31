@@ -6,6 +6,7 @@ import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.entity.CategoryEntity;
 import com.example.spendtracker.data.local.entity.RegexPatternEntity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
+import com.example.spendtracker.di.MainDatabase;
 
 import java.util.Calendar;
 import java.util.concurrent.ExecutorService;
@@ -23,7 +24,7 @@ public class DataInitializer {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     @Inject
-    public DataInitializer(CategoryDao categoryDao, RegexPatternDao regexPatternDao, TransactionDao transactionDao) {
+    public DataInitializer(CategoryDao categoryDao, RegexPatternDao regexPatternDao, @MainDatabase TransactionDao transactionDao) {
         this.categoryDao = categoryDao;
         this.regexPatternDao = regexPatternDao;
         this.transactionDao = transactionDao;

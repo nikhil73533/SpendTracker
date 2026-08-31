@@ -100,13 +100,12 @@ public class BackupViewModel extends ViewModel {
     }
 
     public boolean restoreNow() {
-        // Restore logic using zip
+        // Safe restore: copy to cache and let DatabaseModule handle it on next start
         File backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
         if (backupZip.exists()) {
             try {
-                // Simplified restore: unzip to temp, then use DatabaseEncryptionHelper or direct replace
-                File dbDir = context.getDatabasePath("spend_tracker_db").getParentFile();
-                StorageHelper.unzipFile(backupZip, dbDir);
+                File cacheZip = new File(context.getCacheDir(), "backup.zip");
+                StorageHelper.copyFile(backupZip, cacheZip);
                 return true;
             } catch (Exception e) {
                 e.printStackTrace();

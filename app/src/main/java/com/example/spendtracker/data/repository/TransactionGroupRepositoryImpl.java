@@ -5,8 +5,8 @@ import androidx.lifecycle.Transformations;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import com.example.spendtracker.data.local.dao.TransactionGroupDao;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
-import com.example.spendtracker.data.local.entity.TransactionGroupCategoryEntity;
 import com.example.spendtracker.data.local.entity.TransactionGroupEntity;
+import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.TransactionGroupRepository;
 import java.util.ArrayList;
@@ -22,7 +22,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Inject
-    public TransactionGroupRepositoryImpl(TransactionGroupDao groupDao, TransactionDao transactionDao) {
+    public TransactionGroupRepositoryImpl(TransactionGroupDao groupDao, @MainDatabase TransactionDao transactionDao) {
         this.groupDao = groupDao;
         this.transactionDao = transactionDao;
     }
@@ -32,12 +32,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
         executor.execute(() -> {
             TransactionGroupEntity group = new TransactionGroupEntity(0, name, startDate, endDate);
             group.tag = TransactionGroupEntity.deriveTag(name);
-            long groupId = groupDao.insertGroup(group);
-            for (String cat : categoryNames) {
-                groupDao.insertGroupCategory(new TransactionGroupCategoryEntity((int) groupId, cat));
-            }
-            // Evaluate existing transactions against the new group
-            groupDao.associateTransactionsWithGroup((int) groupId, startDate, endDate);
+            groupDao.insertGroupWithCategories(group, categoryNames);
         });
     }
 
@@ -50,17 +45,7 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
             group.startDate = startDate;
             group.endDate = endDate;
             group.tag = TransactionGroupEntity.deriveTag(name);
-            groupDao.updateGroup(group);
-
-            // Update categories
-            groupDao.deleteGroupCategories(groupId);
-            for (String cat : categoryNames) {
-                groupDao.insertGroupCategory(new TransactionGroupCategoryEntity(groupId, cat));
-            }
-
-            // Re-evaluate transactions
-            groupDao.disassociateTransactionsFromGroup(groupId);
-            groupDao.associateTransactionsWithGroup(groupId, startDate, endDate);
+            groupDao.updateGroupWithCategories(group, categoryNames);
         });
     }
 
