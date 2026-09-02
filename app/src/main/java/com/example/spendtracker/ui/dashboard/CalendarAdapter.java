@@ -10,7 +10,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.spendtracker.R;
 import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
 
 public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHolder> {
     public interface CalendarFormatter {
@@ -28,13 +27,19 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         public final int day;
         public final double income;
         public final double expense;
+        public final double transfer;
         public final boolean isCurrentMonth;
         public final long timestamp;
 
         public CalendarDay(int day, double income, double expense, boolean isCurrentMonth, long timestamp) {
+            this(day, income, expense, 0.0, isCurrentMonth, timestamp);
+        }
+
+        public CalendarDay(int day, double income, double expense, double transfer, boolean isCurrentMonth, long timestamp) {
             this.day = day;
             this.income = income;
             this.expense = expense;
+            this.transfer = transfer;
             this.isCurrentMonth = isCurrentMonth;
             this.timestamp = timestamp;
         }
@@ -68,6 +73,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         private final TextView tvDay;
         private final TextView tvIncome;
         private final TextView tvExpense;
+        private final TextView tvTransfer;
         private final CalendarFormatter formatter;
 
         public ViewHolder(@NonNull View itemView, CalendarFormatter formatter) {
@@ -76,6 +82,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
             tvDay = itemView.findViewById(R.id.tv_day);
             tvIncome = itemView.findViewById(R.id.tv_income);
             tvExpense = itemView.findViewById(R.id.tv_expense);
+            tvTransfer = itemView.findViewById(R.id.tv_transfer);
         }
 
         public void bind(CalendarDay day, OnDayClickListener listener) {
@@ -108,7 +115,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
                 itemView.setBackgroundColor(0xFF1E1E1E);
             }
 
-            if (day.income > 0 || day.expense > 0) {
+            if (day.income > 0 || day.expense > 0 || day.transfer > 0) {
                 if (day.income > 0) {
                     tvIncome.setVisibility(View.VISIBLE);
                     String amount = formatter.formatAmount(day.income);
@@ -126,9 +133,19 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
                 } else {
                     tvExpense.setVisibility(View.GONE);
                 }
+
+                if (day.transfer > 0 && tvTransfer != null) {
+                    tvTransfer.setVisibility(View.VISIBLE);
+                    String amount = formatter.formatAmount(day.transfer);
+                    tvTransfer.setText(amount.replace("₹ ", ""));
+                    tvTransfer.setTextColor(0xFF9E9E9E);
+                } else if (tvTransfer != null) {
+                    tvTransfer.setVisibility(View.GONE);
+                }
             } else {
                 tvIncome.setVisibility(View.GONE);
                 tvExpense.setVisibility(View.GONE);
+                if (tvTransfer != null) tvTransfer.setVisibility(View.GONE);
             }
 
             itemView.setOnClickListener(v -> listener.onDayClick(day));

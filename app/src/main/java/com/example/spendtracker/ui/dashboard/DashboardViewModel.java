@@ -161,12 +161,64 @@ public class DashboardViewModel extends ViewModel {
 
     public LiveData<List<Transaction>> getTransactions() {
         return Transformations.switchMap(dateRange, range -> {
-            if (range.start == 0 && range.end == Long.MAX_VALUE) {
-                return repository.getTransactions();
-            } else {
-                return repository.getTransactionsInRange(range.start, range.end);
+            LiveData<List<Transaction>> baseTxns = null;
+            if (range != null) {
+                if (range.start == 0 && range.end == Long.MAX_VALUE) {
+                    baseTxns = repository.getTransactions();
+                } else {
+                    baseTxns = repository.getTransactionsInRange(range.start, range.end);
+                }
             }
+            if (baseTxns == null) {
+                baseTxns = repository.getTransactions();
+            }
+            if (baseTxns == null) {
+                baseTxns = new MutableLiveData<>(new ArrayList<>());
+            }
+            final LiveData<List<Transaction>> safeBaseTxns = baseTxns;
+            return Transformations.switchMap(searchQuery, query ->
+                Transformations.map(safeBaseTxns, transactions -> {
+                    if (query == null || query.trim().isEmpty()) {
+                        return transactions;
+                    }
+                    String q = query.trim().toLowerCase();
+                    List<Transaction> filtered = new ArrayList<>();
+                    if (transactions != null) {
+                        for (Transaction t : transactions) {
+                            if (matchesSearch(t, q)) {
+                                filtered.add(t);
+                            }
+                        }
+                    }
+                    return filtered;
+                })
+            );
         });
+    }
+
+    private boolean matchesSearch(Transaction t, String q) {
+        if (t == null || q == null || q.isEmpty()) return true;
+
+        // 1. Sender name search
+        if (t.getSender() != null && t.getSender().toLowerCase().contains(q)) return true;
+
+        // 2. Receiver name search
+        if (t.getReceiverName() != null && t.getReceiverName().toLowerCase().contains(q)) return true;
+
+        // 3. Category search
+        if (t.getCategory() != null && t.getCategory().toLowerCase().contains(q)) return true;
+
+        // 4. Amount search (numeric or formatted string)
+        String amountStr = String.valueOf(t.getAmount());
+        if (amountStr.contains(q)) return true;
+        String formattedAmt = String.format(Locale.getDefault(), "%.0f", t.getAmount());
+        if (formattedAmt.contains(q)) return true;
+
+        // 5. Description & Source search
+        if (t.getDescription() != null && t.getDescription().toLowerCase().contains(q)) return true;
+        if (t.getSource() != null && t.getSource().toLowerCase().contains(q)) return true;
+
+        return false;
     }
 
     public LiveData<List<GroupedTransactionAdapter.ListItem>> getGroupedTransactions() {
@@ -184,7 +236,7 @@ public class DashboardViewModel extends ViewModel {
             for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
                 double income = 0, expense = 0, transfer = 0;
                 for (Transaction t : entry.getValue()) {
-                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
                     if (isTransfer) {
                         transfer += t.getAmount();
                     } else if ("INCOME".equals(t.getType())) {
@@ -217,9 +269,11 @@ public class DashboardViewModel extends ViewModel {
             for (Map.Entry<Long, List<Transaction>> entry : monthGroups.entrySet()) {
                 double income = 0, expense = 0;
                 for (Transaction t : entry.getValue()) {
-                    if ("INCOME".equals(t.getType())) income += t.getAmount();
-                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
-                    // TRANSFER: excluded from month income/expense
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                    if (!isTransfer) {
+                        if ("INCOME".equals(t.getType())) income += t.getAmount();
+                        else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                    }
                 }
                 List<MonthlySummaryAdapter.WeeklySummary> weeks = calculateWeeklySummaries(entry.getValue());
                 summaries.add(new MonthlySummaryAdapter.MonthSummary(entry.getKey(), income, expense, weeks));
@@ -232,7 +286,10 @@ public class DashboardViewModel extends ViewModel {
         List<MonthlySummaryAdapter.WeeklySummary> weeks = new ArrayList<>();
         if (monthTransactions == null || monthTransactions.isEmpty()) return weeks;
 
-        monthTransactions.sort((a, b) -> Long.compare(b.getDate(), a.getDate()));
+        monthTransactions.sort((a, b) -> {
+            int cmp = Long.compare(b.getDate(), a.getDate());
+            return cmp != 0 ? cmp : Integer.compare(b.getId(), a.getId());
+        });
 
         Calendar cal = Calendar.getInstance();
         Map<Integer, List<Transaction>> weekGroups = new LinkedHashMap<>();
@@ -247,9 +304,11 @@ public class DashboardViewModel extends ViewModel {
             double wIncome = 0, wExpense = 0;
             long min = Long.MAX_VALUE, max = 0;
             for (Transaction t : entry.getValue()) {
-                if ("INCOME".equals(t.getType())) wIncome += t.getAmount();
-                else if ("EXPENSE".equals(t.getType())) wExpense += t.getAmount();
-                // TRANSFER: not counted
+                boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                if (!isTransfer) {
+                    if ("INCOME".equals(t.getType())) wIncome += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) wExpense += t.getAmount();
+                }
                 min = Math.min(min, t.getDate());
                 max = Math.max(max, t.getDate());
             }
@@ -289,17 +348,22 @@ public class DashboardViewModel extends ViewModel {
                     cal.set(Calendar.DAY_OF_MONTH, i);
                     long start = getStartOfDay(cal.getTimeInMillis());
                     long end = start + 86399999;
-                    double dIncome = 0, dExpense = 0;
+                    double dIncome = 0, dExpense = 0, dTransfer = 0;
                     if (transactions != null) {
                         for (Transaction t : transactions) {
                             if (t.getDate() >= start && t.getDate() <= end) {
-                                if ("INCOME".equals(t.getType())) dIncome += t.getAmount();
-                                else if ("EXPENSE".equals(t.getType())) dExpense += t.getAmount();
-                                // TRANSFER: not shown in calendar dots
+                                boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                                if (isTransfer) {
+                                    dTransfer += t.getAmount();
+                                } else if ("INCOME".equals(t.getType())) {
+                                    dIncome += t.getAmount();
+                                } else if ("EXPENSE".equals(t.getType())) {
+                                    dExpense += t.getAmount();
+                                }
                             }
                         }
                     }
-                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, true, start));
+                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, dTransfer, true, start));
                 }
                 return days;
             })
@@ -329,11 +393,11 @@ public class DashboardViewModel extends ViewModel {
     public void updateTransactionCategory(Transaction transaction, String newCategory) {
         executor.execute(() -> {
             String updatedType = transaction.getType();
-            if ("Transfer".equalsIgnoreCase(newCategory)) {
-                updatedType = "TRANSFER";
+            if ("Transfer".equalsIgnoreCase(newCategory) || (newCategory != null && newCategory.toLowerCase().contains("transfer"))) {
+                if (!"INCOME".equals(transaction.getType()) && !"EXPENSE".equals(transaction.getType())) {
+                    updatedType = "TRANSFER";
+                }
             } else if ("TRANSFER".equals(transaction.getType())) {
-                // If it was a transfer and changed to something else, default to EXPENSE
-                // (or you could try to guess based on context, but EXPENSE is safer for most corrections)
                 updatedType = "EXPENSE";
             }
 
@@ -438,7 +502,9 @@ public class DashboardViewModel extends ViewModel {
             };
 
             mediator.addSource(currentSummaryLive, v -> update.run());
-            mediator.addSource(lastSummaryLive,    v -> update.run());
+            if (lastSummaryLive != currentSummaryLive) {
+                mediator.addSource(lastSummaryLive, v -> update.run());
+            }
             mediator.addSource(cardExpLive,        v -> update.run());
             mediator.addSource(acctExpLive,        v -> update.run());
             mediator.addSource(transferLive,       v -> update.run());

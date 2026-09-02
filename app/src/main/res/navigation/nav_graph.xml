@@ -113,6 +113,9 @@
             android:name="transactionId"
             android:defaultValue="-1"
             app:argType="integer" />
+        <action
+            android:id="@+id/action_transactionFormFragment_to_categoryManagementFragment"
+            app:destination="@id/categoryManagementFragment" />
     </fragment>
 
     <fragment

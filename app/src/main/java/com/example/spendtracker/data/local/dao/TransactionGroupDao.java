@@ -62,7 +62,7 @@ public interface TransactionGroupDao {
     @Query("UPDATE transactions SET transactionGroupId = 0 WHERE transactionGroupId = :groupId")
     void disassociateTransactionsFromGroup(int groupId);
 
-    @Query("SELECT * FROM transactions WHERE transactionGroupId = :groupId AND status = 'ACTIVE' ORDER BY date DESC")
+    @Query("SELECT * FROM transactions WHERE transactionGroupId = :groupId AND status = 'ACTIVE' ORDER BY date DESC, id DESC")
     LiveData<List<com.example.spendtracker.data.local.entity.TransactionEntity>> getTransactionsForGroup(int groupId);
 
     @Query("SELECT COUNT(*) FROM transactions WHERE transactionGroupId = :groupId AND status = 'ACTIVE'")

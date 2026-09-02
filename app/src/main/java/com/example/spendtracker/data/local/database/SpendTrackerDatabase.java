@@ -24,7 +24,7 @@ import com.example.spendtracker.data.local.dao.BillAlertDao;
     TransactionGroupCategoryEntity.class,
     RepeatedAlertEntity.class,
     BillAlertEntity.class
-}, version = 11, exportSchema = false)
+}, version = 12, exportSchema = false)
 public abstract class SpendTrackerDatabase extends RoomDatabase {
     public abstract TransactionDao transactionDao();
     public abstract CategoryDao categoryDao();

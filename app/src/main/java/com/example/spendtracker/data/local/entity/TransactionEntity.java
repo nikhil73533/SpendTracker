@@ -15,32 +15,32 @@ public class TransactionEntity {
     @PrimaryKey(autoGenerate = true)
     public int id;
     public double amount;
-    public String category;
+    public String category = "";
     @ColumnInfo(defaultValue = "")
-    public String categoryEmoji;
-    public String description;
-    public String type;
+    public String categoryEmoji = "";
+    public String description = "";
+    public String type = "EXPENSE";
     public long date;
-    public String source;
-    public String sender;
-    public String upiId;
-    public String receiverName;
-    public String bankName;
-    public String sourceType;
+    public String source = "";
+    public String sender = "";
+    public String upiId = "";
+    public String receiverName = "";
+    public String bankName = "";
+    public String sourceType = "";
     @ColumnInfo(defaultValue = "1")
     public boolean isRead = true;
     
     // Transfer specific fields
     @ColumnInfo(defaultValue = "")
-    public String fromAccount;
+    public String fromAccount = "";
     @ColumnInfo(defaultValue = "")
-    public String toAccount;
+    public String toAccount = "";
     @ColumnInfo(defaultValue = "0.0")
-    public double fees;
+    public double fees = 0.0;
 
     // Transaction Group association (nullable)
     @ColumnInfo(defaultValue = "0")
-    public int transactionGroupId;
+    public int transactionGroupId = 0;
 
     // Soft delete: "ACTIVE" or "DELETED"
     @NonNull
@@ -49,12 +49,12 @@ public class TransactionEntity {
 
     // Deletion timestamp (0 means not deleted)
     @ColumnInfo(defaultValue = "0")
-    public long deletedAt;
+    public long deletedAt = 0L;
 
     public TransactionEntity() {}
 
     public TransactionEntity(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType) {
-        this(id, amount, category, "", description, type, date, source, sender, upiId, receiverName, bankName, sourceType, null, null, 0.0);
+        this(id, amount, category, "", description, type, date, source, sender, upiId, receiverName, bankName, sourceType, "", "", 0.0);
     }
 
     public TransactionEntity(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType, String fromAccount, String toAccount, double fees) {
@@ -64,19 +64,19 @@ public class TransactionEntity {
     public TransactionEntity(int id, double amount, String category, String categoryEmoji, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType, String fromAccount, String toAccount, double fees) {
         this.id = id;
         this.amount = amount;
-        this.category = category;
+        this.category = category != null ? category : "";
         this.categoryEmoji = categoryEmoji != null ? categoryEmoji : "";
-        this.description = description;
-        this.type = type;
+        this.description = description != null ? description : "";
+        this.type = type != null ? type : "EXPENSE";
         this.date = date;
-        this.source = source;
-        this.sender = sender;
-        this.upiId = upiId;
-        this.receiverName = receiverName;
-        this.bankName = bankName;
-        this.sourceType = sourceType;
-        this.fromAccount = fromAccount;
-        this.toAccount = toAccount;
+        this.source = source != null ? source : "";
+        this.sender = sender != null ? sender : "";
+        this.upiId = upiId != null ? upiId : "";
+        this.receiverName = receiverName != null ? receiverName : "";
+        this.bankName = bankName != null ? bankName : "";
+        this.sourceType = sourceType != null ? sourceType : "";
+        this.fromAccount = fromAccount != null ? fromAccount : "";
+        this.toAccount = toAccount != null ? toAccount : "";
         this.fees = fees;
         this.status = "ACTIVE";
         this.deletedAt = 0;

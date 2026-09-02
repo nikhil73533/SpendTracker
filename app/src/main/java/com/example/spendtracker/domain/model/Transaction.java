@@ -65,33 +65,41 @@ public class Transaction {
     public int getId() { return id; }
     public double getAmount() { return amount; }
     public void setAmount(double amount) { this.amount = amount; }
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
-    public String getCategoryName() { return category; }
-    public String getCategoryEmoji() { return categoryEmoji; }
-    public void setCategoryEmoji(String categoryEmoji) { this.categoryEmoji = categoryEmoji; }
-    public String getDescription() { return description; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
+    public String getCategory() { return category != null ? category : ""; }
+    public void setCategory(String category) { this.category = category != null ? category : ""; }
+    public String getCategoryName() { return getCategory(); }
+    public String getCategoryEmoji() { return categoryEmoji != null ? categoryEmoji : ""; }
+    public void setCategoryEmoji(String categoryEmoji) { this.categoryEmoji = categoryEmoji != null ? categoryEmoji : ""; }
+    public String getDescription() { return description != null ? description : ""; }
+    public void setDescription(String description) { this.description = description != null ? description : ""; }
+    public String getType() { return type != null ? type : "EXPENSE"; }
+    public void setType(String type) { this.type = type != null ? type : "EXPENSE"; }
     public long getDate() { return date; }
     public void setDate(long date) { this.date = date; }
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
-    public String getSender() { return sender; }
-    public String getUpiId() { return upiId; }
-    public String getReceiverName() { return receiverName; }
-    public void setReceiverName(String receiverName) { this.receiverName = receiverName; }
-    public String getBankName() { return bankName; }
-    public String getSourceType() { return sourceType; }
-    public String getFromAccount() { return fromAccount; }
-    public String getToAccount() { return toAccount; }
+    public String getSource() { return source != null ? source : ""; }
+    public void setSource(String source) { this.source = source != null ? source : ""; }
+    public String getSender() { return sender != null ? sender : ""; }
+    public void setSender(String sender) { this.sender = sender != null ? sender : ""; }
+    public String getUpiId() { return upiId != null ? upiId : ""; }
+    public void setUpiId(String upiId) { this.upiId = upiId != null ? upiId : ""; }
+    public String getReceiverName() { return receiverName != null ? receiverName : ""; }
+    public void setReceiverName(String receiverName) { this.receiverName = receiverName != null ? receiverName : ""; }
+    public String getBankName() { return bankName != null ? bankName : ""; }
+    public void setBankName(String bankName) { this.bankName = bankName != null ? bankName : ""; }
+    public String getSourceType() { return sourceType != null ? sourceType : ""; }
+    public void setSourceType(String sourceType) { this.sourceType = sourceType != null ? sourceType : ""; }
+    public String getFromAccount() { return fromAccount != null ? fromAccount : ""; }
+    public void setFromAccount(String fromAccount) { this.fromAccount = fromAccount != null ? fromAccount : ""; }
+    public String getToAccount() { return toAccount != null ? toAccount : ""; }
+    public void setToAccount(String toAccount) { this.toAccount = toAccount != null ? toAccount : ""; }
     public double getFees() { return fees; }
+    public void setFees(double fees) { this.fees = fees; }
     public int getTransactionGroupId() { return transactionGroupId; }
     public void setTransactionGroupId(int transactionGroupId) { this.transactionGroupId = transactionGroupId; }
-    public String getTransactionGroupName() { return transactionGroupName; }
-    public void setTransactionGroupName(String transactionGroupName) { this.transactionGroupName = transactionGroupName; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public String getTransactionGroupName() { return transactionGroupName != null ? transactionGroupName : ""; }
+    public void setTransactionGroupName(String transactionGroupName) { this.transactionGroupName = transactionGroupName != null ? transactionGroupName : ""; }
+    public String getStatus() { return status != null ? status : "ACTIVE"; }
+    public void setStatus(String status) { this.status = status != null ? status : "ACTIVE"; }
     public long getDeletedAt() { return deletedAt; }
     public void setDeletedAt(long deletedAt) { this.deletedAt = deletedAt; }
     public double getConfidenceScore() { return confidenceScore; }

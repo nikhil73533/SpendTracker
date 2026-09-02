@@ -32,8 +32,9 @@ public class TransferCalculationTest {
     @Before
     public void setup() {
         MockitoAnnotations.openMocks(this);
+        when(context.getApplicationContext()).thenReturn(context);
         
-        MutableLiveData<DashboardViewModel.DateRange> dateRangeLive = new MutableLiveData<>(new DashboardViewModel.DateRange("Test", 0, 1000));
+        MutableLiveData<DashboardViewModel.DateRange> dateRangeLive = new MutableLiveData<>(new DashboardViewModel.DateRange(0, 1000, "Test"));
         
         when(repository.getSummary(anyLong(), anyLong())).thenReturn(new MutableLiveData<>(
             new Summary(5000, 2000, 1000, null, null, null, null)

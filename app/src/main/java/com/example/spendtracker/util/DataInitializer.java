@@ -32,8 +32,10 @@ public class DataInitializer {
 
     public void initializeData() {
         executorService.execute(() -> {
-            // Only populate if empty
+            // Populate default categories if empty
             if (categoryDao.getAllCategoriesSync().isEmpty()) {
+                categoryDao.insertCategory(new CategoryEntity(0, "Transfer", "swap_horiz", true, "EXPENSE"));
+                categoryDao.insertCategory(new CategoryEntity(0, "Transfer", "swap_horiz", true, "INCOME"));
                 categoryDao.insertCategory(new CategoryEntity(0, "Food 🍔", "fastfood", true, "EXPENSE"));
                 categoryDao.insertCategory(new CategoryEntity(0, "Transport 🚗", "directions_bus", true, "EXPENSE"));
                 categoryDao.insertCategory(new CategoryEntity(0, "Education 📚", "school", true, "EXPENSE"));

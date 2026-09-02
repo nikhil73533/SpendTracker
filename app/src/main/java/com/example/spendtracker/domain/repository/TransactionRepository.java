@@ -15,7 +15,9 @@ public interface TransactionRepository {
     LiveData<Summary> getSummary(long startDate, long endDate);
     LiveData<List<String>> getCategories();
     LiveData<List<String>> getCategoriesByType(String type);
+    LiveData<List<com.example.spendtracker.data.local.entity.CategoryEntity>> getCategoryEntities();
     void addCategory(String name, String type);
+    void saveCategory(com.example.spendtracker.data.local.entity.CategoryEntity category);
     void deleteCategory(String name);
     void renameCategory(String oldName, String newName);
     LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTotals(long start, long end, String type);

@@ -126,7 +126,10 @@ public class AccountHistoryFragment extends Fragment {
 
         // Sort descending (latest first for chat-like top-down history or latest at bottom?)
         // WhatsApp has latest at bottom. Chronological order.
-        Collections.sort(transactions, (a, b) -> Long.compare(a.getDate(), b.getDate()));
+        Collections.sort(transactions, (a, b) -> {
+            int cmp = Long.compare(a.getDate(), b.getDate());
+            return cmp != 0 ? cmp : Integer.compare(a.getId(), b.getId());
+        });
 
         String lastDate = "";
         for (Transaction t : transactions) {

@@ -34,6 +34,7 @@ public class SuspiciousTransactionTest {
     @Before
     public void setup() {
         MockitoAnnotations.openMocks(this);
+        when(context.getApplicationContext()).thenReturn(context);
         transactionsLive = new MutableLiveData<>();
         when(repository.getTransactions()).thenReturn(transactionsLive);
         

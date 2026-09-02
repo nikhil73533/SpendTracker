@@ -10,6 +10,9 @@ import androidx.room.Update;
 import com.example.spendtracker.data.local.entity.CategoryEntity;
 import java.util.List;
 
+/**
+ * Data Access Object for category entities and budget properties.
+ */
 @Dao
 public interface CategoryDao {
     @Query("SELECT * FROM categories")
@@ -23,6 +26,12 @@ public interface CategoryDao {
 
     @Query("SELECT * FROM categories WHERE type = :type")
     List<CategoryEntity> getCategoriesByTypeSync(String type);
+
+    @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    CategoryEntity getCategoryByNameSync(String name);
+
+    @Query("SELECT * FROM categories WHERE id = :id LIMIT 1")
+    CategoryEntity getCategoryByIdSync(int id);
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertCategory(CategoryEntity category);

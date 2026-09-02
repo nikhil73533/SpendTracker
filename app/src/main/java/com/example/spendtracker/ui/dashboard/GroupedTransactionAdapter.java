@@ -13,6 +13,7 @@ import com.example.spendtracker.domain.model.Transaction;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Objects;
 
 public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAdapter.ListItem, RecyclerView.ViewHolder> {
 
@@ -267,9 +268,9 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();
                 return Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
-                       oldT.getCategory().equals(newT.getCategory()) &&
-                       oldT.getType().equals(newT.getType()) &&          // type change triggers rebind
-                       oldT.getDescription().equals(newT.getDescription());
+                       Objects.equals(oldT.getCategory(), newT.getCategory()) &&
+                       Objects.equals(oldT.getType(), newT.getType()) &&          // type change triggers rebind
+                       Objects.equals(oldT.getDescription(), newT.getDescription());
             }
         }
     }

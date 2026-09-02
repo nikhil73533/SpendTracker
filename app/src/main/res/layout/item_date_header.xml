@@ -60,7 +60,7 @@
         android:layout_height="wrap_content"
         android:layout_marginEnd="12dp"
         android:textColor="#9E9E9E"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:visibility="gone"
         tools:text="↔ ₹ 500"
         tools:visibility="visible" />

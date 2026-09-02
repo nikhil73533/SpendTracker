@@ -137,13 +137,24 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         Transaction t = new Transaction(
-            entity.id, entity.amount, entity.category, entity.description,
-            entity.type, entity.date, entity.source, entity.sender, entity.upiId,
-            entity.receiverName, entity.bankName, entity.sourceType,
-            entity.fromAccount, entity.toAccount, entity.fees
+            entity.id, entity.amount,
+            entity.category != null ? entity.category : "",
+            entity.categoryEmoji != null ? entity.categoryEmoji : "",
+            entity.description != null ? entity.description : "",
+            entity.type != null ? entity.type : "EXPENSE",
+            entity.date,
+            entity.source != null ? entity.source : "",
+            entity.sender != null ? entity.sender : "",
+            entity.upiId != null ? entity.upiId : "",
+            entity.receiverName != null ? entity.receiverName : "",
+            entity.bankName != null ? entity.bankName : "",
+            entity.sourceType != null ? entity.sourceType : "",
+            entity.fromAccount != null ? entity.fromAccount : "",
+            entity.toAccount != null ? entity.toAccount : "",
+            entity.fees
         );
         t.setTransactionGroupId(entity.transactionGroupId);
-        t.setStatus(entity.status);
+        t.setStatus(entity.status != null ? entity.status : "ACTIVE");
         t.setDeletedAt(entity.deletedAt);
         return t;
     }

@@ -159,23 +159,150 @@ public class TransactionGroupFormFragment extends BottomSheetDialogFragment {
     }
 
     private void showAddCategoryDialog() {
-        android.view.View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_category, null);
-        android.widget.EditText etName = dialogView.findViewById(R.id.et_category_name);
-        android.widget.Spinner spinner = dialogView.findViewById(R.id.spinner_type);
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_category, null);
 
-        android.widget.ArrayAdapter<String> spinnerAdapter = new android.widget.ArrayAdapter<>(
+        android.widget.EditText etName = dialogView.findViewById(R.id.et_category_name);
+        android.widget.Spinner spinnerType = dialogView.findViewById(R.id.spinner_type);
+        android.widget.Spinner spinnerPeriod = dialogView.findViewById(R.id.spinner_period);
+        com.google.android.material.switchmaterial.SwitchMaterial switchUnlimited = dialogView.findViewById(R.id.switch_unlimited);
+        android.widget.LinearLayout layoutBudgetInputs = dialogView.findViewById(R.id.layout_budget_inputs);
+        android.widget.Spinner spinnerMaxRange = dialogView.findViewById(R.id.spinner_max_range);
+        android.widget.TextView tvSliderLabel = dialogView.findViewById(R.id.tv_slider_label);
+        com.google.android.material.slider.Slider sliderBudget = dialogView.findViewById(R.id.slider_budget);
+        android.widget.EditText etBudgetAmount = dialogView.findViewById(R.id.et_budget_amount);
+        android.widget.TextView tvBudgetSummary = dialogView.findViewById(R.id.tv_budget_summary);
+        com.google.android.material.switchmaterial.SwitchMaterial switchNotifications = dialogView.findViewById(R.id.switch_notifications);
+
+        android.widget.ArrayAdapter<String> typeAdapter = new android.widget.ArrayAdapter<>(
             requireContext(), android.R.layout.simple_spinner_item, new String[]{"EXPENSE", "INCOME"});
-        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(spinnerAdapter);
+        typeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerType.setAdapter(typeAdapter);
+
+        android.widget.ArrayAdapter<String> periodAdapter = new android.widget.ArrayAdapter<>(
+            requireContext(), android.R.layout.simple_spinner_item, new String[]{"Weekly", "Monthly", "Annually"});
+        periodAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerPeriod.setAdapter(periodAdapter);
+
+        android.widget.ArrayAdapter<String> maxRangeAdapter = new android.widget.ArrayAdapter<>(
+            requireContext(), android.R.layout.simple_spinner_item, new String[]{"0 - ₹ 10,000", "0 - ₹ 50,000", "0 - ₹ 1,000,000"});
+        maxRangeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerMaxRange.setAdapter(maxRangeAdapter);
+
+        final boolean[] unlimited = new boolean[]{true, true, true};
+        final double[] budgets = new double[]{0.0, 0.0, 0.0};
+
+        Runnable updateSummary = () -> {
+            String summaryText = String.format(Locale.getDefault(),
+                    "Weekly: %s | Monthly: %s | Annually: %s",
+                    unlimited[0] ? "Unlimited" : String.format(Locale.getDefault(), "₹%.0f", budgets[0]),
+                    unlimited[1] ? "Unlimited" : String.format(Locale.getDefault(), "₹%.0f", budgets[1]),
+                    unlimited[2] ? "Unlimited" : String.format(Locale.getDefault(), "₹%.0f", budgets[2]));
+            tvBudgetSummary.setText(summaryText);
+        };
+
+        Runnable updateMaxLimit = () -> {
+            int pos = spinnerMaxRange.getSelectedItemPosition();
+            float maxVal = (pos == 1) ? 50000f : ((pos == 2) ? 1000000f : 10000f);
+            float step = (pos == 2) ? 1000f : ((pos == 1) ? 500f : 100f);
+
+            sliderBudget.setValueTo(maxVal);
+            sliderBudget.setStepSize(step);
+            tvSliderLabel.setText(String.format(Locale.getDefault(), "Budget Bar (0 - ₹ %.0f)", maxVal));
+
+            int currentPeriod = spinnerPeriod.getSelectedItemPosition();
+            float val = (float) budgets[currentPeriod];
+            if (val > maxVal) val = maxVal;
+            if (val < 0) val = 0;
+            sliderBudget.setValue(val);
+        };
+
+        Runnable bindPeriodData = () -> {
+            int currentPeriod = spinnerPeriod.getSelectedItemPosition();
+            boolean isUnlimited = unlimited[currentPeriod];
+            switchUnlimited.setChecked(isUnlimited);
+            layoutBudgetInputs.setVisibility(isUnlimited ? View.GONE : View.VISIBLE);
+
+            if (!isUnlimited) {
+                double currentVal = budgets[currentPeriod];
+                if (currentVal > 50000) spinnerMaxRange.setSelection(2);
+                else if (currentVal > 10000) spinnerMaxRange.setSelection(1);
+                else spinnerMaxRange.setSelection(0);
+
+                updateMaxLimit.run();
+                etBudgetAmount.setText(currentVal > 0 ? String.format(Locale.getDefault(), "%.0f", currentVal) : "0");
+            }
+            updateSummary.run();
+        };
+
+        spinnerPeriod.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                bindPeriodData.run();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        spinnerMaxRange.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                updateMaxLimit.run();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
+        switchUnlimited.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            int currentPeriod = spinnerPeriod.getSelectedItemPosition();
+            unlimited[currentPeriod] = isChecked;
+            layoutBudgetInputs.setVisibility(isChecked ? View.GONE : View.VISIBLE);
+            if (!isChecked && budgets[currentPeriod] == 0) {
+                budgets[currentPeriod] = 1000.0;
+                etBudgetAmount.setText("1000");
+                sliderBudget.setValue(1000f);
+            }
+            updateSummary.run();
+        });
+
+        sliderBudget.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser) {
+                int currentPeriod = spinnerPeriod.getSelectedItemPosition();
+                budgets[currentPeriod] = value;
+                etBudgetAmount.setText(String.format(Locale.getDefault(), "%.0f", value));
+                updateSummary.run();
+            }
+        });
+
+        etBudgetAmount.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                try {
+                    double val = Double.parseDouble(s.toString().trim());
+                    int currentPeriod = spinnerPeriod.getSelectedItemPosition();
+                    budgets[currentPeriod] = val;
+                    if (val <= sliderBudget.getValueTo() && val >= sliderBudget.getValueFrom()) {
+                        sliderBudget.setValue((float) val);
+                    }
+                    updateSummary.run();
+                } catch (Exception ignored) {}
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        bindPeriodData.run();
 
         new android.app.AlertDialog.Builder(requireContext())
-            .setTitle(R.string.add_category)
+            .setTitle("Add Category & Budget")
             .setView(dialogView)
             .setPositiveButton("Add", (dialog, which) -> {
                 String name = etName.getText().toString().trim();
-                String type = (String) spinner.getSelectedItem();
+                String type = (String) spinnerType.getSelectedItem();
                 if (!name.isEmpty()) {
-                    viewModel.addCategory(name, type);
+                    com.example.spendtracker.data.local.entity.CategoryEntity catToSave =
+                            new com.example.spendtracker.data.local.entity.CategoryEntity(
+                                    0, name, "", false, type,
+                                    unlimited[0], budgets[0],
+                                    unlimited[1], budgets[1],
+                                    unlimited[2], budgets[2],
+                                    switchNotifications.isChecked()
+                            );
+                    viewModel.saveCategory(catToSave);
                     Toast.makeText(requireContext(), "Category '" + name + "' added", Toast.LENGTH_SHORT).show();
                 }
             })

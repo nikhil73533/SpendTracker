@@ -48,7 +48,6 @@ public class ChartsFragment extends Fragment {
     private CategoryStatsAdapter sourceStatsAdapter;
     private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMM yyyy", Locale.getDefault());
     private boolean showingExpenses = true;
-    private android.view.GestureDetector gestureDetector;
 
     @Nullable
     @Override
@@ -70,51 +69,29 @@ public class ChartsFragment extends Fragment {
     }
 
     private void setupSwipeNavigation() {
-        // Gesture detector for the chart content area: swipe left/right to switch Income/Expense tabs
-        gestureDetector = new android.view.GestureDetector(requireContext(), new android.view.GestureDetector.SimpleOnGestureListener() {
-            private static final int SWIPE_THRESHOLD = 100;
-            private static final int SWIPE_VELOCITY_THRESHOLD = 100;
-
+        SwipeableCoordinatorLayout swipeLayout = binding.getRoot();
+        swipeLayout.setOnSwipeListener(new SwipeableCoordinatorLayout.OnSwipeListener() {
             @Override
-            public boolean onDown(@Nullable android.view.MotionEvent e) {
-                return true; // Must return true to receive subsequent events
-            }
-
-            @Override
-            public boolean onFling(@Nullable android.view.MotionEvent e1, @NonNull android.view.MotionEvent e2, float velocityX, float velocityY) {
-                if (e1 == null) return false;
-                float deltaX = e2.getX() - e1.getX();
-                float deltaY = e2.getY() - e1.getY();
-                if (Math.abs(deltaX) > Math.abs(deltaY)
-                        && Math.abs(deltaX) > SWIPE_THRESHOLD
-                        && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (deltaX > 0) {
-                        // Swipe right → switch to Income tab (index 0)
-                        if (showingExpenses) {
-                            binding.tabChartType.getTabAt(0).select();
-                        }
-                    } else {
-                        // Swipe left → switch to Expense tab (index 1)
-                        if (!showingExpenses) {
-                            binding.tabChartType.getTabAt(1).select();
-                        }
+            public void onSwipeLeft() {
+                // Swipe left → switch to Expense tab (index 1) if currently on Income tab (index 0)
+                if (!showingExpenses) {
+                    TabLayout.Tab tab = binding.tabChartType.getTabAt(1);
+                    if (tab != null) {
+                        tab.select();
                     }
-                    return true;
                 }
-                return false;
             }
-        });
 
-        // Attach swipe listener to the NestedScrollView content
-        // Using a touch listener that delegates horizontal flings to the detector
-        // while allowing vertical scrolls to pass through
-        View contentArea = binding.getRoot();
-        contentArea.setOnTouchListener((v, event) -> {
-            boolean consumed = gestureDetector.onTouchEvent(event);
-            if (event.getAction() == android.view.MotionEvent.ACTION_UP && !consumed) {
-                v.performClick();
+            @Override
+            public void onSwipeRight() {
+                // Swipe right → switch to Income tab (index 0) if currently on Expense tab (index 1)
+                if (showingExpenses) {
+                    TabLayout.Tab tab = binding.tabChartType.getTabAt(0);
+                    if (tab != null) {
+                        tab.select();
+                    }
+                }
             }
-            return false; // Return false so scroll still works
         });
     }
 
@@ -135,6 +112,10 @@ public class ChartsFragment extends Fragment {
                 } else {
                     binding.tabChartType.setSelectedTabIndicatorColor(requireContext().getColor(R.color.income_blue));
                 }
+
+                binding.nestedScrollView.setAlpha(0.65f);
+                binding.nestedScrollView.animate().alpha(1.0f).setDuration(220).start();
+
                 viewModel.setTransactionType(showingExpenses ? "EXPENSE" : "INCOME");
                 updateSectionVisibility();
             }
@@ -151,17 +132,29 @@ public class ChartsFragment extends Fragment {
     }
 
     private void updateSectionVisibility() {
-        // All chart sections visible for both Income and Expense views;
-        // data is already filtered by type in the ViewModel
-        binding.tvTrendsTitle.setVisibility(View.VISIBLE);
-        binding.lineChart.setVisibility(View.VISIBLE);
-        binding.tvWeekendTitle.setVisibility(View.VISIBLE);
-        binding.barChartWeekend.setVisibility(View.VISIBLE);
-        binding.tvBanksTitle.setVisibility(View.VISIBLE);
-        binding.barChartBanks.setVisibility(View.VISIBLE);
-        binding.tvSourceTitle.setVisibility(View.VISIBLE);
-        binding.pieChartSource.setVisibility(View.VISIBLE);
-        binding.rvSourceStats.setVisibility(View.VISIBLE);
+        if (showingExpenses) {
+            binding.tvTrendsTitle.setVisibility(View.VISIBLE);
+            binding.lineChart.setVisibility(View.VISIBLE);
+            binding.tvWeekendTitle.setVisibility(View.VISIBLE);
+            binding.barChartWeekend.setVisibility(View.VISIBLE);
+            binding.tvBanksTitle.setVisibility(View.VISIBLE);
+            binding.barChartBanks.setVisibility(View.VISIBLE);
+            binding.tvSourceTitle.setVisibility(View.VISIBLE);
+            binding.pieChartSource.setVisibility(View.VISIBLE);
+            binding.rvSourceStats.setVisibility(View.VISIBLE);
+        } else {
+            // Income section: show Pie chart, category stats, Trends line chart, Weekend vs Weekday bar chart, and Bank totals bar chart
+            binding.tvTrendsTitle.setVisibility(View.VISIBLE);
+            binding.lineChart.setVisibility(View.VISIBLE);
+            binding.tvWeekendTitle.setVisibility(View.VISIBLE);
+            binding.barChartWeekend.setVisibility(View.VISIBLE);
+            binding.tvBanksTitle.setVisibility(View.VISIBLE);
+            binding.barChartBanks.setVisibility(View.VISIBLE);
+
+            binding.tvSourceTitle.setVisibility(View.GONE);
+            binding.pieChartSource.setVisibility(View.GONE);
+            binding.rvSourceStats.setVisibility(View.GONE);
+        }
     }
 
     private void showGranularityMenu(View v) {
@@ -416,7 +409,7 @@ public class ChartsFragment extends Fragment {
             public void onNothingSelected() {}
         });
 
-        chart.animateY(1200);
+        chart.animateY(300);
         chart.invalidate();
     }
 
@@ -495,7 +488,7 @@ public class ChartsFragment extends Fragment {
             public void onNothingSelected() {}
         });
 
-        chart.animateY(1200);
+        chart.animateY(300);
         chart.invalidate();
     }
 
@@ -554,7 +547,7 @@ public class ChartsFragment extends Fragment {
         }
         binding.lineChart.getAxisRight().setEnabled(false);
         
-        binding.lineChart.animateX(1000);
+        binding.lineChart.animateX(300);
         binding.lineChart.invalidate();
     }
 
@@ -594,7 +587,7 @@ public class ChartsFragment extends Fragment {
         chart.getAxisLeft().setGridColor(Color.DKGRAY);
         chart.getAxisRight().setEnabled(false);
 
-        chart.animateY(1000);
+        chart.animateY(300);
         chart.invalidate();
     }
 

@@ -3,6 +3,7 @@ package com.example.spendtracker.di;
 import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.room.Room;
+import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.example.spendtracker.data.local.dao.CategoryDao;
@@ -57,7 +58,8 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
@@ -73,10 +75,60 @@ public class DatabaseModule {
 
         return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
     }
+
+    private static final RoomDatabase.Callback SANITIZE_CALLBACK = new RoomDatabase.Callback() {
+        @Override
+        public void onOpen(@NonNull SupportSQLiteDatabase db) {
+            super.onOpen(db);
+            try {
+                db.beginTransaction();
+                db.execSQL("UPDATE transactions SET status = 'ACTIVE' WHERE status IS NULL OR status = '';");
+                db.execSQL("UPDATE transactions SET categoryEmoji = '' WHERE categoryEmoji IS NULL;");
+                db.execSQL("UPDATE transactions SET fromAccount = '' WHERE fromAccount IS NULL;");
+                db.execSQL("UPDATE transactions SET toAccount = '' WHERE toAccount IS NULL;");
+                db.execSQL("UPDATE transactions SET fees = 0.0 WHERE fees IS NULL;");
+                db.execSQL("UPDATE transactions SET transactionGroupId = 0 WHERE transactionGroupId IS NULL;");
+                db.execSQL("UPDATE transactions SET deletedAt = 0 WHERE deletedAt IS NULL;");
+                db.execSQL("UPDATE transactions SET isRead = 1 WHERE isRead IS NULL;");
+                db.execSQL("UPDATE transactions SET category = 'Uncategorized' WHERE category IS NULL OR category = '';");
+                db.execSQL("UPDATE transactions SET type = 'EXPENSE' WHERE type IS NULL OR type = '';");
+                db.execSQL("UPDATE transactions SET description = '' WHERE description IS NULL;");
+                db.execSQL("UPDATE transactions SET source = '' WHERE source IS NULL;");
+                db.execSQL("UPDATE transactions SET sender = '' WHERE sender IS NULL;");
+                db.execSQL("UPDATE transactions SET upiId = '' WHERE upiId IS NULL;");
+                db.execSQL("UPDATE transactions SET receiverName = '' WHERE receiverName IS NULL;");
+                db.execSQL("UPDATE transactions SET bankName = '' WHERE bankName IS NULL;");
+                db.execSQL("UPDATE transactions SET sourceType = '' WHERE sourceType IS NULL;");
+                db.execSQL("UPDATE categories SET type = 'EXPENSE' WHERE type IS NULL OR type = '';");
+                db.execSQL("UPDATE categories SET isDefault = 0 WHERE isDefault IS NULL;");
+                db.execSQL("UPDATE categories SET name = '' WHERE name IS NULL;");
+                db.execSQL("UPDATE categories SET icon = '' WHERE icon IS NULL;");
+                db.execSQL("UPDATE categories SET unlimitedWeekly = 1 WHERE unlimitedWeekly IS NULL;");
+                db.execSQL("UPDATE categories SET weeklyBudget = 0.0 WHERE weeklyBudget IS NULL;");
+                db.execSQL("UPDATE categories SET unlimitedMonthly = 1 WHERE unlimitedMonthly IS NULL;");
+                db.execSQL("UPDATE categories SET monthlyBudget = 0.0 WHERE monthlyBudget IS NULL;");
+                db.execSQL("UPDATE categories SET unlimitedAnnually = 1 WHERE unlimitedAnnually IS NULL;");
+                db.execSQL("UPDATE categories SET annuallyBudget = 0.0 WHERE annuallyBudget IS NULL;");
+                db.execSQL("UPDATE categories SET notificationsEnabled = 1 WHERE notificationsEnabled IS NULL;");
+                db.execSQL("UPDATE transaction_groups SET tag = '' WHERE tag IS NULL;");
+                db.execSQL("UPDATE transaction_groups SET name = '' WHERE name IS NULL;");
+                db.execSQL("UPDATE repeated_transaction_alerts SET enabled = 1 WHERE enabled IS NULL;");
+                db.execSQL("UPDATE repeated_transaction_alerts SET dismissed = 0 WHERE dismissed IS NULL;");
+                db.execSQL("UPDATE repeated_transaction_alerts SET merchantName = '' WHERE merchantName IS NULL;");
+                db.execSQL("UPDATE repeated_transaction_alerts SET category = '' WHERE category IS NULL;");
+                db.setTransactionSuccessful();
+            } catch (Exception e) {
+                android.util.Log.e("RECOVERY_CORE", "Database sanitization error: " + e.getMessage());
+            } finally {
+                db.endTransaction();
+            }
+        }
+    };
 
     /**
      * Migration 9 → 10:
@@ -314,6 +366,23 @@ public class DatabaseModule {
                     + "`lastSeen` INTEGER NOT NULL, "
                     + "`amount` REAL NOT NULL, "
                     + "`isResolved` INTEGER NOT NULL)");
+        }
+    };
+
+    /**
+     * Migration 11 → 12:
+     * - Add budget range columns and notificationsEnabled to categories
+     */
+    static final Migration MIGRATION_11_12 = new Migration(11, 12) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN unlimitedWeekly INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN weeklyBudget REAL NOT NULL DEFAULT 0.0"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN unlimitedMonthly INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN monthlyBudget REAL NOT NULL DEFAULT 0.0"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN unlimitedAnnually INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN annuallyBudget REAL NOT NULL DEFAULT 0.0"); } catch (Exception ignored) {}
+            try { database.execSQL("ALTER TABLE categories ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
         }
     };
 

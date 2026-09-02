@@ -25,13 +25,17 @@ import dagger.hilt.android.AndroidEntryPoint;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
+/**
+ * Detail fragment displaying bank-wise grouped transactions.
+ * Includes functional month navigation (Previous/Next buttons) and dynamic trend charts.
+ */
 @AndroidEntryPoint
 public class BankDetailFragment extends Fragment {
 
@@ -63,6 +67,10 @@ public class BankDetailFragment extends Fragment {
         binding.tvCategoryTitle.setText(bankName);
         binding.btnBack.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         binding.ivHeaderIcon.setImageResource(android.R.drawable.ic_menu_agenda);
+
+        // Month Navigation buttons
+        binding.btnPrevDate.setOnClickListener(v -> dashboardViewModel.movePrev());
+        binding.btnNextDate.setOnClickListener(v -> dashboardViewModel.moveNext());
 
         setupRecyclerView();
         observeData();
@@ -102,13 +110,14 @@ public class BankDetailFragment extends Fragment {
             if (list != null) expenseCategories = list;
         });
 
+        // Transactions for the currently selected month
         dashboardViewModel.getTransactions().observe(getViewLifecycleOwner(), transactions -> {
             if (transactions == null) return;
 
             List<Transaction> filtered = new ArrayList<>();
             double total = 0;
             for (Transaction t : transactions) {
-                if (bankName.equals(t.getBankName())) {
+                if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) {
                     filtered.add(t);
                     total += t.getAmount();
                 }
@@ -116,7 +125,16 @@ public class BankDetailFragment extends Fragment {
 
             binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
             updateList(filtered);
-            updateTrend(filtered);
+        });
+
+        // All time transactions for monthly trend
+        transactionViewModel.getTransactions().observe(getViewLifecycleOwner(), allTransactions -> {
+            if (allTransactions == null) return;
+            List<Transaction> bankTxns = new ArrayList<>();
+            for (Transaction t : allTransactions) {
+                if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) bankTxns.add(t);
+            }
+            updateTrend(bankTxns);
         });
 
         dashboardViewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
@@ -125,7 +143,7 @@ public class BankDetailFragment extends Fragment {
             if (transactions != null) {
                 double total = 0;
                 for (Transaction t : transactions) {
-                    if (bankName.equals(t.getBankName())) total += t.getAmount();
+                    if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) total += t.getAmount();
                 }
                 binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
             }
@@ -149,32 +167,41 @@ public class BankDetailFragment extends Fragment {
 
         List<GroupedTransactionAdapter.ListItem> items = new ArrayList<>();
         for (Map.Entry<Long, List<Transaction>> entry : groups.entrySet()) {
-            double income = 0, expense = 0;
+            double income = 0, expense = 0, transfer = 0;
             for (Transaction t : entry.getValue()) {
-                if ("INCOME".equals(t.getType())) income += t.getAmount();
-                else expense += t.getAmount();
+                boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+                if (isTransfer) transfer += t.getAmount();
+                else if ("INCOME".equals(t.getType())) income += t.getAmount();
+                else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
             }
-            items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense));
+            items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
             for (Transaction t : entry.getValue()) items.add(new GroupedTransactionAdapter.TransactionItem(t));
         }
         adapter.submitList(items);
     }
 
     private void updateTrend(List<Transaction> transactions) {
-        Map<String, Double> monthMap = new LinkedHashMap<>();
+        if (transactions == null || transactions.isEmpty()) {
+            binding.categoryLineChart.clear();
+            binding.categoryLineChart.invalidate();
+            return;
+        }
+
+        Map<Long, Double> monthMap = new TreeMap<>();
         SimpleDateFormat sdf = new SimpleDateFormat("MMM", Locale.getDefault());
+
         for (Transaction t : transactions) {
-            String m = sdf.format(new Date(t.getDate()));
-            monthMap.put(m, monthMap.getOrDefault(m, 0.0) + t.getAmount());
+            long mStart = getStartOfMonth(t.getDate());
+            monthMap.put(mStart, monthMap.getOrDefault(mStart, 0.0) + t.getAmount());
         }
 
         List<Entry> entries = new ArrayList<>();
-        List<String> labels = new ArrayList<>(monthMap.keySet());
-        Collections.reverse(labels); 
-        
+        List<String> labels = new ArrayList<>();
+
         int i = 0;
-        for (String label : labels) {
-            entries.add(new Entry(i++, monthMap.get(label).floatValue()));
+        for (Map.Entry<Long, Double> entry : monthMap.entrySet()) {
+            labels.add(sdf.format(new Date(entry.getKey())));
+            entries.add(new Entry(i++, entry.getValue().floatValue()));
         }
 
         LineDataSet dataSet = new LineDataSet(entries, "Monthly Transactions");
@@ -193,13 +220,31 @@ public class BankDetailFragment extends Fragment {
         binding.categoryLineChart.getAxisLeft().setTextColor(Color.WHITE);
         binding.categoryLineChart.getAxisRight().setEnabled(false);
         binding.categoryLineChart.getDescription().setEnabled(false);
-        binding.categoryLineChart.animateX(800);
+        binding.categoryLineChart.animateX(600);
         binding.categoryLineChart.invalidate();
+    }
+
+    private boolean isTransferTransaction(Transaction t) {
+        if (t == null) return false;
+        if ("TRANSFER".equalsIgnoreCase(t.getType())) return true;
+        if (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer")) return true;
+        return false;
     }
 
     private long getStartOfDay(long ts) {
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(ts);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+
+    private long getStartOfMonth(long ts) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(ts);
+        cal.set(Calendar.DAY_OF_MONTH, 1);
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);

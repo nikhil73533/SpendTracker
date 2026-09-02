@@ -61,6 +61,14 @@ public class TransactionViewModel extends ViewModel {
         return repository.getCategories();
     }
 
+    public LiveData<List<com.example.spendtracker.data.local.entity.CategoryEntity>> getCategoryEntities() {
+        return repository.getCategoryEntities();
+    }
+
+    public void saveCategory(com.example.spendtracker.data.local.entity.CategoryEntity category) {
+        repository.saveCategory(category);
+    }
+
     public void setCategoryTypeFilter(String type) {
         categoryTypeFilter.setValue(type);
     }
@@ -96,6 +104,10 @@ public class TransactionViewModel extends ViewModel {
 
     public LiveData<List<Transaction>> getTransactions() {
         return repository.getTransactions();
+    }
+
+    public LiveData<List<Transaction>> getTransactionsInRange(long start, long end) {
+        return repository.getTransactionsInRange(start, end);
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.AccountSummary>> getUniqueAccounts() {

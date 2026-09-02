@@ -56,12 +56,13 @@ public class TransactionGroupViewModel extends ViewModel {
             }
 
             for (java.util.Map.Entry<Long, java.util.List<Transaction>> entry : grouped.entrySet()) {
-                double income = 0, expense = 0;
+                double income = 0, expense = 0, transfer = 0;
                 for (Transaction t : entry.getValue()) {
                     if ("INCOME".equals(t.getType())) income += t.getAmount();
                     else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                    else if ("TRANSFER".equals(t.getType())) transfer += t.getAmount();
                 }
-                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense));
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
                 for (Transaction t : entry.getValue()) {
                     items.add(new GroupedTransactionAdapter.TransactionItem(t));
                 }
@@ -102,6 +103,10 @@ public class TransactionGroupViewModel extends ViewModel {
 
     public void addCategory(String name, String type) {
         transactionRepository.addCategory(name, type);
+    }
+
+    public void saveCategory(com.example.spendtracker.data.local.entity.CategoryEntity category) {
+        transactionRepository.saveCategory(category);
     }
 
     public void renameCategory(String oldName, String newName) {

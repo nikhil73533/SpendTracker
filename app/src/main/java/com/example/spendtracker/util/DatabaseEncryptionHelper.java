@@ -218,6 +218,25 @@ public class DatabaseEncryptionHelper {
             if (backupZip.getAbsolutePath().contains(context.getCacheDir().getAbsolutePath())) {
                 backupZip.delete();
             }
+
+            // 6. Sanitize restored columns
+            try {
+                SQLiteDatabase restoredDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
+                restoredDb.rawExecSQL("UPDATE transactions SET status = 'ACTIVE' WHERE status IS NULL OR status = '';");
+                restoredDb.rawExecSQL("UPDATE transactions SET categoryEmoji = '' WHERE categoryEmoji IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET fromAccount = '' WHERE fromAccount IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET toAccount = '' WHERE toAccount IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET fees = 0.0 WHERE fees IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET transactionGroupId = 0 WHERE transactionGroupId IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET deletedAt = 0 WHERE deletedAt IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET isRead = 1 WHERE isRead IS NULL;");
+                restoredDb.rawExecSQL("UPDATE transactions SET category = 'Uncategorized' WHERE category IS NULL OR category = '';");
+                restoredDb.rawExecSQL("UPDATE transactions SET type = 'EXPENSE' WHERE type IS NULL OR type = '';");
+                restoredDb.close();
+                android.util.Log.e("RECOVERY_CORE", "Restored database column sanitization complete.");
+            } catch (Exception e) {
+                android.util.Log.e("RECOVERY_CORE", "Column sanitization after recovery failed: " + e.getMessage());
+            }
             android.util.Log.e("RECOVERY_CORE", "ULTIMATE RECOVERY SUCCESSFUL.");
 
         } catch (Exception e) {

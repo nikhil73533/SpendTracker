@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey;
 public class TransactionGroupEntity {
     @PrimaryKey(autoGenerate = true)
     public int id;
-    public String name;
+    public String name = "";
     public long startDate;
     public long endDate;
     public long createdAt;
@@ -21,9 +21,10 @@ public class TransactionGroupEntity {
 
     /** High-level tag like "#trip", "#wedding". Auto-derived from name if name starts with '#'. */
     @ColumnInfo(defaultValue = "")
-    public String tag;
+    public String tag = "";
 
     public TransactionGroupEntity() {
+        this.name = "";
         this.isActive = true;
         this.createdAt = System.currentTimeMillis();
         this.tag = "";
@@ -31,12 +32,12 @@ public class TransactionGroupEntity {
 
     public TransactionGroupEntity(int id, String name, long startDate, long endDate) {
         this.id = id;
-        this.name = name;
+        this.name = name != null ? name : "";
         this.startDate = startDate;
         this.endDate = endDate;
         this.createdAt = System.currentTimeMillis();
         this.isActive = true;
-        this.tag = deriveTag(name);
+        this.tag = deriveTag(this.name);
     }
 
     /**

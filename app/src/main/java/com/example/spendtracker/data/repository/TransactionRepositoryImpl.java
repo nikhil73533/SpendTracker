@@ -1,5 +1,6 @@
 package com.example.spendtracker.data.repository;
 
+import android.content.Context;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.Transformations;
@@ -16,6 +17,8 @@ import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.TransactionRepository;
+import com.example.spendtracker.util.BudgetNotificationHelper;
+import dagger.hilt.android.qualifiers.ApplicationContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +33,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private final CategoryDao categoryDao;
     private final TransactionGroupDao transactionGroupDao;
     private final RepeatedAlertDao repeatedAlertDao;
+    private final Context context;
     private final ExecutorService executorService;
 
     /**
@@ -69,21 +73,24 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     };
 
     @Inject
-    public TransactionRepositoryImpl(@MainDatabase TransactionDao transactionDao,
+    public TransactionRepositoryImpl(@ApplicationContext Context context,
+                                   @MainDatabase TransactionDao transactionDao,
                                    @ClonedDatabase TransactionDao clonedTransactionDao,
                                    CategoryDao categoryDao,
                                    TransactionGroupDao transactionGroupDao,
                                    RepeatedAlertDao repeatedAlertDao) {
+        this.context = context;
         this.transactionDao = transactionDao;
         this.clonedTransactionDao = clonedTransactionDao;
         this.categoryDao = categoryDao;
         this.transactionGroupDao = transactionGroupDao;
         this.repeatedAlertDao = repeatedAlertDao;
         this.executorService = Executors.newSingleThreadExecutor();
-        // Normalize existing bank names in the background on first run
+        // Normalize existing bank names & categories in the background on first run
         executorService.execute(() -> {
             normalizeBankNamesOnce();
             syncTransferDataOnce();
+            ensureTransferCategoriesExist();
         });
     }
 
@@ -130,6 +137,35 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                     e.type = "TRANSFER";
                     transactionDao.updateTransaction(e);
                 }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Ensures that category "Transfer" exists in both EXPENSE and INCOME without duplicates. */
+    private void ensureTransferCategoriesExist() {
+        try {
+            List<CategoryEntity> expenseCategories = categoryDao.getCategoriesByTypeSync("EXPENSE");
+            boolean hasExpenseTransfer = false;
+            for (CategoryEntity c : expenseCategories) {
+                if (c.name != null && c.name.equalsIgnoreCase("Transfer")) {
+                    hasExpenseTransfer = true;
+                    break;
+                }
+            }
+            if (!hasExpenseTransfer) {
+                categoryDao.insertCategory(new CategoryEntity(0, "Transfer", "swap_horiz", true, "EXPENSE"));
+            }
+
+            List<CategoryEntity> incomeCategories = categoryDao.getCategoriesByTypeSync("INCOME");
+            boolean hasIncomeTransfer = false;
+            for (CategoryEntity c : incomeCategories) {
+                if (c.name != null && c.name.equalsIgnoreCase("Transfer")) {
+                    hasIncomeTransfer = true;
+                    break;
+                }
+            }
+            if (!hasIncomeTransfer) {
+                categoryDao.insertCategory(new CategoryEntity(0, "Transfer", "swap_horiz", true, "INCOME"));
             }
         } catch (Exception ignored) {}
     }
@@ -182,6 +218,9 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             long newId = transactionDao.insertTransaction(entity);
             clonedTransactionDao.insertTransaction(entity); // Mirror to cloned database
 
+            // Evaluate category budget range and trigger warning notifications if exceeded
+            BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
+
             if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
                 // Check for duplicate transactions within 48 hours
                 long fortyEightHours = 48L * 60 * 60 * 1000;
@@ -230,6 +269,9 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             
             transactionDao.updateTransaction(entity);
             clonedTransactionDao.updateTransaction(entity); // Mirror to cloned database
+
+            // Evaluate category budget range and trigger warning notifications if exceeded
+            BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
         });
     }
 
@@ -297,6 +339,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
         LiveData<Double> incomeLive = transactionDao.getTotalIncome(startDate, endDate);
         LiveData<Double> expenseLive = transactionDao.getTotalExpense(startDate, endDate);
+        LiveData<Double> transferLive = transactionDao.getTransferTotal(startDate, endDate);
         LiveData<Double> accountLive = transactionDao.getTotalAccountTransaction(startDate, endDate);
         LiveData<List<TransactionDao.CategorySum>> expSumsLive = transactionDao.getExpenseCategorySummaries(startDate, endDate);
         LiveData<List<TransactionDao.CategorySum>> expAvgsLive = transactionDao.getExpenseCategoryAverages(startDate, endDate);
@@ -304,16 +347,17 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         LiveData<List<TransactionDao.CategorySum>> incAvgsLive = transactionDao.getIncomeCategoryAverages(startDate, endDate);
 
         Runnable update = () -> updateSummary(summaryMediator,
-            incomeLive.getValue(), expenseLive.getValue(), accountLive.getValue(),
+            incomeLive.getValue(), expenseLive.getValue(), transferLive.getValue(), accountLive.getValue(),
             expSumsLive.getValue(), expAvgsLive.getValue(), incSumsLive.getValue(), incAvgsLive.getValue());
 
-        summaryMediator.addSource(incomeLive,  v -> update.run());
-        summaryMediator.addSource(expenseLive, v -> update.run());
-        summaryMediator.addSource(accountLive, v -> update.run());
-        summaryMediator.addSource(expSumsLive, v -> update.run());
-        summaryMediator.addSource(expAvgsLive, v -> update.run());
-        summaryMediator.addSource(incSumsLive, v -> update.run());
-        summaryMediator.addSource(incAvgsLive, v -> update.run());
+        summaryMediator.addSource(incomeLive,   v -> update.run());
+        summaryMediator.addSource(expenseLive,  v -> update.run());
+        summaryMediator.addSource(transferLive, v -> update.run());
+        summaryMediator.addSource(accountLive,  v -> update.run());
+        summaryMediator.addSource(expSumsLive,  v -> update.run());
+        summaryMediator.addSource(expAvgsLive,  v -> update.run());
+        summaryMediator.addSource(incSumsLive,  v -> update.run());
+        summaryMediator.addSource(incAvgsLive,  v -> update.run());
 
         return summaryMediator;
     }
@@ -339,8 +383,49 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     }
 
     @Override
+    public LiveData<List<CategoryEntity>> getCategoryEntities() {
+        return categoryDao.getAllCategories();
+    }
+
+    @Override
+    public void saveCategory(CategoryEntity category) {
+        executorService.execute(() -> {
+            if (category == null || category.name == null || category.name.trim().isEmpty()) return;
+            String cleanName = category.name.trim();
+            category.name = cleanName;
+
+            if (category.id > 0) {
+                CategoryEntity existing = categoryDao.getCategoryByIdSync(category.id);
+                if (existing != null && existing.name != null && !existing.name.trim().isEmpty() && !existing.name.equals(cleanName)) {
+                    // Category was renamed -> update all transactions referencing old category name
+                    transactionDao.renameCategory(existing.name.trim(), cleanName);
+                }
+                categoryDao.updateCategory(category);
+            } else {
+                CategoryEntity existing = categoryDao.getCategoryByNameSync(cleanName);
+                if (existing != null) {
+                    category.id = existing.id;
+                    categoryDao.updateCategory(category);
+                } else {
+                    categoryDao.insertCategory(category);
+                }
+            }
+        });
+    }
+
+    @Override
     public void addCategory(String name, String type) {
-        executorService.execute(() -> categoryDao.insertCategory(new CategoryEntity(0, name, null, false, type)));
+        executorService.execute(() -> {
+            if (name == null || name.trim().isEmpty()) return;
+            String cleanName = name.trim();
+            List<CategoryEntity> existing = categoryDao.getCategoriesByTypeSync(type);
+            for (CategoryEntity c : existing) {
+                if (c.name != null && c.name.equalsIgnoreCase(cleanName)) {
+                    return; // Duplicate category, ignore
+                }
+            }
+            categoryDao.insertCategory(new CategoryEntity(0, cleanName, null, false, type));
+        });
     }
 
     @Override
@@ -472,15 +557,16 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
-    private void updateSummary(MediatorLiveData<Summary> summaryMediator, Double income, Double expense, Double account,
+    private void updateSummary(MediatorLiveData<Summary> summaryMediator, Double income, Double expense, Double transfer, Double account,
                                List<TransactionDao.CategorySum> expSums, List<TransactionDao.CategorySum> expAvgs,
                                List<TransactionDao.CategorySum> incSums, List<TransactionDao.CategorySum> incAvgs) {
         double totalIncome = income != null ? income : 0.0;
         double totalExpense = expense != null ? expense : 0.0;
+        double totalTransfer = transfer != null ? transfer : 0.0;
         double totalAccount = account != null ? account : 0.0;
 
         summaryMediator.setValue(new Summary(
-            totalIncome, totalExpense, totalAccount,
+            totalIncome, totalExpense, totalTransfer, totalAccount,
             toMap(expSums), toMap(expAvgs), toMap(incSums), toMap(incAvgs)
         ));
     }
@@ -496,10 +582,21 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private Transaction mapToDomain(TransactionEntity entity) {
         if (entity == null) return null;
         Transaction t = new Transaction(
-            entity.id, entity.amount, entity.category, entity.categoryEmoji, entity.description,
-            entity.type, entity.date, entity.source, entity.sender, entity.upiId,
-            entity.receiverName, entity.bankName, entity.sourceType,
-            entity.fromAccount, entity.toAccount, entity.fees
+            entity.id, entity.amount,
+            entity.category != null ? entity.category : "",
+            entity.categoryEmoji != null ? entity.categoryEmoji : "",
+            entity.description != null ? entity.description : "",
+            entity.type != null ? entity.type : "EXPENSE",
+            entity.date,
+            entity.source != null ? entity.source : "",
+            entity.sender != null ? entity.sender : "",
+            entity.upiId != null ? entity.upiId : "",
+            entity.receiverName != null ? entity.receiverName : "",
+            entity.bankName != null ? entity.bankName : "",
+            entity.sourceType != null ? entity.sourceType : "",
+            entity.fromAccount != null ? entity.fromAccount : "",
+            entity.toAccount != null ? entity.toAccount : "",
+            entity.fees
         );
         t.setTransactionGroupId(entity.transactionGroupId);
         t.setStatus(entity.status != null ? entity.status : "ACTIVE");
@@ -508,7 +605,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         if (entity.transactionGroupId > 0 && transactionGroupDao != null) {
             try {
                 String groupName = transactionGroupDao.getGroupNameSync(entity.transactionGroupId);
-                t.setTransactionGroupName(groupName);
+                t.setTransactionGroupName(groupName != null ? groupName : "");
             } catch (Exception ignored) {}
         }
         return t;

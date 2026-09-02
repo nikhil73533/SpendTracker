@@ -127,10 +127,10 @@ public class MerchantExtractor {
     private boolean isValidMerchant(String merchant, String bankName) {
         if (merchant == null || merchant.isEmpty() || merchant.length() < 2) return false;
         if (REJECT_NAMES.matcher(merchant).matches()) return false;
-        // Avoid capturing bank name itself as merchant
+        // Avoid capturing bank name itself or generic account keywords as merchant
         if (bankName != null && merchant.toLowerCase().contains(bankName.toLowerCase())) return false;
         if (merchant.toLowerCase().contains("bank")) return false;
-        if (merchant.toLowerCase().contains("a/c")) return false;
+        if (merchant.toLowerCase().contains("a/c") || merchant.toLowerCase().contains("account")) return false;
         return true;
     }
 }

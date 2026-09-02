@@ -11,6 +11,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentDashboardTotalBinding;
@@ -160,25 +162,34 @@ public class TotalSummaryFragment extends Fragment {
 
     private void downloadPdfReport() {
         DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
-        if (data == null) {
-            Toast.makeText(requireContext(), "Summary data not ready", Toast.LENGTH_SHORT).show();
-            return;
+        DashboardViewModel.DateRange range = viewModel.getDateRange().getValue();
+
+        String label = "All Time";
+        if (range != null && range.start > 0 && range.end < Long.MAX_VALUE) {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault());
+            label = sdf.format(new Date(range.start)) + " – " + sdf.format(new Date(range.end));
         }
 
-        transactionViewModel.getTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
+        final String dateRangeLabel = label;
+
+        LiveData<List<Transaction>> txnsLive = (range != null && range.start > 0 && range.end < Long.MAX_VALUE)
+                ? transactionViewModel.getTransactionsInRange(range.start, range.end)
+                : transactionViewModel.getTransactions();
+
+        txnsLive.observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
             @Override
             public void onChanged(List<Transaction> transactions) {
+                txnsLive.removeObserver(this);
                 if (transactions == null || transactions.isEmpty()) {
-                    Toast.makeText(requireContext(), "No transactions to report", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), "No transactions to report for selected period", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                transactionViewModel.getTransactions().removeObserver(this);
 
                 new Thread(() -> {
                     try {
                         File pdfFile = com.example.spendtracker.util.PdfReportService.generateReport(
-                                requireContext(), data, transactions, null);
-                        
+                                requireContext(), data, transactions, dateRangeLabel);
+
                         requireActivity().runOnUiThread(() -> {
                             Intent intent = new Intent(Intent.ACTION_SEND);
                             intent.setType("application/pdf");
@@ -189,7 +200,7 @@ public class TotalSummaryFragment extends Fragment {
                         });
                     } catch (Exception e) {
                         e.printStackTrace();
-                        requireActivity().runOnUiThread(() -> 
+                        requireActivity().runOnUiThread(() ->
                             Toast.makeText(requireContext(), "PDF Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
                         );
                     }
@@ -212,7 +223,7 @@ public class TotalSummaryFragment extends Fragment {
 
         protected BankTotalAdapter(Formatter formatter, OnBankClickListener listener) {
             super(new androidx.recyclerview.widget.DiffUtil.ItemCallback<TransactionDao.CategorySum>() {
-                @Override public boolean areItemsTheSame(@NonNull TransactionDao.CategorySum old, @NonNull TransactionDao.CategorySum newI) { return old.category.equals(newI.category); }
+                @Override public boolean areItemsTheSame(@NonNull TransactionDao.CategorySum old, @NonNull TransactionDao.CategorySum newI) { return java.util.Objects.equals(old.category, newI.category); }
                 @Override public boolean areContentsTheSame(@NonNull TransactionDao.CategorySum old, @NonNull TransactionDao.CategorySum newI) { return Double.compare(old.total, newI.total) == 0; }
             });
             this.formatter = formatter;

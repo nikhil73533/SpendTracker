@@ -22,7 +22,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:padding="16dp">
-        
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -32,7 +32,7 @@
             <ImageView
                 android:layout_width="80dp"
                 android:layout_height="80dp"
-                android:layout_marginTop="32dp"
+                android:layout_marginTop="24dp"
                 android:layout_marginBottom="16dp"
                 android:src="@android:drawable/ic_menu_upload"
                 app:tint="?attr/colorPrimary" />
@@ -40,7 +40,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Import Bank Statements"
+                android:text="Bulk Bank Statement Ingestion"
                 android:textColor="@color/white"
                 android:textSize="20sp"
                 android:textStyle="bold"
@@ -49,17 +49,17 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Select a PDF bank statement to extract and import transactions automatically. Processing is done entirely offline on your device."
+                android:text="Import one or multiple PDF bank statements (HDFC, ICICI, SBI, Axis, etc.). Transactions are automatically extracted, categorized, and deduplicated offline on your device."
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp"
                 android:gravity="center"
-                android:layout_marginBottom="32dp" />
+                android:layout_marginBottom="24dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_select_pdf"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Select PDF File"
+                android:text="Select Bank Statement PDFs"
                 app:icon="@android:drawable/ic_menu_agenda" />
 
             <!-- Progress Section -->
@@ -68,15 +68,24 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginTop="32dp"
+                android:layout_marginTop="24dp"
                 android:visibility="gone">
 
                 <TextView
                     android:id="@+id/tv_progress_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Parsing PDF..."
+                    android:text="Processing PDF statements..."
                     android:textColor="@color/white"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tv_progress_counter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Processing file 1 of 1"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
                     android:layout_marginBottom="8dp" />
 
                 <ProgressBar
@@ -92,7 +101,7 @@
                 android:id="@+id/card_results"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
+                android:layout_marginTop="24dp"
                 android:visibility="gone"
                 app:cardBackgroundColor="@color/dark_surface"
                 app:cardCornerRadius="12dp">
@@ -106,23 +115,32 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Import Results"
+                        android:text="Ingestion Results"
                         android:textColor="@color/white"
+                        android:textSize="18sp"
                         android:textStyle="bold"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="8dp" />
 
                     <TextView
-                        android:id="@+id/tv_result_summary"
+                        android:id="@+id/tv_result_summary_header"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textColor="@color/text_secondary"
-                        android:lineSpacingExtra="4dp" />
-                        
+                        android:textSize="14sp"
+                        android:lineSpacingExtra="2dp"
+                        android:layout_marginBottom="16dp" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_file_results"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
+                        android:layout_marginBottom="16dp" />
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_done"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
                         android:text="Done" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
