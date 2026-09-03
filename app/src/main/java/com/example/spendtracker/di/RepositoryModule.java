@@ -20,9 +20,9 @@ import javax.inject.Singleton;
 @InstallIn(SingletonComponent.class)
 public abstract class RepositoryModule {
 
-    @Binds
+@Binds
     @Singleton
-    public abstract TransactionRepository bindTransactionRepository(TransactionRepositoryImpl implementation);
+    public abstract AnalyticsRepository bindAnalyticsRepository(AnalyticsRepositoryImpl implementation);
 
     @Binds
     @Singleton

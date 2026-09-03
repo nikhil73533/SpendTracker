@@ -166,4 +166,10 @@
         android:label="Suspicious Transactions"
         tools:layout="@layout/fragment_suspicious_transactions" />
 
+    <fragment
+        android:id="@+id/advancedAnalyticsFragment"
+        android:name="com.example.spendtracker.ui.analytics.AdvancedAnalyticsFragment"
+        android:label="Advanced Analytics"
+        tools:layout="@layout/fragment_advanced_analytics" />
+
 </navigation>
