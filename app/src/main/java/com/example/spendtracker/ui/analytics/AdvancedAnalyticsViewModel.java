@@ -13,6 +13,11 @@ import com.example.spendtracker.domain.model.analytics.BehaviorAnalytics;
 import com.example.spendtracker.domain.model.analytics.ForecastResult;
 import com.example.spendtracker.domain.model.analytics.MonthlyComparison;
 import com.example.spendtracker.domain.model.analytics.TransactionVolume;
+import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
+import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
+import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
+import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
+import com.example.spendtracker.domain.model.analytics.FinancialInsight;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.Calendar;
@@ -53,6 +58,16 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     private final LiveData<ForecastResult> spendingVelocity;
     private final LiveData<MonthlyComparison> monthOverMonthComparison;
 
+    private final LiveData<List<MerchantAnalytics>> merchantAnalytics;
+    private final LiveData<List<MerchantAnalytics>> recurringMerchants;
+    private final LiveData<List<CategoryAnalytics>> categoryGrowth;
+    private final LiveData<SpendingConcentration> spendingConcentration;
+    private final LiveData<LargeTransactionSummary> largeTransactionAnalysis;
+    private final LiveData<List<AnomalyTransaction>> unusualTransactions;
+
+    private final LiveData<List<FinancialInsight>> financialInsights;
+    private final LiveData<ForecastResult> spendingForecast;
+
     @Inject
     public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository) {
         this.analyticsRepository = analyticsRepository;
@@ -83,6 +98,16 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
         weekdayWeekendAnalytics = combineDates((s, e) -> analyticsRepository.getWeekdayWeekendAnalytics(s, e));
         spendingVelocity = combineDates((s, e) -> analyticsRepository.getSpendingVelocity(s, e));
         monthOverMonthComparison = combineDates((s, e) -> analyticsRepository.getMonthOverMonthComparison(s, e));
+        
+        merchantAnalytics = combineDates((s, e) -> analyticsRepository.getMerchantAnalytics(s, e));
+        recurringMerchants = combineDates((s, e) -> analyticsRepository.getRecurringMerchants());
+        categoryGrowth = combineDates((s, e) -> analyticsRepository.getCategoryGrowth(s, e));
+        spendingConcentration = combineDates((s, e) -> analyticsRepository.getSpendingConcentration(s, e));
+        largeTransactionAnalysis = combineDates((s, e) -> analyticsRepository.getLargeTransactionAnalysis(s, e, 5000.0));
+        unusualTransactions = combineDates((s, e) -> analyticsRepository.getUnusualTransactions(s, e));
+
+        financialInsights = combineDates((s, e) -> analyticsRepository.generateInsights(s, e));
+        spendingForecast = combineDates((s, e) -> analyticsRepository.getSpendingForecast(s, e));
         
         // Rolling average only depends on the end date (or current date) - using a simple map for now
         rollingExpenseAverage = Transformations.switchMap(endDate, e -> analyticsRepository.getRollingExpenseAverage(3));
@@ -141,6 +166,16 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     public LiveData<BehaviorAnalytics> getWeekdayWeekendAnalytics() { return weekdayWeekendAnalytics; }
     public LiveData<ForecastResult> getSpendingVelocity() { return spendingVelocity; }
     public LiveData<MonthlyComparison> getMonthOverMonthComparison() { return monthOverMonthComparison; }
+
+    public LiveData<List<MerchantAnalytics>> getMerchantAnalytics() { return merchantAnalytics; }
+    public LiveData<List<MerchantAnalytics>> getRecurringMerchants() { return recurringMerchants; }
+    public LiveData<List<CategoryAnalytics>> getCategoryGrowth() { return categoryGrowth; }
+    public LiveData<SpendingConcentration> getSpendingConcentration() { return spendingConcentration; }
+    public LiveData<LargeTransactionSummary> getLargeTransactionAnalysis() { return largeTransactionAnalysis; }
+    public LiveData<List<AnomalyTransaction>> getUnusualTransactions() { return unusualTransactions; }
+
+    public LiveData<List<FinancialInsight>> getFinancialInsights() { return financialInsights; }
+    public LiveData<ForecastResult> getSpendingForecast() { return spendingForecast; }
 
     // ---------------------------------------------------
     // Date range setters (called by UI when user selects a new period)

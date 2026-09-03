@@ -10,6 +10,8 @@ import com.example.spendtracker.domain.repository.RepeatedAlertRepository;
 import com.example.spendtracker.data.repository.RepeatedAlertRepositoryImpl;
 import com.example.spendtracker.domain.repository.BillAlertRepository;
 import com.example.spendtracker.data.repository.BillAlertRepositoryImpl;
+import com.example.spendtracker.domain.repository.AnalyticsRepository;
+import com.example.spendtracker.data.repository.AnalyticsRepositoryImpl;
 import dagger.Binds;
 import dagger.Module;
 import dagger.hilt.InstallIn;

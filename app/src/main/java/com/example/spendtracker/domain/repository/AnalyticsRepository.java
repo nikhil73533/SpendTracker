@@ -9,6 +9,11 @@ import com.example.spendtracker.domain.model.analytics.BehaviorAnalytics;
 import com.example.spendtracker.domain.model.analytics.ForecastResult;
 import com.example.spendtracker.domain.model.analytics.MonthlyComparison;
 import com.example.spendtracker.domain.model.analytics.TransactionVolume;
+import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
+import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
+import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
+import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
+import com.example.spendtracker.domain.model.analytics.FinancialInsight;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.List;
 
@@ -29,4 +34,16 @@ public interface AnalyticsRepository {
     LiveData<BehaviorAnalytics> getWeekdayWeekendAnalytics(long start, long end);
     LiveData<ForecastResult> getSpendingVelocity(long start, long end);
     LiveData<MonthlyComparison> getMonthOverMonthComparison(long start, long end);
+
+    // Phase 3
+    LiveData<List<MerchantAnalytics>> getMerchantAnalytics(long start, long end);
+    LiveData<List<MerchantAnalytics>> getRecurringMerchants();
+    LiveData<List<CategoryAnalytics>> getCategoryGrowth(long start, long end);
+    LiveData<SpendingConcentration> getSpendingConcentration(long start, long end);
+    LiveData<LargeTransactionSummary> getLargeTransactionAnalysis(long start, long end, double threshold);
+    LiveData<List<AnomalyTransaction>> getUnusualTransactions(long start, long end);
+
+    // Phase 4
+    LiveData<List<FinancialInsight>> generateInsights(long start, long end);
+    LiveData<ForecastResult> getSpendingForecast(long start, long end);
 }

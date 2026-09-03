@@ -9,6 +9,10 @@ import com.example.spendtracker.domain.model.analytics.BehaviorAnalytics;
 import com.example.spendtracker.domain.model.analytics.ForecastResult;
 import com.example.spendtracker.domain.model.analytics.MonthlyComparison;
 import com.example.spendtracker.domain.model.analytics.TransactionVolume;
+import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
+import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
+import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
+import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -227,5 +231,95 @@ public class AnalyticsService {
         
         return new MonthlyComparison("Current vs Previous", currentTotal, previousTotal, difference, percentChange, 
             percentChange > 0 ? "Increased" : "Decreased");
+    }
+
+    public List<MerchantAnalytics> getMerchantAnalytics(long start, long end) {
+        List<TransactionDao.CategorySum> sums = transactionDao.getTopMerchantsByAmountSync(start, end, 50);
+        List<TransactionDao.CategorySum> counts = transactionDao.getTopMerchantsByFrequencySync(start, end, 50);
+        Map<String, Integer> countMap = new HashMap<>();
+        for (TransactionDao.CategorySum cs : counts) {
+            countMap.put(cs.category, (int) cs.total);
+        }
+        
+        List<MerchantAnalytics> result = new ArrayList<>();
+        for (TransactionDao.CategorySum s : sums) {
+            int count = countMap.getOrDefault(s.category, 1);
+            MerchantAnalytics.RecurrenceType type = count > 3 ? MerchantAnalytics.RecurrenceType.FREQUENT : MerchantAnalytics.RecurrenceType.OCCASIONAL;
+            result.add(new MerchantAnalytics(s.category, s.total, count, type, null));
+        }
+        return result;
+    }
+
+    public List<MerchantAnalytics> getRecurringMerchants() {
+        List<TransactionDao.CategorySum> recurring = transactionDao.getRecurringMerchantCandidatesSync(3);
+        List<MerchantAnalytics> result = new ArrayList<>();
+        for (TransactionDao.CategorySum r : recurring) {
+            result.add(new MerchantAnalytics(r.category, 0, (int) r.total, MerchantAnalytics.RecurrenceType.RECURRING, "Unknown"));
+        }
+        return result;
+    }
+
+    public List<CategoryAnalytics> getCategoryGrowth(long start, long end) {
+        long duration = end - start;
+        long prevStart = start - duration;
+        List<TransactionDao.CategorySum> current = transactionDao.getCategoryTotalsSync(start, end);
+        List<TransactionDao.CategorySum> prev = transactionDao.getCategoryTotalsSync(prevStart, start);
+        Map<String, Double> prevMap = new HashMap<>();
+        for (TransactionDao.CategorySum p : prev) prevMap.put(p.category, p.total);
+        
+        List<CategoryAnalytics> result = new ArrayList<>();
+        for (TransactionDao.CategorySum c : current) {
+            CategoryAnalytics ca = new CategoryAnalytics(c.category, c.total);
+            // Additional growth tracking fields could be populated here
+            result.add(ca);
+        }
+        return result;
+    }
+
+    public SpendingConcentration getSpendingConcentration(long start, long end) {
+        double total = transactionDao.getTotalExpenseSync(start, end);
+        List<TransactionDao.CategorySum> cats = transactionDao.getExpenseCategorySummariesSync(start, end);
+        List<SpendingConcentration.Contributor> top = new ArrayList<>();
+        double sumTop3 = 0;
+        for (int i = 0; i < Math.min(3, cats.size()); i++) {
+            TransactionDao.CategorySum c = cats.get(i);
+            double pct = total > 0 ? (c.total / total) * 100 : 0;
+            top.add(new SpendingConcentration.Contributor(c.category, c.total, pct));
+            sumTop3 += c.total;
+        }
+        double concentration = total > 0 ? (sumTop3 / total) * 100 : 0;
+        return new SpendingConcentration(total, top, concentration);
+    }
+
+    public LargeTransactionSummary getLargeTransactionAnalysis(long start, long end, double threshold) {
+        List<TransactionEntity> active = transactionDao.getActiveNonTransferInRangeSync(start, end);
+        List<TransactionEntity> large = new ArrayList<>();
+        double totalLarge = 0;
+        for (TransactionEntity t : active) {
+            if ("EXPENSE".equals(t.getType()) && t.getAmount() >= threshold) {
+                large.add(t);
+                totalLarge += t.getAmount();
+            }
+        }
+        return new LargeTransactionSummary(threshold, large.size(), totalLarge, large);
+    }
+
+    public List<AnomalyTransaction> getUnusualTransactions(long start, long end) {
+        List<TransactionEntity> txns = transactionDao.getActiveNonTransferInRangeSync(start, end);
+        List<TransactionDao.CategorySum> catAverages = transactionDao.getCategoryAveragesSync();
+        Map<String, Double> avgMap = new HashMap<>();
+        for (TransactionDao.CategorySum c : catAverages) avgMap.put(c.category, c.total);
+
+        List<AnomalyTransaction> anomalies = new ArrayList<>();
+        for (TransactionEntity t : txns) {
+            if (!"EXPENSE".equals(t.getType())) continue;
+            double avg = avgMap.getOrDefault(t.getCategory(), 0.0);
+            if (avg > 0 && t.getAmount() > avg * 3) {
+                double multiple = t.getAmount() / avg;
+                anomalies.add(new AnomalyTransaction(t.getId(), t.getAmount(), t.getReceiverName(), 
+                        t.getCategory(), t.getDate(), "Significantly higher than category average", avg, multiple));
+            }
+        }
+        return anomalies;
     }
 }
