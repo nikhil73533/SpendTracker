@@ -394,9 +394,7 @@ public class DashboardViewModel extends ViewModel {
         executor.execute(() -> {
             String updatedType = transaction.getType();
             if ("Transfer".equalsIgnoreCase(newCategory) || (newCategory != null && newCategory.toLowerCase().contains("transfer"))) {
-                if (!"INCOME".equals(transaction.getType()) && !"EXPENSE".equals(transaction.getType())) {
-                    updatedType = "TRANSFER";
-                }
+                updatedType = "TRANSFER";
             } else if ("TRANSFER".equals(transaction.getType())) {
                 updatedType = "EXPENSE";
             }
@@ -406,6 +404,7 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getId(),
                 transaction.getAmount(),
                 newCategory,
+                transaction.getCategoryEmoji(),
                 transaction.getDescription(),
                 updatedType,
                 transaction.getDate(),
@@ -414,7 +413,10 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getUpiId(),
                 transaction.getReceiverName(),
                 transaction.getBankName(),
-                transaction.getSourceType()
+                transaction.getSourceType(),
+                transaction.getFromAccount(),
+                transaction.getToAccount(),
+                transaction.getFees()
             );
             repository.updateTransaction(updated);
 

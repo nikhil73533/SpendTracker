@@ -27,6 +27,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
     buildFeatures {
         viewBinding = true
     }
@@ -74,6 +79,9 @@ dependencies {
     implementation(libs.pdfbox.android)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.androidx.core.testing)
+    testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

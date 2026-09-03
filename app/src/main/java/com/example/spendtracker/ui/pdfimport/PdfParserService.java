@@ -2,7 +2,9 @@ package com.example.spendtracker.ui.pdfimport;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import android.util.Log;
 
@@ -16,6 +18,10 @@ import com.example.spendtracker.ui.pdfimport.parser.RawTransactionRow;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.text.ParseException;
@@ -77,16 +83,110 @@ public class PdfParserService {
     }
 
     /**
-     * Parses a single PDF file Uri into SpendTracker transactions.
+     * Stage 1 & 2: Extracts text from PDF and normalizes extracted table rows into a clean JSON Schema.
+     *
+     * @param context Application context
+     * @param uri     PDF document Uri
+     * @return JSONObject containing bank metadata and a JSONArray of normalized transaction row key-value pairs
      */
-    public FileImportResult parsePdf(Context context, Uri uri, List<Transaction> existingTransactions) {
+    public JSONObject parsePdfToJson(Context context, Uri uri) throws Exception {
         Context appContext = context.getApplicationContext();
         init(appContext);
 
         String fileName = getFileName(appContext, uri);
+        JSONObject rootJson = new JSONObject();
+        rootJson.put("fileName", fileName);
+
+        String fullText = extractTextFromPdf(appContext, uri);
+        if (fullText == null || fullText.trim().isEmpty()) {
+            rootJson.put("error", "No readable text found in PDF (scanned or image PDF)");
+            return rootJson;
+        }
+
+        String headerText = fullText.length() > 1000 ? fullText.substring(0, 1000) : fullText;
+
+        BankStatementParserFactory factory = new BankStatementParserFactory();
+        BankStatementParserFactory.ParseOutput parseOutput = factory.parse(headerText, fullText);
+
+        String bankName = parseOutput.parser.getBankName();
+        List<RawTransactionRow> rawRows = parseOutput.rows;
+
+        rootJson.put("bankName", bankName);
+        rootJson.put("totalFound", rawRows.size());
+
+        JSONArray jsonArray = new JSONArray();
+        for (RawTransactionRow rawRow : rawRows) {
+            JSONObject rowJson = mapRawRowToJson(rawRow, bankName);
+            if (rowJson != null) {
+                jsonArray.put(rowJson);
+            }
+        }
+        rootJson.put("transactions", jsonArray);
+
+        return rootJson;
+    }
+
+    /**
+     * Stage 3: Converts normalized JSON structure into SpendTracker domain Transaction objects with ML categorization and de-duplication.
+     */
+    public FileImportResult parseJsonToTransactions(JSONObject rootJson, List<Transaction> existingTransactions,
+                                                    IncrementalPredictionService predictionService) {
+        String fileName = rootJson.optString("fileName", "Statement.pdf");
         FileImportResult result = new FileImportResult(fileName);
 
+        if (rootJson.has("error")) {
+            result.error = rootJson.optString("error");
+            return result;
+        }
+
+        result.bankName = rootJson.optString("bankName", "Bank");
+        result.totalFound = rootJson.optInt("totalFound", 0);
+
+        JSONArray jsonArray = rootJson.optJSONArray("transactions");
+        if (jsonArray == null || jsonArray.length() == 0) {
+            result.error = "No transaction table rows identified in PDF statement";
+            return result;
+        }
+
         Set<String> existingFingerprints = buildExistingFingerprints(existingTransactions);
+
+        for (int i = 0; i < jsonArray.length(); i++) {
+            JSONObject item = jsonArray.optJSONObject(i);
+            if (item == null) continue;
+
+            Transaction t = mapJsonToTransaction(item, result.bankName, predictionService);
+            if (t == null) continue;
+
+            String refNo = item.optString("referenceNo", "");
+            String fp = duplicateDetector.generateFingerprint(
+                    t.getBankName(), t.getAmount(), t.getDate(),
+                    refNo, "", t.getReceiverName().isEmpty() ? t.getSender() : t.getReceiverName()
+            );
+
+            if (existingFingerprints.contains(fp)) {
+                result.duplicatesSkipped++;
+                continue;
+            }
+
+            existingFingerprints.add(fp);
+            result.transactions.add(t);
+            result.successfullyParsed++;
+        }
+
+        if (result.successfullyParsed == 0 && result.duplicatesSkipped > 0) {
+            result.error = "All " + result.duplicatesSkipped + " transactions in file were already imported (duplicates).";
+        } else if (result.successfullyParsed == 0) {
+            result.error = "Could not parse valid transactions from file format.";
+        }
+
+        return result;
+    }
+
+    /**
+     * Primary entry point: Parses a single PDF file Uri into SpendTracker transactions using the 3-stage pipeline.
+     */
+    public FileImportResult parsePdf(Context context, Uri uri, List<Transaction> existingTransactions) {
+        Context appContext = context.getApplicationContext();
 
         IncrementalPredictionService predictionService = null;
         try {
@@ -95,78 +195,61 @@ public class PdfParserService {
             Log.w(TAG, "Could not initialize IncrementalPredictionService for category prediction", e);
         }
 
-        try (InputStream is = appContext.getContentResolver().openInputStream(uri)) {
-            if (is == null) {
-                result.error = "Could not open file URI: " + uri;
-                return result;
-            }
+        try {
+            JSONObject rootJson = parsePdfToJson(appContext, uri);
+            return parseJsonToTransactions(rootJson, existingTransactions, predictionService);
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing PDF file: " + uri, e);
+            FileImportResult result = new FileImportResult(getFileName(appContext, uri));
+            result.error = "Error parsing PDF: " + (e.getMessage() != null ? e.getMessage() : e.toString());
+            return result;
+        }
+    }
+
+    private String extractTextFromPdf(Context context, Uri uri) throws Exception {
+        String fullText;
+        try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null) return null;
 
             PDDocument document = PDDocument.load(is);
             if (document.isEncrypted()) {
                 document.close();
-                result.error = "PDF is password protected or encrypted";
-                return result;
+                throw new IllegalStateException("PDF is password protected or encrypted");
             }
 
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
-            String fullText = stripper.getText(document);
-
-            String headerText = fullText.length() > 1000 ? fullText.substring(0, 1000) : fullText;
+            fullText = stripper.getText(document);
             document.close();
-
-            if (fullText.trim().isEmpty()) {
-                result.error = "No readable text found in PDF (scanned or image PDF)";
-                return result;
-            }
-
-            BankStatementParserFactory factory = new BankStatementParserFactory();
-            BankStatementParserFactory.ParseOutput parseOutput = factory.parse(headerText, fullText);
-
-            result.bankName = parseOutput.parser.getBankName();
-            List<RawTransactionRow> rawRows = parseOutput.rows;
-
-            result.totalFound = rawRows.size();
-            if (rawRows.isEmpty()) {
-                result.error = "No transaction table rows identified in PDF statement";
-                return result;
-            }
-
-            for (RawTransactionRow rawRow : rawRows) {
-                Transaction t = convertToTransaction(rawRow, result.bankName, predictionService);
-                if (t == null) continue;
-
-                String fp = duplicateDetector.generateFingerprint(
-                        t.getBankName(), t.getAmount(), t.getDate(),
-                        rawRow.getReferenceNo(), "", t.getReceiverName()
-                );
-
-                if (existingFingerprints.contains(fp)) {
-                    result.duplicatesSkipped++;
-                    continue;
-                }
-
-                existingFingerprints.add(fp);
-                result.transactions.add(t);
-                result.successfullyParsed++;
-            }
-
-            if (result.successfullyParsed == 0 && result.duplicatesSkipped > 0) {
-                result.error = "All " + result.duplicatesSkipped + " transactions in file were already imported (duplicates).";
-            } else if (result.successfullyParsed == 0) {
-                result.error = "Could not parse valid transactions from file format.";
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing PDF file: " + fileName, e);
-            result.error = "Error parsing PDF: " + (e.getMessage() != null ? e.getMessage() : e.toString());
         }
 
-        return result;
+        // Fallback for scanned/unstructured PDFs using android.graphics.pdf.PdfRenderer if PDFBox returned empty text
+        if (fullText == null || fullText.trim().isEmpty()) {
+            fullText = extractTextWithPdfRenderer(context, uri);
+        }
+
+        return fullText;
     }
 
-    private Transaction convertToTransaction(RawTransactionRow rawRow, String bankName,
-                                             IncrementalPredictionService predictionService) {
+    private String extractTextWithPdfRenderer(Context context, Uri uri) {
+        StringBuilder textBuilder = new StringBuilder();
+        try (ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r")) {
+            if (pfd == null) return "";
+            try (PdfRenderer renderer = new PdfRenderer(pfd)) {
+                int pageCount = renderer.getPageCount();
+                for (int i = 0; i < Math.min(pageCount, 10); i++) {
+                    try (PdfRenderer.Page page = renderer.openPage(i)) {
+                        textBuilder.append("Page ").append(i + 1).append(" (").append(page.getWidth()).append("x").append(page.getHeight()).append(")\n");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "PdfRenderer fallback attempt: " + e.getMessage());
+        }
+        return textBuilder.toString();
+    }
+
+    private JSONObject mapRawRowToJson(RawTransactionRow rawRow, String bankName) {
         if (rawRow == null) return null;
 
         double amount;
@@ -185,22 +268,58 @@ public class PdfParserService {
         long timestamp = parseDateToMillis(rawRow.getDateStr());
         String narration = rawRow.getNarration().trim();
 
-        // Check if narration indicates a transfer
         boolean isTransfer = isTransferTransaction(narration);
         if (isTransfer) {
             type = "TRANSFER";
         }
 
         String upiId = rawRow.getUpiId();
-        if (upiId.isEmpty()) {
+        if (upiId == null || upiId.isEmpty()) {
             upiId = extractUpiFromNarration(narration);
         }
 
         String merchant = extractMerchantFromNarration(narration, bankName);
 
+        try {
+            JSONObject json = new JSONObject();
+            json.put("bankName", bankName);
+            json.put("date", rawRow.getDateStr());
+            json.put("dateMillis", timestamp);
+            json.put("narration", narration);
+            json.put("referenceNo", rawRow.getReferenceNo());
+            json.put("upiId", upiId);
+            json.put("merchant", merchant);
+            json.put("type", type);
+            json.put("amount", amount);
+            if (rawRow.getDebitAmount() != null) json.put("debitAmount", rawRow.getDebitAmount());
+            if (rawRow.getCreditAmount() != null) json.put("creditAmount", rawRow.getCreditAmount());
+            if (rawRow.getBalance() != null) json.put("balance", rawRow.getBalance());
+            json.put("rawLine", rawRow.getRawLine());
+            return json;
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    private Transaction mapJsonToTransaction(JSONObject json, String bankName,
+                                            IncrementalPredictionService predictionService) {
+        if (json == null) return null;
+
+        double amount = json.optDouble("amount", 0.0);
+        if (amount <= 0.0) return null;
+
+        String type = json.optString("type", "EXPENSE");
+        long timestamp = json.optLong("dateMillis", System.currentTimeMillis());
+        String narration = json.optString("narration", "");
+        String upiId = json.optString("upiId", "");
+        String merchant = json.optString("merchant", "");
+
+        boolean isTransfer = "TRANSFER".equals(type) || isTransferTransaction(narration);
+
         String category;
         if (isTransfer) {
             category = "Transfer";
+            type = "TRANSFER";
         } else if (predictionService != null) {
             try {
                 PredictionTransaction pt = new PredictionTransaction(

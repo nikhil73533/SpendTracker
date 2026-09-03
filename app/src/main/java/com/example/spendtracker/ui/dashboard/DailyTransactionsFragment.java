@@ -67,14 +67,21 @@ public class DailyTransactionsFragment extends Fragment {
             @Override
             public List<String> getCategoriesByType(String type) {
                 List<String> list = "INCOME".equals(type) ? incomeCategories : expenseCategories;
+                List<String> result = new ArrayList<>();
                 if (list.isEmpty()) {
+                    result.add("Transfer");
                     if ("INCOME".equals(type)) {
-                        return Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Gift", "Other");
+                        result.addAll(Arrays.asList("Salary", "Allowance", "Bonus", "Petty Cash", "Gift", "Other"));
                     } else {
-                        return Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other");
+                        result.addAll(Arrays.asList("Food", "Rent", "Travel", "Shopping", "Medical", "Other"));
                     }
+                } else {
+                    if (!list.contains("Transfer")) {
+                        result.add("Transfer");
+                    }
+                    result.addAll(list);
                 }
-                return list;
+                return result;
             }
         }, new GroupedTransactionAdapter.DataFormatter() {
             @Override public String formatAmount(double amount) { return viewModel.formatAmount(amount); }
