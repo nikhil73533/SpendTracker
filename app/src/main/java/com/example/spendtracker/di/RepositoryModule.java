@@ -1,8 +1,10 @@
 package com.example.spendtracker.di;
 
+import com.example.spendtracker.data.repository.AnalyticsRepositoryImpl;
 import com.example.spendtracker.data.repository.SecurityRepositoryImpl;
 import com.example.spendtracker.data.repository.TransactionGroupRepositoryImpl;
 import com.example.spendtracker.data.repository.TransactionRepositoryImpl;
+import com.example.spendtracker.domain.repository.AnalyticsRepository;
 import com.example.spendtracker.domain.repository.SecurityRepository;
 import com.example.spendtracker.domain.repository.TransactionGroupRepository;
 import com.example.spendtracker.domain.repository.TransactionRepository;
@@ -23,6 +25,10 @@ import javax.inject.Singleton;
 public abstract class RepositoryModule {
 
 @Binds
+    @Singleton
+    public abstract TransactionRepository bindTransactionRepository(TransactionRepositoryImpl implementation);
+
+    @Binds
     @Singleton
     public abstract AnalyticsRepository bindAnalyticsRepository(AnalyticsRepositoryImpl implementation);
 

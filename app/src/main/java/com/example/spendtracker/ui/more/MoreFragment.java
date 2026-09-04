@@ -29,7 +29,8 @@ public class MoreFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         
         binding.cardLedger.setOnClickListener(v -> safeNavigate(view, R.id.accountsFragment));
-        binding.cardAdvancedAnalytics.setOnClickListener(v -> safeNavigate(view, R.id.chartsFragment));
+        binding.cardAdvancedAnalytics.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_advancedAnalyticsFragment));
+        binding.cardAnalytics.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_advancedAnalyticsFragment));
         binding.cardConfiguration.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_trashFragment));
 
         binding.cardCalcbox.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_calculatorFragment));

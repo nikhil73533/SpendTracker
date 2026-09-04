@@ -136,6 +136,24 @@
                     android:text="@string/label_advanced_analytics" />
             </LinearLayout>
 
+            <!-- Item 5b: Analytics -->
+            <LinearLayout
+                android:id="@+id/card_analytics"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_analytics"
+                    android:src="@android:drawable/ic_menu_sort_by_size" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_analytics" />
+            </LinearLayout>
+
             <!-- Item 6: Backup -->
             <LinearLayout
                 android:id="@+id/card_backup"

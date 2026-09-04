@@ -96,6 +96,12 @@
         <action
             android:id="@+id/action_moreFragment_to_pdfIngestionFragment"
             app:destination="@id/pdfIngestionFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_advancedAnalyticsFragment"
+            app:destination="@id/advancedAnalyticsFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_chartsFragment"
+            app:destination="@id/chartsFragment" />
     </fragment>
 
     <fragment
