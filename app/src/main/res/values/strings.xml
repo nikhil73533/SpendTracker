@@ -16,6 +16,7 @@
     <string name="label_ledger">Ledger</string>
     <string name="label_message_caching">Message Caching</string>
     <string name="label_calcbox">CalcBox</string>
+    <string name="label_analytics">Analytics</string>
     <string name="label_advanced_analytics">Advanced Analytics</string>
     <string name="label_backup">Backup</string>
     <string name="label_feedback">Feedback</string>
