@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -146,5 +147,21 @@ public class PdfParserServiceTest {
         assertEquals("UPI12345", transaction.getReferenceNumber());
         assertEquals("DEBIT", transaction.getDirection());
         assertEquals("DATE_ONLY", transaction.getTimestampPrecision());
+    }
+
+    @Test
+    public void testSyntheticSourceIdForTransactionWithoutReferenceNumber() throws Exception {
+        Method createSourceTransactionId = PdfParserService.class.getDeclaredMethod(
+                "createSourceTransactionId", String.class, String.class, String.class,
+                String.class, String.class, double.class, String.class);
+        createSourceTransactionId.setAccessible(true);
+
+        String sourceId = (String) createSourceTransactionId.invoke(
+                parserService, "ICICI", "", "04/09/2026", "23:06:10",
+                "DEBIT", 1250.50, "UPI PAYMENT TO MERCHANT");
+
+        assertNotNull(sourceId);
+        assertTrue(sourceId.startsWith("SYN:"));
+        assertEquals(68, sourceId.length());
     }
 }

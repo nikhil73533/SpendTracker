@@ -532,7 +532,7 @@ public class PdfParserService {
         if (referenceNo != null && !referenceNo.trim().isEmpty()) {
             return (bankName + ":" + referenceNo.trim()).toUpperCase(Locale.ENGLISH);
         }
-        String input = String.format(Locale.ROOT, "%s|%s|%s|%s|%s|%.2f|%s",
+        String input = String.format(Locale.ROOT, "%s|%s|%s|%s|%.2f|%s",
                 bankName == null ? "" : bankName.trim().toUpperCase(Locale.ENGLISH),
                 date == null ? "" : date.trim(), time == null ? "" : time.trim(),
                 direction == null ? "" : direction, amount,
