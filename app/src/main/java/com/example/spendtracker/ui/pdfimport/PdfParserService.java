@@ -48,10 +48,19 @@ public class PdfParserService {
             "dd/MM/yy",
             "dd-MM-yyyy",
             "dd-MM-yy",
+            "dd.MM.yyyy",
+            "dd.MM.yy",
             "dd MMM yyyy",
+            "dd MMM yy",
+            "dd MMMM yyyy",
             "dd-MMM-yyyy",
             "dd-MMM-yy",
-            "yyyy-MM-dd"
+            "dd/MMM/yyyy",
+            "dd/MMM/yy",
+            "dd-MMMM-yyyy",
+            "yyyy-MM-dd",
+            "yyyy/MM/dd",
+            "yyyy.MM.dd"
     };
 
     private final DuplicateDetector duplicateDetector;
@@ -102,33 +111,47 @@ public class PdfParserService {
         JSONObject rootJson = new JSONObject();
         rootJson.put("fileName", fileName);
 
-        String fullText = extractEmbeddedTextFromPdf(appContext, uri);
-        boolean usedOcr = false;
-        if (!isUsableStatementText(fullText)) {
-            fullText = ocrEngine.recognizePdf(appContext, uri).getText();
-            usedOcr = true;
-        }
-        if (fullText == null || fullText.trim().isEmpty()) {
-            rootJson.put("error", "No readable text found in PDF (scanned or image PDF)");
-            return rootJson;
-        }
-
-        String headerText = fullText.length() > 1000 ? fullText.substring(0, 1000) : fullText;
-
         BankStatementParserFactory factory = new BankStatementParserFactory();
-        BankStatementParserFactory.ParseOutput parseOutput = factory.parse(headerText, fullText);
-        if (parseOutput.rows.isEmpty() && !usedOcr) {
-            fullText = ocrEngine.recognizePdf(appContext, uri).getText();
-            headerText = fullText.length() > 1000 ? fullText.substring(0, 1000) : fullText;
-            parseOutput = factory.parse(headerText, fullText);
-            usedOcr = true;
+        String embeddedText = extractEmbeddedTextFromPdf(appContext, uri);
+        String selectedText = embeddedText == null ? "" : embeddedText;
+        BankStatementParserFactory.ParseOutput parseOutput = factory.parse(
+                headerOf(selectedText), selectedText);
+        boolean usedOcr = false;
+        boolean ocrAttempted = false;
+
+        // Parse embedded text first even when its layout heuristic looks unusual. If it yields
+        // no rows, compare it with OCR instead of blindly replacing one extraction with another.
+        if (!isUsableStatementText(embeddedText) || parseOutput.rows.isEmpty()) {
+            ocrAttempted = true;
+            try {
+                String ocrText = ocrEngine.recognizePdf(appContext, uri).getText();
+                BankStatementParserFactory.ParseOutput ocrOutput = factory.parse(headerOf(ocrText), ocrText);
+                if (ocrOutput.rows.size() > parseOutput.rows.size()
+                        || (selectedText.trim().isEmpty() && !ocrText.trim().isEmpty())) {
+                    selectedText = ocrText;
+                    parseOutput = ocrOutput;
+                    usedOcr = true;
+                }
+            } catch (Exception ocrError) {
+                Log.w(TAG, "OCR fallback failed", ocrError);
+                if (selectedText.trim().isEmpty() || parseOutput.rows.isEmpty()) throw ocrError;
+            }
+        }
+
+        if (selectedText.trim().isEmpty()) {
+            rootJson.put("error", "No readable text found in PDF. The file may be blank, encrypted, or an unsupported scan.");
+            return rootJson;
         }
 
         String bankName = parseOutput.parser.getBankName();
         List<RawTransactionRow> rawRows = parseOutput.rows;
 
+        Log.i(TAG, "Statement extraction=" + (usedOcr ? "OCR" : "PDF_TEXT")
+                + ", textChars=" + selectedText.length() + ", rows=" + rawRows.size());
+
         rootJson.put("bankName", bankName);
         rootJson.put("extractionMethod", usedOcr ? "OCR" : "PDF_TEXT");
+        rootJson.put("ocrAttempted", ocrAttempted);
         rootJson.put("totalFound", rawRows.size());
 
         JSONArray jsonArray = new JSONArray();
@@ -161,7 +184,13 @@ public class PdfParserService {
 
         JSONArray jsonArray = rootJson.optJSONArray("transactions");
         if (jsonArray == null || jsonArray.length() == 0) {
-            result.error = "No transaction table rows identified in PDF statement";
+            String extractionMethod = rootJson.optString("extractionMethod", "PDF_TEXT");
+            boolean ocrAttempted = rootJson.optBoolean("ocrAttempted", false);
+            result.error = "No transaction rows recognized after "
+                    + (ocrAttempted && !"OCR".equals(extractionMethod)
+                    ? "PDF text extraction and OCR"
+                    : ("OCR".equals(extractionMethod) ? "OCR" : "PDF text extraction"))
+                    + ". The statement layout may not expose date and amount columns clearly.";
             return result;
         }
 
@@ -476,9 +505,20 @@ public class PdfParserService {
 
     private boolean isUsableStatementText(String text) {
         if (text == null || text.trim().length() < 80) return false;
-        Matcher dates = Pattern.compile("\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}\\b").matcher(text);
-        Matcher amounts = Pattern.compile("\\b\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})\\b").matcher(text);
+        Matcher dates = Pattern.compile(
+                "(?i)\\b(?:\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}"
+                        + "|\\d{1,2}[-/.](?:\\d{1,2}|[A-Za-z]{3,9})[-/.]\\d{2,4}"
+                        + "|\\d{1,2}(?:\\s+|-)[A-Za-z]{3,9}(?:\\s+|-)\\d{2,4})\\b")
+                .matcher(text);
+        Matcher amounts = Pattern.compile(
+                "(?i)(?:₹|INR\\s*|RS\\.?\\s*)?(?:\\d{1,3}(?:,\\d{2,3})+|\\d+)[.]\\s*\\d{1,2}")
+                .matcher(text);
         return dates.find() && amounts.find();
+    }
+
+    private String headerOf(String text) {
+        if (text == null) return "";
+        return text.length() > 1000 ? text.substring(0, 1000) : text;
     }
 
     private String extractTimeFromNarration(String narration) {

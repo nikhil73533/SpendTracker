@@ -57,11 +57,13 @@ public class BankStatementParserFactory {
         BankStatementParser parser = getParser(textHeader, fullText);
         List<RawTransactionRow> rows = parser.parse(fullText);
 
-        // If specific bank parser yielded 0 rows, fallback to generic parser
-        if (rows.isEmpty() && parser != genericParser) {
+        // Compare against the layout-tolerant parser. Bank-specific parsers are more precise,
+        // but can return only a subset when OCR splits some rows across multiple lines.
+        if (parser != genericParser) {
             List<RawTransactionRow> genericRows = genericParser.parse(fullText);
-            if (!genericRows.isEmpty()) {
-                return new ParseOutput(genericParser, genericRows);
+            if (genericRows.size() > rows.size()) {
+                // Keep the detected bank parser so imported transactions retain the bank name.
+                return new ParseOutput(parser, genericRows);
             }
         }
 

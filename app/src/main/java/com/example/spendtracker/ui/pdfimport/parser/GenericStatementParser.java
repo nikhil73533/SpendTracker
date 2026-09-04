@@ -9,15 +9,28 @@ public class GenericStatementParser implements BankStatementParser {
 
     private static final String BANK_NAME = "Bank";
 
-    // Generic pattern for starting dates
-    private static final Pattern GENERIC_DATE_PATTERN = Pattern.compile(
-            "^(?:\\d{4}-\\d{2}-\\d{2}|\\d{2}[/\\.-]\\d{2}[/\\.-]\\d{2,4}|\\d{1,2}(?:\\s+|-)[A-Za-z]{3}(?:\\s+|-)\\d{2,4})\\b");
+    private static final String DATE_EXPRESSION =
+            "(?:\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}"
+                    + "|\\d{1,2}[-/.](?:\\d{1,2}|[A-Za-z]{3,9})[-/.]\\d{2,4}"
+                    + "|\\d{1,2}(?:\\s+|-)[A-Za-z]{3,9}(?:\\s+|-)\\d{2,4})";
 
-    private static final Pattern AMOUNT_PATTERN = Pattern.compile("[0-9,]+\\.\\d{2}");
+    // A serial-number column is common in exported transaction-history PDFs.
+    private static final Pattern ROW_START_PATTERN = Pattern.compile(
+            "^(?:\\s*\\d{1,4}[.)]?\\s+)?(" + DATE_EXPRESSION + ")(?=\\s|$)",
+            Pattern.CASE_INSENSITIVE);
 
-    private static final String[] IGNORE_KEYWORDS = {
-        "STATEMENT OF ACCOUNT", "ACCOUNT STATEMENT", "Page ", "CLOSING BALANCE", "OPENING BALANCE",
-        "DATE", "NARRATION", "DESCRIPTION", "WITHDRAWAL", "DEPOSIT", "BALANCE", "TRANSACTION DETAILS"
+    // Accept Indian grouping, optional currency labels, OCR spacing around decimals, and DR/CR suffixes.
+    private static final Pattern AMOUNT_PATTERN = Pattern.compile(
+            "(?i)(?:₹|INR\\s*|RS\\.?\\s*)?\\(?[+-]?(?:\\d{1,3}(?:,\\d{2,3})+|\\d+)"
+                    + "(?:[.]\\s*\\d{1,2})\\)?(?:\\s*(?:CR|DR))?");
+
+    private static final String[] METADATA_KEYWORDS = {
+        "STATEMENT OF ACCOUNT", "ACCOUNT STATEMENT", "CLOSING BALANCE", "OPENING BALANCE"
+    };
+
+    private static final String[] COLUMN_KEYWORDS = {
+        "DATE", "NARRATION", "DESCRIPTION", "WITHDRAWAL", "DEPOSIT", "BALANCE", "TRANSACTION DETAILS",
+        "DEBIT", "CREDIT", "AMOUNT", "DR/CR"
     };
 
     @Override
@@ -47,45 +60,58 @@ public class GenericStatementParser implements BankStatementParser {
                 continue;
             }
 
-            Matcher dateMatcher = GENERIC_DATE_PATTERN.matcher(trimmed);
+            Matcher dateMatcher = ROW_START_PATTERN.matcher(trimmed);
             if (dateMatcher.find()) {
-                if (current != null && isRowValid(current)) {
-                    rows.add(current);
-                }
+                addIfValid(rows, current);
 
-                current = parseGenericLine(trimmed, dateMatcher.group(0));
+                current = startRow(trimmed, dateMatcher.group(1), dateMatcher.end());
             } else if (current != null) {
-                if (!trimmed.matches(".*(?:Page|Total|Summary).*")) {
+                if (!Pattern.compile("(?:Page|Total|Summary)", Pattern.CASE_INSENSITIVE).matcher(trimmed).find()) {
                     current.setNarration(current.getNarration() + " " + trimmed.replaceAll("\\s+", " "));
                     current.setRawLine(current.getRawLine() + "\n" + trimmed);
                 }
             }
         }
 
-        if (current != null && isRowValid(current)) {
-            rows.add(current);
-        }
+        addIfValid(rows, current);
 
         return rows;
     }
 
-    private RawTransactionRow parseGenericLine(String line, String dateStr) {
+    private RawTransactionRow startRow(String line, String dateStr, int contentStart) {
         RawTransactionRow row = new RawTransactionRow();
         row.setDateStr(dateStr);
         row.setRawLine(line);
+        row.setNarration(contentStart < line.length() ? line.substring(contentStart).trim() : "");
+        return row;
+    }
+
+    private void addIfValid(List<RawTransactionRow> rows, RawTransactionRow row) {
+        if (row == null) return;
+        populateFields(row);
+        if (isRowValid(row)) rows.add(row);
+    }
+
+    /** Parse the completed logical row, including any continuation/cell lines appended after its date. */
+    private void populateFields(RawTransactionRow row) {
+        String fullRow = row.getRawLine().replace('\n', ' ').replaceAll("\\s+", " ").trim();
 
         List<String> amounts = new ArrayList<>();
-        Matcher am = AMOUNT_PATTERN.matcher(line);
+        Matcher am = AMOUNT_PATTERN.matcher(fullRow);
         while (am.find()) {
-            amounts.add(am.group().replace(",", ""));
+            amounts.add(normalizeAmount(am.group()));
         }
 
-        String upperLine = line.toUpperCase();
-        String lowerLine = line.toLowerCase();
+        String upperLine = fullRow.toUpperCase();
+        String lowerLine = fullRow.toLowerCase();
 
-        boolean isCredit = upperLine.contains(" CR") || upperLine.endsWith(" CR") ||
-                           lowerLine.contains("credited") || lowerLine.contains("deposit") ||
-                           lowerLine.contains("by transfer") || lowerLine.contains("received");
+        boolean isCredit = Pattern.compile("(?:^|\\s)(?:CR|CREDIT)(?:\\s|$)", Pattern.CASE_INSENSITIVE).matcher(fullRow).find()
+                || lowerLine.contains("credited") || lowerLine.contains("deposit")
+                || lowerLine.contains("by transfer") || lowerLine.contains("received")
+                || lowerLine.contains("refund");
+        boolean isDebit = Pattern.compile("(?:^|\\s)(?:DR|DEBIT)(?:\\s|$)", Pattern.CASE_INSENSITIVE).matcher(fullRow).find()
+                || lowerLine.contains("debited") || lowerLine.contains("withdrawal")
+                || lowerLine.contains("purchase") || lowerLine.contains("paid to");
 
         double debit = 0.0;
         double credit = 0.0;
@@ -98,7 +124,7 @@ public class GenericStatementParser implements BankStatementParser {
 
             if (a1 > 0 && a2 == 0) debit = a1;
             else if (a2 > 0 && a1 == 0) credit = a2;
-            else if (isCredit) credit = a2 > 0 ? a2 : a1;
+            else if (isCredit && !isDebit) credit = a2 > 0 ? a2 : a1;
             else debit = a1;
         } else if (amounts.size() == 2) {
             double amt = parseDouble(amounts.get(0));
@@ -115,19 +141,26 @@ public class GenericStatementParser implements BankStatementParser {
         if (credit > 0) row.setCreditAmount(credit);
         row.setBalance(balance);
 
-        String contentAfterDate = line.substring(dateStr.length()).trim();
-        for (String amtStr : amounts) {
-            int idx = contentAfterDate.lastIndexOf(amtStr);
-            if (idx > 0) {
-                contentAfterDate = contentAfterDate.substring(0, idx).trim();
-            }
-        }
+        String narration = row.getNarration().replace('\n', ' ');
+        narration = AMOUNT_PATTERN.matcher(narration).replaceAll(" ")
+                .replaceAll("(?i)(?:^|\\s)(?:CR|DR)(?=\\s|$)", " ")
+                .replaceAll("\\s+", " ").trim();
+        row.setNarration(narration);
+        row.setUpiId(extractUpiId(fullRow));
+        row.setReferenceNo(extractRefNo(fullRow));
+    }
 
-        row.setNarration(contentAfterDate);
-        row.setUpiId(extractUpiId(line));
-        row.setReferenceNo(extractRefNo(line));
-
-        return row;
+    private String normalizeAmount(String value) {
+        return value.toUpperCase()
+                .replace("₹", "")
+                .replace("INR", "")
+                .replaceAll("RS\\.?", "")
+                .replaceAll("(?:CR|DR)", "")
+                .replace("(", "-")
+                .replace(")", "")
+                .replace(",", "")
+                .replaceAll("\\s+", "")
+                .trim();
     }
 
     private String extractUpiId(String line) {
@@ -144,10 +177,18 @@ public class GenericStatementParser implements BankStatementParser {
 
     private boolean shouldIgnoreLine(String line) {
         String upper = line.toUpperCase();
-        for (String kw : IGNORE_KEYWORDS) {
-            if (upper.contains(kw)) return true;
+        for (String keyword : METADATA_KEYWORDS) {
+            if (upper.contains(keyword)) return true;
         }
-        return false;
+        if (upper.matches("^PAGE\\s+\\d+.*")) return true;
+
+        // Only treat a line as a table header when several column labels occur together.
+        // Transaction narrations such as "CASH DEPOSIT" must remain parseable.
+        int columnKeywordCount = 0;
+        for (String keyword : COLUMN_KEYWORDS) {
+            if (upper.contains(keyword)) columnKeywordCount++;
+        }
+        return columnKeywordCount >= 2 && !ROW_START_PATTERN.matcher(line).find();
     }
 
     private boolean isRowValid(RawTransactionRow row) {
