@@ -55,15 +55,14 @@ public class TransactionEntity {
 
     // Statement-import metadata. The nullable sourceTransactionId permits historical/manual
     // transactions while giving imported rows a database-enforced duplicate key.
-    @ColumnInfo(defaultValue = "NULL")
     public String sourceTransactionId;
-    @ColumnInfo(defaultValue = "NULL")
     public String referenceNumber;
+    @NonNull
     @ColumnInfo(defaultValue = "'UNKNOWN'")
     public String direction = "UNKNOWN";
+    @NonNull
     @ColumnInfo(defaultValue = "'DATE_TIME'")
     public String timestampPrecision = "DATE_TIME";
-    @ColumnInfo(defaultValue = "NULL")
     public String importBatchId;
 
     public TransactionEntity() {}

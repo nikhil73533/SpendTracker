@@ -70,7 +70,7 @@ public class PdfIngestionReviewAdapter extends RecyclerView.Adapter<PdfIngestion
             selectedBox.setOnCheckedChangeListener(null);
             selectedBox.setChecked(selected.get(position));
             selectedBox.setOnCheckedChangeListener((button, checked) -> {
-                int adapterPosition = getBindingAdapterPosition();
+                int adapterPosition = getAdapterPosition();
                 if (adapterPosition != RecyclerView.NO_POSITION) selected.set(adapterPosition, checked);
             });
             String counterpartyName = transaction.getReceiverName().isEmpty() ? transaction.getSender() : transaction.getReceiverName();
@@ -80,7 +80,7 @@ public class PdfIngestionReviewAdapter extends RecyclerView.Adapter<PdfIngestion
                     DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault()).format(new Date(transaction.getDate()));
             detail.setText(String.format(Locale.getDefault(), "%s • ₹%.2f • %s • %s", transaction.getDirection(), transaction.getAmount(), date, time));
             edit.setOnClickListener(v -> {
-                int adapterPosition = getBindingAdapterPosition();
+                int adapterPosition = getAdapterPosition();
                 if (adapterPosition != RecyclerView.NO_POSITION) showEditDialog(transaction, adapterPosition);
             });
             itemView.setOnClickListener(v -> selectedBox.setChecked(!selectedBox.isChecked()));
