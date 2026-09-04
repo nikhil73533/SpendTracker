@@ -79,6 +79,9 @@ dependencies {
 
     // PDF Bulk Ingestion
     implementation(libs.pdfbox.android)
+    // On-device OCR for scanned bank statements. Bundled so statements never need to
+    // leave the device and OCR is available on first use.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)

@@ -17,6 +17,7 @@ import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
 import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.domain.model.analytics.FinancialInsight;
+import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.Calendar;
@@ -40,10 +41,12 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     // Date range filter – defaults to today (midnight to now)
     private final MutableLiveData<Long> startDate = new MutableLiveData<>();
     private final MutableLiveData<Long> endDate = new MutableLiveData<>();
+    private final MutableLiveData<AnalyticsGranularity> granularity = new MutableLiveData<>();
 
     // LiveData streams derived from the date range
     private final LiveData<AnalyticsSummary> financialOverview;
     private final LiveData<List<TimeSeriesPoint>> monthlyExpenseTrend;
+    private final LiveData<List<TimeSeriesPoint>> transactionFrequency;
     private final LiveData<List<CategoryAnalytics>> expenseCategoryAnalytics;
     private final LiveData<List<TransactionEntity>> topTransactions;
     private final LiveData<RollingAverage> rollingExpenseAverage;
@@ -70,22 +73,25 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     @Inject
     public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository) {
         this.analyticsRepository = analyticsRepository;
-        // Initialise default date range – start of current day to now
+        // Initialise default date range – start of the current month to now.
         Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.DAY_OF_MONTH, 1);
         cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
-        long todayStart = cal.getTimeInMillis();
+        long monthStart = cal.getTimeInMillis();
         long now = System.currentTimeMillis();
-        startDate.setValue(todayStart);
+        startDate.setValue(monthStart);
         endDate.setValue(now);
+        granularity.setValue(AnalyticsGranularity.MONTH);
 
         // -----------------------------------------------------------
         // Reactive streams – recompute whenever start or end changes
         // -----------------------------------------------------------
         financialOverview = combineDates((s, e) -> analyticsRepository.getFinancialOverview(s, e));
         monthlyExpenseTrend = combineDates((s, e) -> analyticsRepository.getMonthlyTrend(s, e, "EXPENSE"));
+        transactionFrequency = combineDatesAndGranularity((s, e, g) -> analyticsRepository.getTransactionFrequency(s, e, g));
         expenseCategoryAnalytics = combineDates((s, e) -> analyticsRepository.getExpenseCategoryAnalytics(s, e));
         topTransactions = combineDates((s, e) -> analyticsRepository.getTopTransactions(s, e, 5));
         
@@ -115,6 +121,10 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     /** Helper functional interface for repository calls that need a start/end range. */
     private interface DateRangeRepo<T> {
         LiveData<T> call(long start, long end);
+    }
+
+    private interface GranularDateRangeRepo<T> {
+        LiveData<T> call(long start, long end, AnalyticsGranularity granularity);
     }
 
     /**
@@ -148,11 +158,32 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
         return result;
     }
 
+    private <T> LiveData<T> combineDatesAndGranularity(GranularDateRangeRepo<T> repoCall) {
+        MediatorLiveData<T> result = new MediatorLiveData<>();
+        final MutableLiveData<LiveData<T>> currentSource = new MutableLiveData<>();
+        Runnable updateSource = () -> {
+            Long start = startDate.getValue();
+            Long end = endDate.getValue();
+            AnalyticsGranularity selected = granularity.getValue();
+            if (start == null || end == null || selected == null) return;
+            LiveData<T> oldSource = currentSource.getValue();
+            if (oldSource != null) result.removeSource(oldSource);
+            LiveData<T> newSource = repoCall.call(start, end, selected);
+            currentSource.setValue(newSource);
+            result.addSource(newSource, result::setValue);
+        };
+        result.addSource(startDate, ignored -> updateSource.run());
+        result.addSource(endDate, ignored -> updateSource.run());
+        result.addSource(granularity, ignored -> updateSource.run());
+        return result;
+    }
+
     // ---------------------------------------------------
     // Public accessors for the UI
     // ---------------------------------------------------
     public LiveData<AnalyticsSummary> getFinancialOverview() { return financialOverview; }
     public LiveData<List<TimeSeriesPoint>> getMonthlyExpenseTrend() { return monthlyExpenseTrend; }
+    public LiveData<List<TimeSeriesPoint>> getTransactionFrequency() { return transactionFrequency; }
     public LiveData<List<CategoryAnalytics>> getExpenseCategoryAnalytics() { return expenseCategoryAnalytics; }
     public LiveData<List<TransactionEntity>> getTopTransactions() { return topTransactions; }
     public LiveData<RollingAverage> getRollingExpenseAverage() { return rollingExpenseAverage; }
@@ -181,4 +212,6 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     // ---------------------------------------------------
     public void setStartDate(long epochMillis) { startDate.setValue(epochMillis); }
     public void setEndDate(long epochMillis) { endDate.setValue(epochMillis); }
+    public void setGranularity(AnalyticsGranularity value) { granularity.setValue(value); }
 }
+  

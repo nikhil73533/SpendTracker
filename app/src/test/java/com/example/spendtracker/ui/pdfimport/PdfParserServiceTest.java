@@ -120,4 +120,31 @@ public class PdfParserServiceTest {
         assertNotNull(result.error);
         assertTrue(result.error.contains("duplicates"));
     }
+
+    @Test
+    public void testStatementMetadataIsPreservedForStableImports() throws Exception {
+        JSONObject rootJson = new JSONObject();
+        rootJson.put("fileName", "statement.pdf");
+        rootJson.put("bankName", "ICICI");
+        rootJson.put("totalFound", 1);
+        JSONObject row = new JSONObject();
+        row.put("amount", 125.50);
+        row.put("type", "EXPENSE");
+        row.put("direction", "DEBIT");
+        row.put("dateMillis", 1704412800000L);
+        row.put("merchant", "PHARMACY");
+        row.put("referenceNo", "UPI12345");
+        row.put("sourceTransactionId", "ICICI:UPI12345");
+        row.put("timestampPrecision", "DATE_ONLY");
+        rootJson.put("transactions", new JSONArray().put(row));
+
+        PdfParserService.FileImportResult result = parserService.parseJsonToTransactions(rootJson, new ArrayList<>(), null);
+
+        assertEquals(1, result.successfullyParsed);
+        Transaction transaction = result.transactions.get(0);
+        assertEquals("ICICI:UPI12345", transaction.getSourceTransactionId());
+        assertEquals("UPI12345", transaction.getReferenceNumber());
+        assertEquals("DEBIT", transaction.getDirection());
+        assertEquals("DATE_ONLY", transaction.getTimestampPrecision());
+    }
 }

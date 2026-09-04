@@ -2,9 +2,7 @@ package com.example.spendtracker.ui.pdfimport;
 
 import android.content.Context;
 import android.database.Cursor;
-import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
-import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import android.util.Log;
 
@@ -15,6 +13,9 @@ import com.example.spendtracker.data.sms.duplicate.DuplicateDetector;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.pdfimport.parser.BankStatementParserFactory;
 import com.example.spendtracker.ui.pdfimport.parser.RawTransactionRow;
+import com.example.spendtracker.ui.pdfimport.ocr.MlKitPdfOcrEngine;
+import com.example.spendtracker.ui.pdfimport.ocr.OcrDocument;
+import com.example.spendtracker.ui.pdfimport.ocr.OcrEngine;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
@@ -34,6 +35,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 
 public class PdfParserService {
 
@@ -52,9 +55,11 @@ public class PdfParserService {
     };
 
     private final DuplicateDetector duplicateDetector;
+    private final OcrEngine ocrEngine;
 
     public PdfParserService() {
         this.duplicateDetector = new DuplicateDetector();
+        this.ocrEngine = new MlKitPdfOcrEngine();
     }
 
     public synchronized void init(Context context) {
@@ -97,7 +102,12 @@ public class PdfParserService {
         JSONObject rootJson = new JSONObject();
         rootJson.put("fileName", fileName);
 
-        String fullText = extractTextFromPdf(appContext, uri);
+        String fullText = extractEmbeddedTextFromPdf(appContext, uri);
+        boolean usedOcr = false;
+        if (!isUsableStatementText(fullText)) {
+            fullText = ocrEngine.recognizePdf(appContext, uri).getText();
+            usedOcr = true;
+        }
         if (fullText == null || fullText.trim().isEmpty()) {
             rootJson.put("error", "No readable text found in PDF (scanned or image PDF)");
             return rootJson;
@@ -107,16 +117,23 @@ public class PdfParserService {
 
         BankStatementParserFactory factory = new BankStatementParserFactory();
         BankStatementParserFactory.ParseOutput parseOutput = factory.parse(headerText, fullText);
+        if (parseOutput.rows.isEmpty() && !usedOcr) {
+            fullText = ocrEngine.recognizePdf(appContext, uri).getText();
+            headerText = fullText.length() > 1000 ? fullText.substring(0, 1000) : fullText;
+            parseOutput = factory.parse(headerText, fullText);
+            usedOcr = true;
+        }
 
         String bankName = parseOutput.parser.getBankName();
         List<RawTransactionRow> rawRows = parseOutput.rows;
 
         rootJson.put("bankName", bankName);
+        rootJson.put("extractionMethod", usedOcr ? "OCR" : "PDF_TEXT");
         rootJson.put("totalFound", rawRows.size());
 
         JSONArray jsonArray = new JSONArray();
         for (RawTransactionRow rawRow : rawRows) {
-            JSONObject rowJson = mapRawRowToJson(rawRow, bankName);
+            JSONObject rowJson = mapRawRowToJson(rawRow, bankName, usedOcr ? 0.75 : 1.0);
             if (rowJson != null) {
                 jsonArray.put(rowJson);
             }
@@ -149,6 +166,7 @@ public class PdfParserService {
         }
 
         Set<String> existingFingerprints = buildExistingFingerprints(existingTransactions);
+        Set<String> existingSourceIds = buildExistingSourceIds(existingTransactions);
 
         for (int i = 0; i < jsonArray.length(); i++) {
             JSONObject item = jsonArray.optJSONObject(i);
@@ -156,6 +174,11 @@ public class PdfParserService {
 
             Transaction t = mapJsonToTransaction(item, result.bankName, predictionService);
             if (t == null) continue;
+
+            if (!t.getSourceTransactionId().isEmpty() && existingSourceIds.contains(t.getSourceTransactionId())) {
+                result.duplicatesSkipped++;
+                continue;
+            }
 
             String refNo = item.optString("referenceNo", "");
             String fp = duplicateDetector.generateFingerprint(
@@ -169,6 +192,7 @@ public class PdfParserService {
             }
 
             existingFingerprints.add(fp);
+            if (!t.getSourceTransactionId().isEmpty()) existingSourceIds.add(t.getSourceTransactionId());
             result.transactions.add(t);
             result.successfullyParsed++;
         }
@@ -206,7 +230,7 @@ public class PdfParserService {
         }
     }
 
-    private String extractTextFromPdf(Context context, Uri uri) throws Exception {
+    private String extractEmbeddedTextFromPdf(Context context, Uri uri) throws Exception {
         String fullText;
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
             if (is == null) return null;
@@ -223,50 +247,32 @@ public class PdfParserService {
             document.close();
         }
 
-        // Fallback for scanned/unstructured PDFs using android.graphics.pdf.PdfRenderer if PDFBox returned empty text
-        if (fullText == null || fullText.trim().isEmpty()) {
-            fullText = extractTextWithPdfRenderer(context, uri);
-        }
-
         return fullText;
     }
 
-    private String extractTextWithPdfRenderer(Context context, Uri uri) {
-        StringBuilder textBuilder = new StringBuilder();
-        try (ParcelFileDescriptor pfd = context.getContentResolver().openFileDescriptor(uri, "r")) {
-            if (pfd == null) return "";
-            try (PdfRenderer renderer = new PdfRenderer(pfd)) {
-                int pageCount = renderer.getPageCount();
-                for (int i = 0; i < Math.min(pageCount, 10); i++) {
-                    try (PdfRenderer.Page page = renderer.openPage(i)) {
-                        textBuilder.append("Page ").append(i + 1).append(" (").append(page.getWidth()).append("x").append(page.getHeight()).append(")\n");
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "PdfRenderer fallback attempt: " + e.getMessage());
-        }
-        return textBuilder.toString();
-    }
-
-    private JSONObject mapRawRowToJson(RawTransactionRow rawRow, String bankName) {
+    private JSONObject mapRawRowToJson(RawTransactionRow rawRow, String bankName, double extractionConfidence) {
         if (rawRow == null) return null;
 
         double amount;
         String type;
+        String direction;
 
         if (rawRow.getDebitAmount() != null && rawRow.getDebitAmount() > 0) {
             amount = rawRow.getDebitAmount();
             type = "EXPENSE";
+            direction = "DEBIT";
         } else if (rawRow.getCreditAmount() != null && rawRow.getCreditAmount() > 0) {
             amount = rawRow.getCreditAmount();
             type = "INCOME";
+            direction = "CREDIT";
         } else {
             return null;
         }
 
-        long timestamp = parseDateToMillis(rawRow.getDateStr());
         String narration = rawRow.getNarration().trim();
+        String time = extractTimeFromNarration(narration);
+        long timestamp = parseDateToMillis(rawRow.getDateStr(), time);
+        if (timestamp <= 0) return null;
 
         boolean isTransfer = isTransferTransaction(narration);
         if (isTransfer) {
@@ -279,18 +285,30 @@ public class PdfParserService {
         }
 
         String merchant = extractMerchantFromNarration(narration, bankName);
+        String referenceNo = rawRow.getReferenceNo();
+        String sourceTransactionId = createSourceTransactionId(bankName, referenceNo, rawRow.getDateStr(),
+                time, direction, amount, narration);
 
         try {
             JSONObject json = new JSONObject();
             json.put("bankName", bankName);
             json.put("date", rawRow.getDateStr());
+            json.put("time", time.isEmpty() ? JSONObject.NULL : time);
             json.put("dateMillis", timestamp);
+            json.put("timestampPrecision", time.isEmpty() ? "DATE_ONLY" : "DATE_TIME");
             json.put("narration", narration);
-            json.put("referenceNo", rawRow.getReferenceNo());
+            json.put("referenceNo", referenceNo);
+            json.put("sourceTransactionId", sourceTransactionId);
             json.put("upiId", upiId);
             json.put("merchant", merchant);
+            json.put("counterpartyName", merchant);
+            json.put("senderName", "CREDIT".equals(direction) ? merchant : JSONObject.NULL);
+            json.put("receiverName", "DEBIT".equals(direction) ? merchant : JSONObject.NULL);
             json.put("type", type);
+            json.put("direction", direction);
             json.put("amount", amount);
+            json.put("currency", "INR");
+            json.put("extractionConfidence", extractionConfidence);
             if (rawRow.getDebitAmount() != null) json.put("debitAmount", rawRow.getDebitAmount());
             if (rawRow.getCreditAmount() != null) json.put("creditAmount", rawRow.getCreditAmount());
             if (rawRow.getBalance() != null) json.put("balance", rawRow.getBalance());
@@ -309,7 +327,8 @@ public class PdfParserService {
         if (amount <= 0.0) return null;
 
         String type = json.optString("type", "EXPENSE");
-        long timestamp = json.optLong("dateMillis", System.currentTimeMillis());
+        long timestamp = json.optLong("dateMillis", 0L);
+        if (timestamp <= 0L) return null;
         String narration = json.optString("narration", "");
         String upiId = json.optString("upiId", "");
         String merchant = json.optString("merchant", "");
@@ -327,9 +346,6 @@ public class PdfParserService {
                 );
                 IncrementalPredictionResult pred = predictionService.predict(pt);
                 category = (pred != null && pred.getCategory() != null) ? pred.getCategory() : "Uncategorized";
-                if (pred != null && pred.getCategory() != null) {
-                    predictionService.learnAsync(pt, category);
-                }
             } catch (Exception e) {
                 category = "Uncategorized";
             }
@@ -349,6 +365,10 @@ public class PdfParserService {
         t.setUpiId(upiId);
         t.setReceiverName(type.equals("INCOME") ? "" : merchant);
         t.setSender(type.equals("INCOME") ? merchant : "");
+        t.setDirection(json.optString("direction", type.equals("INCOME") ? "CREDIT" : "DEBIT"));
+        t.setReferenceNumber(json.optString("referenceNo", ""));
+        t.setSourceTransactionId(json.optString("sourceTransactionId", ""));
+        t.setTimestampPrecision(json.optString("timestampPrecision", "DATE_TIME"));
         t.setStatus("ACTIVE");
 
         return t;
@@ -403,8 +423,8 @@ public class PdfParserService {
         return "";
     }
 
-    private long parseDateToMillis(String dateStr) {
-        if (dateStr == null || dateStr.trim().isEmpty()) return System.currentTimeMillis();
+    private long parseDateToMillis(String dateStr, String time) {
+        if (dateStr == null || dateStr.trim().isEmpty()) return 0L;
         String cleanDate = dateStr.trim();
 
         for (String format : DATE_FORMATS) {
@@ -413,12 +433,22 @@ public class PdfParserService {
                 sdf.setLenient(false);
                 Date parsed = sdf.parse(cleanDate);
                 if (parsed != null) {
+                    if (time == null || time.trim().isEmpty()) return parsed.getTime();
+                    String[] timeFormats = {"HH:mm:ss", "HH:mm", "hh:mm a", "hh:mm:ss a"};
+                    for (String timeFormat : timeFormats) {
+                        try {
+                            SimpleDateFormat withTime = new SimpleDateFormat(format + " " + timeFormat, Locale.ENGLISH);
+                            withTime.setLenient(false);
+                            Date dated = withTime.parse(cleanDate + " " + time.trim().toUpperCase(Locale.ENGLISH));
+                            if (dated != null) return dated.getTime();
+                        } catch (ParseException ignored) { }
+                    }
                     return parsed.getTime();
                 }
             } catch (ParseException ignored) {
             }
         }
-        return System.currentTimeMillis();
+        return 0L;
     }
 
     private Set<String> buildExistingFingerprints(List<Transaction> existingTransactions) {
@@ -428,11 +458,53 @@ public class PdfParserService {
         for (Transaction t : existingTransactions) {
             String fp = duplicateDetector.generateFingerprint(
                     t.getBankName(), t.getAmount(), t.getDate(),
-                    "", "", t.getReceiverName().isEmpty() ? t.getSender() : t.getReceiverName()
+                    t.getReferenceNumber(), "", t.getReceiverName().isEmpty() ? t.getSender() : t.getReceiverName()
             );
             fps.add(fp);
         }
         return fps;
+    }
+
+    private Set<String> buildExistingSourceIds(List<Transaction> transactions) {
+        Set<String> sourceIds = new HashSet<>();
+        if (transactions == null) return sourceIds;
+        for (Transaction transaction : transactions) {
+            if (!transaction.getSourceTransactionId().isEmpty()) sourceIds.add(transaction.getSourceTransactionId());
+        }
+        return sourceIds;
+    }
+
+    private boolean isUsableStatementText(String text) {
+        if (text == null || text.trim().length() < 80) return false;
+        Matcher dates = Pattern.compile("\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}\\b").matcher(text);
+        Matcher amounts = Pattern.compile("\\b\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})\\b").matcher(text);
+        return dates.find() && amounts.find();
+    }
+
+    private String extractTimeFromNarration(String narration) {
+        if (narration == null) return "";
+        Matcher matcher = Pattern.compile("\\b(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?(?:\\s?(?:AM|PM))?\\b", Pattern.CASE_INSENSITIVE).matcher(narration);
+        return matcher.find() ? matcher.group().trim() : "";
+    }
+
+    private String createSourceTransactionId(String bankName, String referenceNo, String date, String time,
+                                             String direction, double amount, String narration) {
+        if (referenceNo != null && !referenceNo.trim().isEmpty()) {
+            return (bankName + ":" + referenceNo.trim()).toUpperCase(Locale.ENGLISH);
+        }
+        String input = String.format(Locale.ROOT, "%s|%s|%s|%s|%s|%.2f|%s",
+                bankName == null ? "" : bankName.trim().toUpperCase(Locale.ENGLISH),
+                date == null ? "" : date.trim(), time == null ? "" : time.trim(),
+                direction == null ? "" : direction, amount,
+                narration == null ? "" : narration.replaceAll("\\s+", " ").trim().toUpperCase(Locale.ENGLISH));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder("SYN:");
+            for (byte b : digest) hex.append(String.format(Locale.ROOT, "%02x", b));
+            return hex.toString();
+        } catch (Exception ignored) {
+            return "SYN:" + Integer.toHexString(input.hashCode());
+        }
     }
 
     private String getFileName(Context context, Uri uri) {

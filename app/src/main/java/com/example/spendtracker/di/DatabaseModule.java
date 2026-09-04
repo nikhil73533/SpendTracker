@@ -58,7 +58,7 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -75,7 +75,7 @@ public class DatabaseModule {
 
         return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -383,6 +383,25 @@ public class DatabaseModule {
             try { database.execSQL("ALTER TABLE categories ADD COLUMN unlimitedAnnually INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
             try { database.execSQL("ALTER TABLE categories ADD COLUMN annuallyBudget REAL NOT NULL DEFAULT 0.0"); } catch (Exception ignored) {}
             try { database.execSQL("ALTER TABLE categories ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
+        }
+    };
+
+    /**
+     * Migration 12 → 13:
+     * Persist statement provenance so that imports can be reviewed, traced, and safely
+     * deduplicated without changing the existing internal auto-increment transaction ID.
+     */
+    static final Migration MIGRATION_12_13 = new Migration(12, 13) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE transactions ADD COLUMN sourceTransactionId TEXT");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN referenceNumber TEXT");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN direction TEXT NOT NULL DEFAULT 'UNKNOWN'");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN timestampPrecision TEXT NOT NULL DEFAULT 'DATE_TIME'");
+            database.execSQL("ALTER TABLE transactions ADD COLUMN importBatchId TEXT");
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_status_date_type_category ON transactions (status, date, type, category)");
+            // SQLite unique indexes allow multiple NULLs, preserving existing manual rows.
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_transactions_sourceTransactionId ON transactions (sourceTransactionId)");
         }
     };
 

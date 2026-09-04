@@ -3,12 +3,14 @@ package com.example.spendtracker.domain.repository;
 import androidx.lifecycle.LiveData;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
+import com.example.spendtracker.domain.model.BulkImportResult;
 import java.util.List;
 
 public interface TransactionRepository {
     LiveData<List<Transaction>> getTransactions();
     LiveData<List<Transaction>> getTransactionsInRange(long start, long end);
     void addTransaction(Transaction transaction);
+    void importTransactions(List<Transaction> transactions, ImportCallback callback);
     void updateTransaction(Transaction transaction);
     void deleteTransaction(Transaction transaction);
     LiveData<Transaction> getTransactionById(int id);
@@ -53,4 +55,8 @@ public interface TransactionRepository {
 
     // ── Cloned Database Sync ────────────────────────────────────────────────
     void restoreFromClone();
+
+    interface ImportCallback {
+        void onComplete(BulkImportResult result);
+    }
 }

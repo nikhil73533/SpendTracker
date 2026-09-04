@@ -34,6 +34,10 @@ public interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insertTransaction(TransactionEntity transaction);
 
+    /** Used by statement imports. A sourceTransactionId conflict means an already imported row. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    List<Long> insertTransactionsIgnore(List<TransactionEntity> transactions);
+
     @Update
     void updateTransaction(TransactionEntity transaction);
 
@@ -258,6 +262,23 @@ public interface TransactionDao {
     @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' GROUP BY category")
     List<CategorySum> getCategoryAveragesSync();
 
+    // ── Dashboard chart aggregates ──────────────────────────────────────────
+    // Date bounds are half-open so adjacent periods never double count records.
+    @Query("SELECT strftime('%Y-%m-%d', date/1000, 'unixepoch', 'localtime') AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS incomeAmount, COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expenseAmount, COALESCE(SUM(CASE WHEN type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%' THEN amount ELSE 0 END), 0) AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND date >= :start AND date < :end GROUP BY strftime('%Y-%m-%d', date/1000, 'unixepoch', 'localtime') ORDER BY label")
+    List<AnalyticsBucket> getDailyAnalyticsBucketsSync(long start, long end);
+
+    @Query("SELECT strftime('%Y-W%W', date/1000, 'unixepoch', 'localtime') AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS incomeAmount, COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expenseAmount, COALESCE(SUM(CASE WHEN type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%' THEN amount ELSE 0 END), 0) AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND date >= :start AND date < :end GROUP BY strftime('%Y-W%W', date/1000, 'unixepoch', 'localtime') ORDER BY label")
+    List<AnalyticsBucket> getWeeklyAnalyticsBucketsSync(long start, long end);
+
+    @Query("SELECT strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS incomeAmount, COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expenseAmount, COALESCE(SUM(CASE WHEN type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%' THEN amount ELSE 0 END), 0) AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND date >= :start AND date < :end GROUP BY strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') ORDER BY label")
+    List<AnalyticsBucket> getMonthlyAnalyticsBucketsSync(long start, long end);
+
+    @Query("SELECT strftime('%Y', date/1000, 'unixepoch', 'localtime') AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS incomeAmount, COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expenseAmount, COALESCE(SUM(CASE WHEN type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%' THEN amount ELSE 0 END), 0) AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND date >= :start AND date < :end GROUP BY strftime('%Y', date/1000, 'unixepoch', 'localtime') ORDER BY label")
+    List<AnalyticsBucket> getAnnualAnalyticsBucketsSync(long start, long end);
+
+    @Query("SELECT CASE WHEN category IS NULL OR TRIM(category) = '' THEN 'Uncategorized' ELSE category END AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, 0 AS incomeAmount, COALESCE(SUM(amount), 0) AS expenseAmount, 0 AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND date >= :start AND date < :end GROUP BY CASE WHEN category IS NULL OR TRIM(category) = '' THEN 'Uncategorized' ELSE category END ORDER BY transactionCount DESC, totalAmount DESC")
+    List<AnalyticsBucket> getExpenseCategoryFrequencySync(long start, long end);
+
     class CategorySum {
         public String category;
         public double total;
@@ -275,5 +296,15 @@ public interface TransactionDao {
         public double totalExpense;
         public double totalIncome;
         public int unreadCount;
+    }
+
+    /** Typed aggregate used by the advanced dashboard instead of overloading CategorySum. */
+    class AnalyticsBucket {
+        public String label;
+        public int transactionCount;
+        public double totalAmount;
+        public double incomeAmount;
+        public double expenseAmount;
+        public double transferAmount;
     }
 }

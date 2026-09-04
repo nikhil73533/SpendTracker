@@ -14,6 +14,7 @@ import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
 import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
 import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
+import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -72,6 +73,33 @@ public class AnalyticsService {
         return points;
     }
 
+    /** Transaction counts by the UI-selected bucket. Values remain counts, not currency. */
+    public List<TimeSeriesPoint> getTransactionFrequency(long start, long end, AnalyticsGranularity granularity) {
+        List<TransactionDao.AnalyticsBucket> raw;
+        switch (granularity) {
+            case DAY:
+                raw = transactionDao.getDailyAnalyticsBucketsSync(start, end);
+                break;
+            case WEEK:
+                raw = transactionDao.getWeeklyAnalyticsBucketsSync(start, end);
+                break;
+            case YEAR:
+                raw = transactionDao.getAnnualAnalyticsBucketsSync(start, end);
+                break;
+            case MONTH:
+            default:
+                raw = transactionDao.getMonthlyAnalyticsBucketsSync(start, end);
+                break;
+        }
+        List<TimeSeriesPoint> result = new ArrayList<>();
+        for (TransactionDao.AnalyticsBucket bucket : raw) {
+            // secondary/tertiary retain amount context for tooltips without changing count chart.
+            result.add(new TimeSeriesPoint(bucket.label, bucket.transactionCount,
+                    bucket.totalAmount, bucket.expenseAmount));
+        }
+        return result;
+    }
+
     public List<TimeSeriesPoint> getIncomeExpenseTrend(long start, long end) {
         List<TransactionDao.CategorySum> incomeRaw = transactionDao.getMonthlyTotalsSync(start, end, "INCOME");
         List<TransactionDao.CategorySum> expenseRaw = transactionDao.getMonthlyTotalsSync(start, end, "EXPENSE");
@@ -100,16 +128,34 @@ public class AnalyticsService {
     }
 
     public List<CategoryAnalytics> getExpenseCategoryAnalytics(long start, long end) {
-        List<TransactionDao.CategorySum> sums = transactionDao.getExpenseCategorySummariesSync(start, end);
+        List<TransactionDao.AnalyticsBucket> buckets = transactionDao.getExpenseCategoryFrequencySync(start, end);
         List<CategoryAnalytics> result = new ArrayList<>();
-        for (TransactionDao.CategorySum cs : sums) {
-            result.add(new CategoryAnalytics(cs.category, cs.total, 0));
+        for (TransactionDao.AnalyticsBucket bucket : buckets) {
+            result.add(new CategoryAnalytics(bucket.label, bucket.totalAmount, bucket.transactionCount));
         }
         return result;
     }
 
     public RollingAverage getRollingExpenseAverage(int months) {
-        return new RollingAverage(months, 0.0, 0.0, 0.0, 0.0, false); // Simplified placeholder
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.DAY_OF_MONTH, 1);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        long currentMonthStart = calendar.getTimeInMillis();
+        calendar.add(Calendar.MONTH, -Math.max(months, 1));
+        long windowStart = calendar.getTimeInMillis();
+        long now = System.currentTimeMillis();
+        double total = transactionDao.getTotalExpenseSync(windowStart, now);
+        int count = transactionDao.getExpenseCountSync(windowStart, now);
+        double currentMonth = transactionDao.getTotalExpenseSync(currentMonthStart, now);
+        int monthsWithData = transactionDao.getMonthlyTotalsSync(windowStart, now, "EXPENSE").size();
+        double averageMonthly = total / Math.max(months, 1);
+        double averageCount = ((double) count) / Math.max(months, 1);
+        double averageTransaction = count == 0 ? 0 : total / count;
+        return new RollingAverage(months, averageMonthly, averageCount, averageTransaction,
+                currentMonth, monthsWithData >= Math.min(months, 2));
     }
 
     public BehaviorAnalytics getDayNightAnalytics(long start, long end) {
@@ -217,7 +263,25 @@ public class AnalyticsService {
         long durationMs = end - start;
         int days = (int) (durationMs / (1000 * 60 * 60 * 24));
         if (days <= 0) days = 1;
-        return new ForecastResult(totalExpense, days, 30, 0.0, 0.0, 0.0);
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(start);
+        calendar.add(Calendar.MONTH, -1);
+        long oneMonthStart = calendar.getTimeInMillis();
+        calendar.setTimeInMillis(start);
+        calendar.add(Calendar.MONTH, -3);
+        long threeMonthStart = calendar.getTimeInMillis();
+        calendar.setTimeInMillis(start);
+        calendar.add(Calendar.MONTH, -6);
+        long sixMonthStart = calendar.getTimeInMillis();
+        double previousDaily = dailyAverage(oneMonthStart, start);
+        double threeMonthDaily = dailyAverage(threeMonthStart, start);
+        double sixMonthDaily = dailyAverage(sixMonthStart, start);
+        return new ForecastResult(totalExpense, days, Math.max(days, 30), previousDaily, threeMonthDaily, sixMonthDaily);
+    }
+
+    private double dailyAverage(long start, long end) {
+        int days = Math.max(1, (int) ((end - start) / (1000L * 60 * 60 * 24)));
+        return transactionDao.getTotalExpenseSync(start, end) / days;
     }
     
     public MonthlyComparison getMonthOverMonthComparison(long start, long end) {
@@ -225,8 +289,12 @@ public class AnalyticsService {
         long duration = end - start;
         long previousStart = start - duration;
         double previousTotal = transactionDao.getTotalExpenseSync(previousStart, start);
-        
-        return new MonthlyComparison("Current Month", "Previous Month", currentTotal, previousTotal, 0.0, 0.0, 0, 0);
+        double currentIncome = transactionDao.getTotalIncomeSync(start, end);
+        double previousIncome = transactionDao.getTotalIncomeSync(previousStart, start);
+        int currentCount = transactionDao.getExpenseCountSync(start, end);
+        int previousCount = transactionDao.getExpenseCountSync(previousStart, start);
+        return new MonthlyComparison("Current Period", "Previous Period", currentTotal, previousTotal,
+                currentIncome, previousIncome, currentCount, previousCount);
     }
 
     public List<MerchantAnalytics> getMerchantAnalytics(long start, long end) {
@@ -265,9 +333,9 @@ public class AnalyticsService {
         
         List<CategoryAnalytics> result = new ArrayList<>();
         for (TransactionDao.CategorySum c : current) {
-            CategoryAnalytics ca = new CategoryAnalytics(c.category, c.total);
-            // Additional growth tracking fields could be populated here
-            result.add(ca);
+            double previous = prevMap.getOrDefault(c.category, 0.0);
+            double growth = previous > 0 ? ((c.total - previous) / previous) * 100 : 0.0;
+            result.add(new CategoryAnalytics(c.category, c.total, 0, growth, previous > 0));
         }
         return result;
     }
@@ -292,9 +360,9 @@ public class AnalyticsService {
         List<TransactionEntity> large = new ArrayList<>();
         double totalLarge = 0;
         for (TransactionEntity t : active) {
-            if ("EXPENSE".equals(t.getType()) && t.getAmount() >= threshold) {
+            if ("EXPENSE".equals(t.type) && t.amount >= threshold) {
                 large.add(t);
-                totalLarge += t.getAmount();
+                totalLarge += t.amount;
             }
         }
         return new LargeTransactionSummary(threshold, large.size(), totalLarge, large);
@@ -308,12 +376,12 @@ public class AnalyticsService {
 
         List<AnomalyTransaction> anomalies = new ArrayList<>();
         for (TransactionEntity t : txns) {
-            if (!"EXPENSE".equals(t.getType())) continue;
-            double avg = avgMap.getOrDefault(t.getCategory(), 0.0);
-            if (avg > 0 && t.getAmount() > avg * 3) {
-                double multiple = t.getAmount() / avg;
-                anomalies.add(new AnomalyTransaction(t.getId(), t.getAmount(), t.getReceiverName(), 
-                        t.getCategory(), t.getDate(), "Significantly higher than category average", avg, multiple));
+            if (!"EXPENSE".equals(t.type)) continue;
+            double avg = avgMap.getOrDefault(t.category, 0.0);
+            if (avg > 0 && t.amount > avg * 3) {
+                double multiple = t.amount / avg;
+                anomalies.add(new AnomalyTransaction(t.id, t.amount, t.receiverName,
+                        t.category, t.date, "Significantly higher than category average", avg, multiple));
             }
         }
         return anomalies;

@@ -68,6 +68,13 @@
                         android:layout_height="wrap_content"
                         android:checked="true"
                         android:text="Monthly" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipAnnual"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Annual" />
                         
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
@@ -256,11 +263,36 @@
 
             </androidx.gridlayout.widget.GridLayout>
 
-            <!-- Expense Trend Chart -->
+            <!-- Transaction-frequency volume chart -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Expense Trend"
+                android:text="Transaction Frequency"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="?attr/colorSurfaceVariant"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="12dp">
+
+                <com.github.mikephil.charting.charts.BarChart
+                    android:id="@+id/volumeChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:padding="16dp" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Monthly debit/credit total line chart -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Monthly Cash Flow"
                 android:textAppearance="?attr/textAppearanceTitleMedium"
                 android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold"
@@ -286,6 +318,30 @@
                         android:layout_height="200dp" />
                         
                 </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Category Transaction Frequency"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textColor="?attr/colorOnSurface"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="?attr/colorSurfaceVariant"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="12dp">
+
+                <com.github.mikephil.charting.charts.HorizontalBarChart
+                    android:id="@+id/categoryFrequencyChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="240dp"
+                    android:padding="16dp" />
             </com.google.android.material.card.MaterialCardView>
             
             <!-- Dynamic Sections (Insights, Top Categories, etc) will be added to this RecyclerView -->

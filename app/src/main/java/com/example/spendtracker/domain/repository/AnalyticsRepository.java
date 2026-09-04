@@ -14,6 +14,7 @@ import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
 import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.domain.model.analytics.FinancialInsight;
+import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.List;
 
@@ -24,6 +25,7 @@ public interface AnalyticsRepository {
     LiveData<AnalyticsSummary> getFinancialOverview(long start, long end);
     LiveData<List<TransactionEntity>> getTopTransactions(long start, long end, int limit);
     LiveData<List<TimeSeriesPoint>> getMonthlyTrend(long start, long end, String type);
+    LiveData<List<TimeSeriesPoint>> getTransactionFrequency(long start, long end, AnalyticsGranularity granularity);
     LiveData<List<CategoryAnalytics>> getExpenseCategoryAnalytics(long start, long end);
     LiveData<RollingAverage> getRollingExpenseAverage(int months);
     LiveData<TransactionVolume> getTransactionVolume(long start, long end, String periodLabel);

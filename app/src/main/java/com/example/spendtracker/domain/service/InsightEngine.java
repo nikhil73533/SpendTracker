@@ -23,12 +23,13 @@ public class InsightEngine {
         List<FinancialInsight> insights = new ArrayList<>();
         
         MonthlyComparison comp = analyticsService.getMonthOverMonthComparison(start, end);
-        if (comp.getDifference() > 0) {
-            insights.add(new FinancialInsight("Your spending has increased by " + String.format("%.1f", comp.getPercentChange()) + "% compared to the previous period.", 
-                FinancialInsight.Priority.HIGH, FinancialInsight.InsightType.SPENDING_INCREASE, comp.getDifference()));
-        } else if (comp.getDifference() < 0) {
-            insights.add(new FinancialInsight("Great job! Your spending decreased by " + String.format("%.1f", Math.abs(comp.getPercentChange())) + "% compared to the previous period.", 
-                FinancialInsight.Priority.MEDIUM, FinancialInsight.InsightType.SPENDING_DECREASE, Math.abs(comp.getDifference())));
+        double difference = comp.getCurrentExpense() - comp.getPreviousExpense();
+        if (difference > 0) {
+            insights.add(new FinancialInsight("Your spending has increased by " + String.format("%.1f", comp.getExpenseChangePercent()) + "% compared to the previous period.",
+                FinancialInsight.Priority.HIGH, FinancialInsight.InsightType.SPENDING_INCREASE, difference));
+        } else if (difference < 0) {
+            insights.add(new FinancialInsight("Great job! Your spending decreased by " + String.format("%.1f", Math.abs(comp.getExpenseChangePercent())) + "% compared to the previous period.",
+                FinancialInsight.Priority.MEDIUM, FinancialInsight.InsightType.SPENDING_DECREASE, Math.abs(difference)));
         }
 
         SpendingConcentration conc = analyticsService.getSpendingConcentration(start, end);

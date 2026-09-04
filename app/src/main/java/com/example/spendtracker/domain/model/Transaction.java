@@ -21,6 +21,16 @@ public class Transaction {
     private String transactionGroupName; // Transient, populated from join
     private String status;
     private long deletedAt;
+    /** Stable ID supplied by a statement, or deterministically generated during import. */
+    private String sourceTransactionId;
+    /** Bank reference/UTR/UPI number, kept separately from the app primary key. */
+    private String referenceNumber;
+    /** Statement direction: DEBIT, CREDIT, or UNKNOWN. Kept distinct from app type. */
+    private String direction;
+    /** DATE_TIME when a statement supplied a time, otherwise DATE_ONLY. */
+    private String timestampPrecision;
+    /** Identifies the user-approved PDF import batch that created this transaction. */
+    private String importBatchId;
     /** Transient: ML prediction confidence score (0.0–1.0), not persisted to DB */
     private double confidenceScore;
 
@@ -30,6 +40,8 @@ public class Transaction {
         this.transactionGroupId = 0;
         this.categoryEmoji = "";
         this.confidenceScore = 1.0; // Default: fully confident (user-entered or confirmed)
+        this.direction = "UNKNOWN";
+        this.timestampPrecision = "DATE_TIME";
     }
 
     public Transaction(int id, double amount, String category, String description, String type, long date, String source, String sender, String upiId, String receiverName, String bankName, String sourceType) {
@@ -60,6 +72,8 @@ public class Transaction {
         this.status = "ACTIVE";
         this.deletedAt = 0;
         this.transactionGroupId = 0;
+        this.direction = "UNKNOWN";
+        this.timestampPrecision = "DATE_TIME";
     }
 
     public int getId() { return id; }
@@ -104,4 +118,14 @@ public class Transaction {
     public void setDeletedAt(long deletedAt) { this.deletedAt = deletedAt; }
     public double getConfidenceScore() { return confidenceScore; }
     public void setConfidenceScore(double confidenceScore) { this.confidenceScore = confidenceScore; }
+    public String getSourceTransactionId() { return sourceTransactionId != null ? sourceTransactionId : ""; }
+    public void setSourceTransactionId(String sourceTransactionId) { this.sourceTransactionId = sourceTransactionId; }
+    public String getReferenceNumber() { return referenceNumber != null ? referenceNumber : ""; }
+    public void setReferenceNumber(String referenceNumber) { this.referenceNumber = referenceNumber; }
+    public String getDirection() { return direction != null ? direction : "UNKNOWN"; }
+    public void setDirection(String direction) { this.direction = direction != null ? direction : "UNKNOWN"; }
+    public String getTimestampPrecision() { return timestampPrecision != null ? timestampPrecision : "DATE_TIME"; }
+    public void setTimestampPrecision(String timestampPrecision) { this.timestampPrecision = timestampPrecision != null ? timestampPrecision : "DATE_TIME"; }
+    public String getImportBatchId() { return importBatchId != null ? importBatchId : ""; }
+    public void setImportBatchId(String importBatchId) { this.importBatchId = importBatchId; }
 }

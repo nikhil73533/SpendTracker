@@ -16,6 +16,7 @@ import com.example.spendtracker.di.ClonedDatabase;
 import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
+import com.example.spendtracker.domain.model.BulkImportResult;
 import com.example.spendtracker.domain.repository.TransactionRepository;
 import com.example.spendtracker.util.BudgetNotificationHelper;
 import dagger.hilt.android.qualifiers.ApplicationContext;
@@ -249,6 +250,64 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                 }
             }
         });
+    }
+
+    @Override
+    public void importTransactions(List<Transaction> transactions, ImportCallback callback) {
+        executorService.execute(() -> {
+            if (transactions == null || transactions.isEmpty()) {
+                notifyImport(callback, new BulkImportResult(0, 0, 0, null));
+                return;
+            }
+            try {
+                List<TransactionEntity> entities = new ArrayList<>();
+                for (Transaction transaction : transactions) {
+                    TransactionEntity entity = mapToEntity(transaction);
+                    if (entity != null) {
+                        entity.id = 0;
+                        assignTransactionGroup(entity);
+                        entities.add(entity);
+                    }
+                }
+                List<Long> ids = transactionDao.insertTransactionsIgnore(entities);
+                int imported = 0;
+                int duplicates = 0;
+                List<TransactionEntity> insertedForClone = new ArrayList<>();
+                for (int i = 0; i < ids.size(); i++) {
+                    if (ids.get(i) != null && ids.get(i) > 0) {
+                        imported++;
+                        insertedForClone.add(entities.get(i));
+                    } else {
+                        duplicates++;
+                    }
+                }
+                // Keep the recovery clone aligned. It is intentionally best-effort: the main
+                // encrypted database is the source of truth and has already committed atomically.
+                if (!insertedForClone.isEmpty()) {
+                    clonedTransactionDao.insertTransactionsIgnore(insertedForClone);
+                }
+                notifyImport(callback, new BulkImportResult(entities.size(), imported, duplicates, null));
+            } catch (Exception e) {
+                notifyImport(callback, new BulkImportResult(transactions.size(), 0, 0,
+                        e.getMessage() != null ? e.getMessage() : "Unable to import transactions"));
+            }
+        });
+    }
+
+    private void notifyImport(ImportCallback callback, BulkImportResult result) {
+        if (callback != null) callback.onComplete(result);
+    }
+
+    private void assignTransactionGroup(TransactionEntity entity) {
+        entity.transactionGroupId = 0;
+        List<TransactionGroupEntity> groups = transactionGroupDao.getActiveGroupsForDate(entity.date);
+        for (TransactionGroupEntity group : groups) {
+            List<String> categories = transactionGroupDao.getGroupCategoriesSync(group.id);
+            if (categories.contains(entity.category)) {
+                entity.transactionGroupId = group.id;
+                return;
+            }
+        }
     }
 
     @Override
@@ -601,6 +660,11 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         t.setTransactionGroupId(entity.transactionGroupId);
         t.setStatus(entity.status != null ? entity.status : "ACTIVE");
         t.setDeletedAt(entity.deletedAt);
+        t.setSourceTransactionId(entity.sourceTransactionId);
+        t.setReferenceNumber(entity.referenceNumber);
+        t.setDirection(entity.direction);
+        t.setTimestampPrecision(entity.timestampPrecision);
+        t.setImportBatchId(entity.importBatchId);
         // Populate group name for display
         if (entity.transactionGroupId > 0 && transactionGroupDao != null) {
             try {
@@ -624,6 +688,15 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         entity.transactionGroupId = transaction.getTransactionGroupId();
         entity.status = transaction.getStatus() != null ? transaction.getStatus() : "ACTIVE";
         entity.deletedAt = transaction.getDeletedAt();
+        entity.sourceTransactionId = emptyToNull(transaction.getSourceTransactionId());
+        entity.referenceNumber = emptyToNull(transaction.getReferenceNumber());
+        entity.direction = transaction.getDirection();
+        entity.timestampPrecision = transaction.getTimestampPrecision();
+        entity.importBatchId = emptyToNull(transaction.getImportBatchId());
         return entity;
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.trim().isEmpty() ? null : value;
     }
 }

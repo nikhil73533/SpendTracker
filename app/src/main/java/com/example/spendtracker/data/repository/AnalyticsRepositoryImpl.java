@@ -15,11 +15,11 @@ import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
 import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.domain.model.analytics.FinancialInsight;
+import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
 import com.example.spendtracker.domain.service.AnalyticsService;
 import com.example.spendtracker.domain.service.InsightEngine;
-import com.example.spendtracker.domain.service.AnalyticsService;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,6 +61,13 @@ public class AnalyticsRepositoryImpl implements AnalyticsRepository {
     public LiveData<List<TimeSeriesPoint>> getMonthlyTrend(long start, long end, String type) {
         MutableLiveData<List<TimeSeriesPoint>> liveData = new MutableLiveData<>();
         executor.execute(() -> liveData.postValue(analyticsService.getMonthlyTrend(start, end, type)));
+        return liveData;
+    }
+
+    @Override
+    public LiveData<List<TimeSeriesPoint>> getTransactionFrequency(long start, long end, AnalyticsGranularity granularity) {
+        MutableLiveData<List<TimeSeriesPoint>> liveData = new MutableLiveData<>();
+        executor.execute(() -> liveData.postValue(analyticsService.getTransactionFrequency(start, end, granularity)));
         return liveData;
     }
 

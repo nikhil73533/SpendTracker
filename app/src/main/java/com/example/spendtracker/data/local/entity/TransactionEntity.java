@@ -9,7 +9,9 @@ import androidx.room.PrimaryKey;
 @Entity(tableName = "transactions",
         indices = {
             @Index(value = {"transactionGroupId"}),
-            @Index(value = {"status"})
+            @Index(value = {"status"}),
+            @Index(value = {"status", "date", "type", "category"}),
+            @Index(value = {"sourceTransactionId"}, unique = true)
         })
 public class TransactionEntity {
     @PrimaryKey(autoGenerate = true)
@@ -50,6 +52,19 @@ public class TransactionEntity {
     // Deletion timestamp (0 means not deleted)
     @ColumnInfo(defaultValue = "0")
     public long deletedAt = 0L;
+
+    // Statement-import metadata. The nullable sourceTransactionId permits historical/manual
+    // transactions while giving imported rows a database-enforced duplicate key.
+    @ColumnInfo(defaultValue = "NULL")
+    public String sourceTransactionId;
+    @ColumnInfo(defaultValue = "NULL")
+    public String referenceNumber;
+    @ColumnInfo(defaultValue = "'UNKNOWN'")
+    public String direction = "UNKNOWN";
+    @ColumnInfo(defaultValue = "'DATE_TIME'")
+    public String timestampPrecision = "DATE_TIME";
+    @ColumnInfo(defaultValue = "NULL")
+    public String importBatchId;
 
     public TransactionEntity() {}
 
