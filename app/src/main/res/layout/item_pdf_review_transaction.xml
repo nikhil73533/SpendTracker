@@ -53,5 +53,16 @@
             android:text="Edit"
             android:textColor="?attr/colorPrimary"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_review_delete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:contentDescription="Delete transaction"
+            android:padding="8dp"
+            android:text="Delete"
+            android:textColor="#EF5350"
+            android:textStyle="bold" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

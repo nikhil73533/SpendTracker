@@ -173,7 +173,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:layout_marginBottom="12dp"
-                        android:text="Deselect rows you do not want, or edit a counterparty and amount before importing."
+                        android:text="Delete rows you do not want, or edit the counterparty, amount, date, and transaction type before importing."
                         android:textColor="@color/text_secondary"
                         android:textSize="13sp" />
 

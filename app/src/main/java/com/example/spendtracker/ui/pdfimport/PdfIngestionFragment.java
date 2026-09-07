@@ -90,7 +90,7 @@ public class PdfIngestionFragment extends Fragment {
         RecyclerView results = view.findViewById(R.id.rv_file_results);
         results.setLayoutManager(new LinearLayoutManager(requireContext()));
         results.setAdapter(resultAdapter);
-        reviewAdapter = new PdfIngestionReviewAdapter();
+        reviewAdapter = new PdfIngestionReviewAdapter(viewModel::removeFromReview);
         RecyclerView review = view.findViewById(R.id.rv_review_transactions);
         review.setLayoutManager(new LinearLayoutManager(requireContext()));
         review.setAdapter(reviewAdapter);
@@ -134,10 +134,8 @@ public class PdfIngestionFragment extends Fragment {
             for (PdfParserService.FileImportResult result : state.fileResults) parsed += result.successfullyParsed;
             tvResultSummaryHeader.setText(state.fileResults.size() + " PDF file(s) processed • " + parsed + " candidate transaction(s) extracted");
         }
-        if (!state.reviewTransactions.isEmpty()) {
-            cardReview.setVisibility(View.VISIBLE);
-            reviewAdapter.submit(state.reviewTransactions);
-        }
+        reviewAdapter.submit(state.reviewTransactions);
+        cardReview.setVisibility(state.reviewTransactions.isEmpty() ? View.GONE : View.VISIBLE);
         BulkImportResult result = state.importResult;
         if (result != null) {
             if (result.isSuccess()) {

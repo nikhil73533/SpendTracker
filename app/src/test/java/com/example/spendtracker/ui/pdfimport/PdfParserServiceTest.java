@@ -164,4 +164,27 @@ public class PdfParserServiceTest {
         assertTrue(sourceId.startsWith("SYN:"));
         assertEquals(68, sourceId.length());
     }
+
+    @Test
+    public void debitFundTransferRemainsExpenseWhenStatementDirectionIsDebit() throws Exception {
+        JSONObject rootJson = new JSONObject();
+        rootJson.put("fileName", "statement.pdf");
+        rootJson.put("bankName", "SBI");
+        rootJson.put("totalFound", 1);
+        JSONObject row = new JSONObject();
+        row.put("amount", 2000.00);
+        row.put("type", "EXPENSE");
+        row.put("direction", "DEBIT");
+        row.put("dateMillis", 1788451200000L);
+        row.put("narration", "FUND TRANSFER TO MERCHANT");
+        row.put("merchant", "MERCHANT");
+        rootJson.put("transactions", new JSONArray().put(row));
+
+        PdfParserService.FileImportResult result = parserService.parseJsonToTransactions(
+                rootJson, new ArrayList<>(), null);
+
+        assertEquals(1, result.transactions.size());
+        assertEquals("EXPENSE", result.transactions.get(0).getType());
+        assertEquals("DEBIT", result.transactions.get(0).getDirection());
+    }
 }

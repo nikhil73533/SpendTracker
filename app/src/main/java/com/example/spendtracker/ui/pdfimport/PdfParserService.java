@@ -60,7 +60,18 @@ public class PdfParserService {
             "dd-MMMM-yyyy",
             "yyyy-MM-dd",
             "yyyy/MM/dd",
-            "yyyy.MM.dd"
+            "yyyy.MM.dd",
+            "d/MM/yyyy",
+            "d/MM/yy",
+            "d-MM-yyyy",
+            "d-MM-yy",
+            "d MMM yyyy",
+            "d MMM yy",
+            "d MMMM yyyy",
+            "d-MMM-yyyy",
+            "d-MMM-yy",
+            "d/MMM/yyyy",
+            "d/MMM/yy"
     };
 
     private final DuplicateDetector duplicateDetector;
@@ -303,11 +314,6 @@ public class PdfParserService {
         long timestamp = parseDateToMillis(rawRow.getDateStr(), time);
         if (timestamp <= 0) return null;
 
-        boolean isTransfer = isTransferTransaction(narration);
-        if (isTransfer) {
-            type = "TRANSFER";
-        }
-
         String upiId = rawRow.getUpiId();
         if (upiId == null || upiId.isEmpty()) {
             upiId = extractUpiFromNarration(narration);
@@ -362,12 +368,9 @@ public class PdfParserService {
         String upiId = json.optString("upiId", "");
         String merchant = json.optString("merchant", "");
 
-        boolean isTransfer = "TRANSFER".equals(type) || isTransferTransaction(narration);
-
         String category;
-        if (isTransfer) {
+        if ("TRANSFER".equals(type)) {
             category = "Transfer";
-            type = "TRANSFER";
         } else if (predictionService != null) {
             try {
                 PredictionTransaction pt = new PredictionTransaction(
@@ -401,14 +404,6 @@ public class PdfParserService {
         t.setStatus("ACTIVE");
 
         return t;
-    }
-
-    private boolean isTransferTransaction(String narration) {
-        if (narration == null) return false;
-        String lower = narration.toLowerCase();
-        return lower.contains("transfer to") || lower.contains("transfer from") ||
-               lower.contains("own account") || lower.contains("self transfer") ||
-               lower.contains("fund transfer") || lower.contains("sweep in") || lower.contains("sweep out");
     }
 
     private String extractMerchantFromNarration(String narration, String bankName) {

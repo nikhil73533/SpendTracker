@@ -102,6 +102,16 @@ public class PdfIngestionViewModel extends ViewModel {
                 result.isSuccess() ? new ArrayList<>() : approved, result, result.getError())));
     }
 
+    /** Removes a candidate only from the pending preview; no persisted transaction is touched. */
+    public void removeFromReview(Transaction transaction) {
+        UiState previous = state.getValue();
+        if (previous == null || transaction == null) return;
+        List<Transaction> remaining = new ArrayList<>(previous.reviewTransactions);
+        if (!remaining.remove(transaction)) return;
+        state.setValue(new UiState(previous.isLoading, previous.progress, previous.completedFiles,
+                previous.totalFiles, previous.fileResults, remaining, previous.importResult, previous.error));
+    }
+
     @Override
     protected void onCleared() {
         executor.shutdownNow();
