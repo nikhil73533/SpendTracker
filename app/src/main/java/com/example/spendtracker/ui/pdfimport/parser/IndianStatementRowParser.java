@@ -36,6 +36,9 @@ final class IndianStatementRowParser {
             "(?i)(?:^|[\\s/\\-])(?:DR|DEBIT|DEBITED|WITHDRAWAL|WITHDRAWN|WDL|PURCHASE)(?=$|[\\s/\\-])"
                     + "|\\b(?:TO\\s+TRANSFER|PAID\\s+TO)\\b");
 
+    private static final Pattern UNDATED_TRANSACTION_START = Pattern.compile(
+            "(?i)^(?:BP|CR|DR|DD|SO|ATM|POS|UPI|NEFT|IMPS|RTGS|ACH|NACH|CHQ|CHEQUE|CARD|CASH)\\b");
+
     private static final String[] DATE_FORMATS = {
             "yyyy-MM-dd", "yyyy/MM/dd", "yyyy.MM.dd",
             "d/MM/yyyy", "d/MM/yy", "d-MM-yyyy", "d-MM-yy", "d.MM.yyyy", "d.MM.yy",
@@ -49,7 +52,7 @@ final class IndianStatementRowParser {
         List<CandidateRow> candidates = new ArrayList<>();
         if (fullText == null || fullText.trim().isEmpty()) return new ArrayList<>();
 
-        boolean separateDebitCreditColumns = hasSeparateDebitCreditColumns(fullText);
+        ColumnLayout columnLayout = detectColumnLayout(fullText);
         CandidateRow current = null;
 
         for (String sourceLine : fullText.split("\\r?\\n")) {
@@ -58,15 +61,20 @@ final class IndianStatementRowParser {
 
             Matcher dateMatcher = ROW_START_PATTERN.matcher(line);
             if (dateMatcher.find()) {
-                addCandidate(candidates, current, separateDebitCreditColumns);
+                addCandidate(candidates, current, columnLayout);
                 current = new CandidateRow(dateMatcher.group(1), line,
                         dateMatcher.end() < line.length() ? line.substring(dateMatcher.end()).trim() : "");
             } else if (current != null && !isFooter(line)) {
-                current.rawLine += "\n" + line;
-                current.narration += " " + line.replaceAll("\\s+", " ");
+                if (isUndatedTransactionStart(line) && hasAmount(current.rawLine)) {
+                    addCandidate(candidates, current, columnLayout);
+                    current = new CandidateRow(current.date, line, line);
+                } else {
+                    current.rawLine += "\n" + line;
+                    current.narration += " " + line.replaceAll("\\s+", " ");
+                }
             }
         }
-        addCandidate(candidates, current, separateDebitCreditColumns);
+        addCandidate(candidates, current, columnLayout);
         reconcileAmbiguousDirections(candidates);
 
         List<RawTransactionRow> rows = new ArrayList<>();
@@ -86,23 +94,34 @@ final class IndianStatementRowParser {
         return rows;
     }
 
-    private static void addCandidate(List<CandidateRow> result, CandidateRow row, boolean separateColumns) {
+    private static void addCandidate(List<CandidateRow> result, CandidateRow row, ColumnLayout columnLayout) {
         if (row == null) return;
-        populateAmounts(row, separateColumns);
-        if (row.amount > 0) result.add(row);
+        populateAmounts(row, columnLayout);
+        if (row.amount > 0 || row.balance != null) result.add(row);
     }
 
-    private static void populateAmounts(CandidateRow row, boolean separateColumns) {
+    private static void populateAmounts(CandidateRow row, ColumnLayout columnLayout) {
         String flatRow = row.rawLine.replace('\n', ' ').replaceAll("\\s+", " ").trim();
         List<AmountToken> amounts = extractAmounts(flatRow);
         if (amounts.isEmpty()) return;
 
+        if (isBalanceOnlyRow(row.narration)) {
+            row.balance = amounts.get(amounts.size() - 1).absoluteValue;
+            row.directionCertain = true;
+            row.cleanedNarration = cleanNarration(row.narration);
+            return;
+        }
+
         Direction markerDirection = directionFromText(flatRow);
         AmountToken transactionAmount;
 
-        if (separateColumns && amounts.size() >= 3) {
-            AmountToken debit = amounts.get(amounts.size() - 3);
-            AmountToken credit = amounts.get(amounts.size() - 2);
+        if (columnLayout.isSeparate() && amounts.size() >= 3) {
+            AmountToken firstDirectionColumn = amounts.get(amounts.size() - 3);
+            AmountToken secondDirectionColumn = amounts.get(amounts.size() - 2);
+            AmountToken debit = columnLayout == ColumnLayout.CREDIT_DEBIT
+                    ? secondDirectionColumn : firstDirectionColumn;
+            AmountToken credit = columnLayout == ColumnLayout.CREDIT_DEBIT
+                    ? firstDirectionColumn : secondDirectionColumn;
             row.balance = amounts.get(amounts.size() - 1).absoluteValue;
             if (debit.absoluteValue > 0 && credit.absoluteValue == 0) {
                 row.credit = false;
@@ -178,6 +197,15 @@ final class IndianStatementRowParser {
         return amounts;
     }
 
+    private static boolean hasAmount(String row) {
+        return !extractAmounts(row.replace('\n', ' ').replaceAll("\\s+", " ")).isEmpty();
+    }
+
+    private static boolean isUndatedTransactionStart(String line) {
+        Matcher matcher = UNDATED_TRANSACTION_START.matcher(line);
+        return matcher.find() && matcher.end() < line.length() && !line.substring(matcher.end()).trim().isEmpty();
+    }
+
     private static Direction directionFromText(String row) {
         boolean credit = CREDIT_MARKER.matcher(row).find();
         boolean debit = DEBIT_MARKER.matcher(row).find();
@@ -243,20 +271,44 @@ final class IndianStatementRowParser {
         return numeric.find() ? numeric.group(1) : "";
     }
 
-    private static boolean hasSeparateDebitCreditColumns(String text) {
+    private static ColumnLayout detectColumnLayout(String text) {
+        ColumnLayout detected = ColumnLayout.UNKNOWN;
         for (String sourceLine : text.split("\\r?\\n")) {
-            String line = sourceLine.toUpperCase(Locale.ENGLISH);
-            if (ROW_START_PATTERN.matcher(sourceLine.trim()).find()) continue;
-            boolean debitCredit = containsColumn(line, "DEBIT") && containsColumn(line, "CREDIT");
-            boolean withdrawalDeposit = (containsColumn(line, "WITHDRAWAL") || containsColumn(line, "WITHDRAWALS"))
-                    && (containsColumn(line, "DEPOSIT") || containsColumn(line, "DEPOSITS"));
-            if (debitCredit || withdrawalDeposit) return true;
+            String trimmed = sourceLine.trim();
+            if (ROW_START_PATTERN.matcher(trimmed).find()) break;
+            String line = trimmed.toUpperCase(Locale.ENGLISH);
+
+            if (Pattern.compile("\\b(?:DEBIT\\s*/\\s*CREDIT|DR\\s*/\\s*CR|CR\\s*/\\s*DR)\\b")
+                    .matcher(line).find()) {
+                detected = ColumnLayout.SINGLE_AMOUNT;
+                continue;
+            }
+
+            int debit = firstColumnIndex(line, "DEBIT", "WITHDRAWAL", "WITHDRAWALS", "PAID OUT");
+            int credit = firstColumnIndex(line, "CREDIT", "DEPOSIT", "DEPOSITS", "PAID IN");
+            if (debit >= 0 && credit >= 0) {
+                detected = debit < credit ? ColumnLayout.DEBIT_CREDIT : ColumnLayout.CREDIT_DEBIT;
+            }
         }
-        return false;
+        return detected;
     }
 
-    private static boolean containsColumn(String line, String name) {
-        return Pattern.compile("(?:^|\\s)" + name + "(?:\\s|$)").matcher(line).find();
+    private static int firstColumnIndex(String line, String... labels) {
+        int first = -1;
+        for (String label : labels) {
+            Matcher matcher = Pattern.compile("\\b" + label.replace(" ", "\\s+") + "\\b").matcher(line);
+            if (matcher.find() && (first < 0 || matcher.start() < first)) first = matcher.start();
+        }
+        return first;
+    }
+
+    private static boolean isBalanceOnlyRow(String narration) {
+        String upper = narration == null ? "" : narration.toUpperCase(Locale.ENGLISH);
+        return upper.contains("OPENING BALANCE") || upper.contains("CLOSING BALANCE")
+                || upper.contains("BALANCE BROUGHT FORWARD") || upper.contains("BROUGHT FORWARD")
+                || upper.contains("BALANCE CARRIED FORWARD") || upper.contains("CARRIED FORWARD")
+                || Pattern.compile("(?:^|\\s)B/F(?:\\s|$)").matcher(upper).find()
+                || Pattern.compile("(?:^|\\s)C/F(?:\\s|$)").matcher(upper).find();
     }
 
     private static boolean isMetadataOrHeader(String line) {
@@ -276,6 +328,17 @@ final class IndianStatementRowParser {
     }
 
     private enum Direction { DEBIT, CREDIT, UNKNOWN }
+
+    private enum ColumnLayout {
+        DEBIT_CREDIT,
+        CREDIT_DEBIT,
+        SINGLE_AMOUNT,
+        UNKNOWN;
+
+        boolean isSeparate() {
+            return this == DEBIT_CREDIT || this == CREDIT_DEBIT;
+        }
+    }
 
     private static final class AmountToken {
         final double absoluteValue;

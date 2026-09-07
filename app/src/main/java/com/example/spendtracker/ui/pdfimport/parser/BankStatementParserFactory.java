@@ -15,6 +15,8 @@ public class BankStatementParserFactory {
         parsers.add(new SBIStatementParser());
         parsers.add(new AxisStatementParser());
         parsers.add(new IndianBankStatementParser());
+        parsers.add(new AUBankStatementParser());
+        parsers.add(new HSBCStatementParser());
         genericParser = new GenericStatementParser();
     }
 

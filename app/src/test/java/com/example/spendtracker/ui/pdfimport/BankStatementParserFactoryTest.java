@@ -4,6 +4,8 @@ import com.example.spendtracker.ui.pdfimport.parser.BankStatementParserFactory;
 import com.example.spendtracker.ui.pdfimport.parser.HDFCStatementParser;
 import com.example.spendtracker.ui.pdfimport.parser.ICICIStatementParser;
 import com.example.spendtracker.ui.pdfimport.parser.GenericStatementParser;
+import com.example.spendtracker.ui.pdfimport.parser.AUBankStatementParser;
+import com.example.spendtracker.ui.pdfimport.parser.HSBCStatementParser;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -22,6 +24,8 @@ public class BankStatementParserFactoryTest {
     public void testParserSelection() {
         assertTrue(factory.getParser("HDFC BANK STATEMENT", "Text") instanceof HDFCStatementParser);
         assertTrue(factory.getParser("ICICI BANK STATEMENT", "Text") instanceof ICICIStatementParser);
+        assertTrue(factory.getParser("AU SMALL FINANCE BANK", "Text") instanceof AUBankStatementParser);
+        assertTrue(factory.getParser("HSBC UK YOUR STATEMENT", "Text") instanceof HSBCStatementParser);
         assertTrue(factory.getParser("CUSTOM STATEMENT", "Text") instanceof GenericStatementParser);
     }
 
