@@ -89,4 +89,8 @@ dependencies {
     testImplementation("org.json:json:20231013")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.core.testing) {
+        // The instrumentation tests use the executor rule, not its JVM Mockito dependency.
+        exclude(group = "org.mockito", module = "mockito-core")
+    }
 }

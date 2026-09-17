@@ -68,7 +68,7 @@ public class PdfIngestionResultAdapter extends RecyclerView.Adapter<PdfIngestion
 
                 StringBuilder sb = new StringBuilder();
                 sb.append(result.bankName).append(" • ");
-                sb.append(result.successfullyParsed).append(" transactions imported");
+                sb.append(result.successfullyParsed).append(" transactions extracted");
 
                 if (result.duplicatesSkipped > 0) {
                     sb.append(" (").append(result.duplicatesSkipped).append(" duplicates skipped)");
@@ -77,6 +77,7 @@ public class PdfIngestionResultAdapter extends RecyclerView.Adapter<PdfIngestion
                 if (result.error != null) {
                     sb.append(" [Warning: ").append(result.error).append("]");
                 }
+                if (result.warning != null) sb.append("\n").append(result.warning);
 
                 tvFileDetail.setText(sb.toString());
                 tvFileDetail.setTextColor(Color.parseColor("#B0BEC5"));

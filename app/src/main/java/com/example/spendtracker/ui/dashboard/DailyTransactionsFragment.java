@@ -4,6 +4,14 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
+import androidx.activity.OnBackPressedCallback;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.snackbar.Snackbar;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -27,6 +35,9 @@ public class DailyTransactionsFragment extends Fragment {
     private GroupedTransactionAdapter adapter;
     private List<String> incomeCategories = new ArrayList<>();
     private List<String> expenseCategories = new ArrayList<>();
+    private OnBackPressedCallback selectionBack;
+    private ItemTouchHelper swipeHelper;
+    private ArrayList<Integer> restoredSelection;
 
     @Nullable
     @Override
@@ -40,9 +51,97 @@ public class DailyTransactionsFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(requireParentFragment()).get(DashboardViewModel.class);
         transactionViewModel = new ViewModelProvider(requireParentFragment()).get(TransactionViewModel.class);
+        if (savedInstanceState != null) restoredSelection = savedInstanceState.getIntegerArrayList("dailySelection");
 
         setupRecyclerView();
+        selectionBack = new OnBackPressedCallback(false) {
+            @Override public void handleOnBackPressed() { adapter.clearSelection(); }
+        };
+        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), selectionBack);
+        adapter.enableSelection(this::renderSelection);
+        binding.btnCancelSelection.setOnClickListener(v -> adapter.clearSelection());
+        binding.btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelected());
+        binding.checkSelectAll.setOnClickListener(v -> adapter.selectAll(binding.checkSelectAll.isChecked()));
+        setupSwipe();
         observeViewModel();
+    }
+
+    private void renderSelection() {
+        if (binding == null) return;
+        binding.selectionBar.setVisibility(adapter.isSelecting() ? View.VISIBLE : View.GONE);
+        binding.tvSelectionCount.setText(getString(R.string.selection_count, adapter.getSelectionCount()));
+        binding.checkSelectAll.setChecked(adapter.getTransactionCount() > 0
+                && adapter.getSelectionCount() == adapter.getTransactionCount());
+        binding.btnDeleteSelected.setEnabled(adapter.getSelectionCount() > 0);
+        if (selectionBack != null) selectionBack.setEnabled(adapter.isSelecting());
+    }
+
+    private void confirmDeleteSelected() {
+        List<Transaction> selected = adapter.getSelectedTransactions();
+        if (selected.isEmpty()) return;
+        new android.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.delete_selected_title)
+                .setMessage(getString(R.string.delete_selected_message, selected.size()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.delete_selected, (dialog, which) -> {
+                    transactionViewModel.deleteTransactions(selected);
+                    if (binding != null) adapter.clearSelection();
+                }).show();
+    }
+
+    private void setupSwipe() {
+        swipeHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.RIGHT) {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override public int getMovementFlags(@NonNull RecyclerView recycler, @NonNull RecyclerView.ViewHolder holder) {
+                return makeMovementFlags(0, !adapter.isSelecting()
+                        && adapter.transactionAt(holder.getAdapterPosition()) != null ? ItemTouchHelper.RIGHT : 0);
+            }
+            @Override public boolean onMove(@NonNull RecyclerView recycler, @NonNull RecyclerView.ViewHolder holder,
+                                             @NonNull RecyclerView.ViewHolder target) { return false; }
+            @Override public void onSwiped(@NonNull RecyclerView.ViewHolder holder, int direction) {
+                Transaction transaction = adapter.transactionAt(holder.getAdapterPosition());
+                if (transaction != null) transactionViewModel.deleteTransactions(java.util.Collections.singletonList(transaction));
+            }
+            @Override public void onChildDraw(@NonNull Canvas canvas, @NonNull RecyclerView recycler,
+                    @NonNull RecyclerView.ViewHolder holder, float dx, float dy, int state, boolean active) {
+                if (dx > 0) {
+                    View item = holder.itemView;
+                    paint.setColor(0xFFD32F2F);
+                    canvas.drawRect(item.getLeft(), item.getTop(), item.getLeft() + dx, item.getBottom(), paint);
+                    paint.setColor(android.graphics.Color.WHITE);
+                    paint.setTextSize(16 * getResources().getDisplayMetrics().scaledDensity);
+                    canvas.save();
+                    canvas.clipRect(item.getLeft(), item.getTop(), item.getLeft() + dx, item.getBottom());
+                    canvas.drawText(getString(R.string.delete_selected), item.getLeft() + 20,
+                            item.getTop() + item.getHeight() / 2f, paint);
+                    canvas.restore();
+                }
+                super.onChildDraw(canvas, recycler, holder, dx, dy, state, active);
+            }
+        });
+        swipeHelper.attachToRecyclerView(binding.rvTransactions);
+        // The dashboard is a ViewPager2. Reserve rightward gestures that start on a transaction.
+        binding.rvTransactions.addOnItemTouchListener(new RecyclerView.SimpleOnItemTouchListener() {
+            private float downX, downY;
+            private boolean transactionTouch;
+            @Override public boolean onInterceptTouchEvent(@NonNull RecyclerView recycler, @NonNull MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    downX = event.getX();
+                    downY = event.getY();
+                    View child = recycler.findChildViewUnder(downX, downY);
+                    transactionTouch = child != null && adapter.transactionAt(recycler.getChildAdapterPosition(child)) != null;
+                    recycler.getParent().requestDisallowInterceptTouchEvent(transactionTouch);
+                } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE && transactionTouch) {
+                    float dx = event.getX() - downX, dy = event.getY() - downY;
+                    int slop = ViewConfiguration.get(recycler.getContext()).getScaledTouchSlop();
+                    if (Math.abs(dx) > slop || Math.abs(dy) > slop)
+                        recycler.getParent().requestDisallowInterceptTouchEvent(dx > 0 && Math.abs(dx) > Math.abs(dy));
+                } else if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    recycler.getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return false;
+            }
+        });
     }
 
     private void setupRecyclerView() {
@@ -93,13 +192,33 @@ public class DailyTransactionsFragment extends Fragment {
 
     private void observeViewModel() {
         viewModel.getGroupedTransactions().observe(getViewLifecycleOwner(), items -> {
+            adapter.submitList(items == null ? java.util.Collections.emptyList() : items, () -> {
+                if (binding != null && restoredSelection != null && adapter.getTransactionCount() > 0) {
+                    adapter.restoreSelection(restoredSelection);
+                    restoredSelection = null;
+                }
+            });
             if (items == null || items.isEmpty()) {
                 binding.layoutEmptyState.setVisibility(View.VISIBLE);
                 binding.rvTransactions.setVisibility(View.GONE);
             } else {
                 binding.layoutEmptyState.setVisibility(View.GONE);
                 binding.rvTransactions.setVisibility(View.VISIBLE);
-                adapter.submitList(items);
+            }
+        });
+
+        transactionViewModel.getDeletionResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null) return;
+            transactionViewModel.consumeDeletionResult();
+            if (result.error != null) {
+                adapter.notifyDataSetChanged(); // Reset a swiped row if persistence failed.
+                Snackbar.make(binding.getRoot(), result.error, Snackbar.LENGTH_LONG).show();
+            } else {
+                Snackbar snackbar = Snackbar.make(binding.getRoot(),
+                        getString(R.string.batch_deleted, result.count), Snackbar.LENGTH_LONG);
+                if (result.count > 0 && result.undoId != null)
+                    snackbar.setAction(R.string.undo, v -> transactionViewModel.restoreTransaction(result.undoId));
+                snackbar.show();
             }
         });
 
@@ -124,7 +243,19 @@ public class DailyTransactionsFragment extends Fragment {
     }
 
     @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (adapter != null && adapter.isSelecting()) {
+            ArrayList<Integer> ids = new ArrayList<>();
+            for (Transaction transaction : adapter.getSelectedTransactions()) ids.add(transaction.getId());
+            outState.putIntegerArrayList("dailySelection", ids);
+        }
+    }
+
+    @Override
     public void onDestroyView() {
+        if (swipeHelper != null) swipeHelper.attachToRecyclerView(null);
+        binding.rvTransactions.setAdapter(null);
         super.onDestroyView();
         binding = null;
     }

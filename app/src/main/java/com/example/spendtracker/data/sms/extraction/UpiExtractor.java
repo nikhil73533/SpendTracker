@@ -11,8 +11,9 @@ import java.util.regex.Pattern;
 public class UpiExtractor {
 
     private static final Pattern NUMERIC_REF = Pattern.compile(
-        "(?i)(?:UPI[:/]?\\s*(?:Ref\\.?\\s*(?:No\\.?)?|No\\.?|Ref\\s+No\\.?)?|" +
-        "Ref\\s+No\\.?|Txn\\s*(?:Id|No|Ref)\\.?)[:\\s]?\\s*([0-9]{6,20})");
+        "(?i)\\b(?:UPI(?:[/:-](?:DR|CR))?[:/]?\\s*(?:Ref\\.?\\s*(?:No\\.?)?|No\\.?)?|" +
+        "Ref(?:erence)?\\s*(?:No\\.?)?|UTR|RRN|Txn\\s*(?:Id|No|Ref)\\.?)[:/#\\s-]*" +
+        "((?=[A-Z0-9]{6,30}(?![A-Z0-9]))(?=[A-Z0-9]*\\d)[A-Z0-9]{6,30})(?![A-Z0-9@])");
 
     private static final Pattern VPA = Pattern.compile(
         "([a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+)");
@@ -22,7 +23,7 @@ public class UpiExtractor {
 
     public ExtractionResult<String> extractReferenceId(String msg) {
         if (msg == null) return ExtractionResult.empty();
-        Matcher m = NUMERIC_REF.matcher(msg);
+        Matcher m = NUMERIC_REF.matcher(TransactionText.core(msg));
         if (m.find() && m.group(1) != null) return ExtractionResult.of(m.group(1), 0.95);
         return ExtractionResult.empty();
     }

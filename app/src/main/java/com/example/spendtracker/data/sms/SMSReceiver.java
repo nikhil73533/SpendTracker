@@ -8,6 +8,7 @@ import android.telephony.SmsMessage;
 import android.util.Log;
 
 import com.example.spendtracker.data.sms.model.ParseResult;
+import com.example.spendtracker.data.sms.preprocessing.SmsMessageAssembler;
 import com.example.spendtracker.domain.usecase.AddTransactionUseCase;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.prediction.domain.service.IncrementalPredictionService;
@@ -78,11 +79,16 @@ public class SMSReceiver extends BroadcastReceiver {
         if (pdus == null) return;
 
         String format = bundle.getString("format");
+        java.util.List<SmsMessageAssembler.Part> parts = new java.util.ArrayList<>();
         for (Object pdu : pdus) {
             SmsMessage smsMessage = SmsMessage.createFromPdu((byte[]) pdu, format);
-            String sender = smsMessage.getDisplayOriginatingAddress();
-            String messageBody = smsMessage.getMessageBody();
-            long timestamp = smsMessage.getTimestampMillis();
+            if (smsMessage != null) parts.add(new SmsMessageAssembler.Part(
+                    smsMessage.getDisplayOriginatingAddress(), smsMessage.getMessageBody(), smsMessage.getTimestampMillis()));
+        }
+        for (SmsMessageAssembler.Part message : SmsMessageAssembler.assemble(parts)) {
+            String sender = message.sender;
+            String messageBody = message.body;
+            long timestamp = message.timestamp;
 
             // Proactive alert system for repeating messages
             alertParsingService.processMessage(sender, messageBody, timestamp);
@@ -97,7 +103,7 @@ public class SMSReceiver extends BroadcastReceiver {
                 if (result.getStatus() != null) {
                     Log.d(TAG, "SMS not stored: " + result.getStatus());
                 }
-                return;
+                continue;
             }
 
             Transaction originalTransaction = result.getTransaction();
@@ -108,7 +114,7 @@ public class SMSReceiver extends BroadcastReceiver {
             // TRANSFER type — category is always "Transfer", no ML needed
             if ("TRANSFER".equalsIgnoreCase(originalTransaction.getType())) {
                 addTransactionUseCase.execute(originalTransaction);
-                return;
+                continue;
             }
 
             // Prediction pipeline for INCOME / EXPENSE
@@ -130,20 +136,10 @@ public class SMSReceiver extends BroadcastReceiver {
 
                 IncrementalPredictionResult predResult = predictionService.predict(pt);
                 if (predResult != null && predResult.getCategory() != null) {
-                    transactionToSave = new Transaction(
-                        originalTransaction.getId(),
-                        originalTransaction.getAmount(),
-                        predResult.getCategory(),
-                        originalTransaction.getDescription(),
-                        originalTransaction.getType(),
-                        originalTransaction.getDate(),
-                        originalTransaction.getSource(),
-                        originalTransaction.getSender(),
-                        originalTransaction.getUpiId(),
-                        originalTransaction.getReceiverName(),
-                        originalTransaction.getBankName(),
-                        originalTransaction.getSourceType()
-                    );
+                    // Keep reference/direction/time provenance when assigning a category.
+                    if (!predResult.needsUserConfirmation()) {
+                        transactionToSave.setCategory(predResult.getCategory());
+                    }
                     // Store confidence score for suspicious transaction detection
                     transactionToSave.setConfidenceScore(predResult.getConfidence());
                     Log.d(TAG, "ML categorized as: " + predResult.getCategory()

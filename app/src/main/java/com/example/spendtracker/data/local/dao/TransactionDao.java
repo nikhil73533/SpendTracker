@@ -126,6 +126,19 @@ public interface TransactionDao {
     @Query("UPDATE transactions SET status = 'DELETED', deletedAt = :deletedAt WHERE id = :id")
     void softDeleteTransaction(int id, long deletedAt);
 
+    @Query("UPDATE transactions SET status = 'DELETED', deletedAt = :deletedAt WHERE status = 'ACTIVE' AND id IN (:ids)")
+    int softDeleteBatch(List<Integer> ids, long deletedAt);
+
+    /** One atomic change, even when Select all exceeds SQLite's bind-parameter limit. */
+    @androidx.room.Transaction
+    default int softDeleteTransactions(List<Integer> ids, long deletedAt) {
+        int deleted = 0;
+        for (int start = 0; start < ids.size(); start += 900) {
+            deleted += softDeleteBatch(ids.subList(start, Math.min(start + 900, ids.size())), deletedAt);
+        }
+        return deleted;
+    }
+
     @Query("UPDATE transactions SET status = 'ACTIVE', deletedAt = 0 WHERE id = :id")
     void restoreTransaction(int id);
 

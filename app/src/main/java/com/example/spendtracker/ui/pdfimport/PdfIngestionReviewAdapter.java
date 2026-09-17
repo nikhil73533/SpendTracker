@@ -98,7 +98,8 @@ public class PdfIngestionReviewAdapter extends RecyclerView.Adapter<PdfIngestion
                 if (adapterPosition != RecyclerView.NO_POSITION) selected.set(adapterPosition, checked);
             });
             String counterpartyName = transaction.getReceiverName().isEmpty() ? transaction.getSender() : transaction.getReceiverName();
-            title.setText(counterpartyName.isEmpty() ? transaction.getDescription() : counterpartyName);
+            title.setText(counterpartyName.isEmpty() ? "Name unavailable • " + transaction.getDescription()
+                    : counterpartyName.contains("@") ? "UPI handle • " + counterpartyName : counterpartyName);
             String date = DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.getDefault()).format(new Date(transaction.getDate()));
             String time = "DATE_ONLY".equals(transaction.getTimestampPrecision()) ? "time unavailable" :
                     DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault()).format(new Date(transaction.getDate()));
@@ -108,22 +109,23 @@ public class PdfIngestionReviewAdapter extends RecyclerView.Adapter<PdfIngestion
                     typeLabel, transaction.getAmount(), date, time));
             edit.setOnClickListener(v -> {
                 int adapterPosition = getAdapterPosition();
-                if (adapterPosition != RecyclerView.NO_POSITION) showEditDialog(transaction, adapterPosition);
+                if (adapterPosition != RecyclerView.NO_POSITION) showEditDialog(transactions.get(adapterPosition));
             });
             delete.setOnClickListener(v -> new AlertDialog.Builder(itemView.getContext())
                     .setTitle("Remove transaction?")
                     .setMessage("This removes the transaction from this import preview.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Remove", (dialog, which) -> {
-                        int adapterPosition = getAdapterPosition();
-                        if (adapterPosition != RecyclerView.NO_POSITION && onDeleteListener != null) {
-                            onDeleteListener.onDelete(transactions.get(adapterPosition));
+                        // Hold the candidate identity while the dialog is open: a rebind or earlier
+                        // deletion can change the holder position before the user confirms.
+                        if (transactions.contains(transaction) && onDeleteListener != null) {
+                            onDeleteListener.onDelete(transaction);
                         }
                     }).show());
             itemView.setOnClickListener(v -> selectedBox.setChecked(!selectedBox.isChecked()));
         }
 
-        private void showEditDialog(Transaction transaction, int position) {
+        private void showEditDialog(Transaction transaction) {
             LinearLayout layout = new LinearLayout(itemView.getContext());
             layout.setOrientation(LinearLayout.VERTICAL);
             int padding = (int) (20 * itemView.getResources().getDisplayMetrics().density);
@@ -160,23 +162,34 @@ public class PdfIngestionReviewAdapter extends RecyclerView.Adapter<PdfIngestion
             layout.addView(amount);
             layout.addView(transactionDate);
             layout.addView(type);
-            new AlertDialog.Builder(itemView.getContext())
+            AlertDialog dialog = new AlertDialog.Builder(itemView.getContext())
                     .setTitle("Edit extracted transaction")
                     .setView(layout)
                     .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Save", (dialog, which) -> {
+                    .setPositiveButton("Save", null).create();
+            dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                         String name = counterparty.getText().toString().trim();
                         try {
-                            transaction.setAmount(Double.parseDouble(amount.getText().toString().trim()));
+                            double value = Double.parseDouble(amount.getText().toString().trim());
+                            if (!Double.isFinite(value) || value <= 0) {
+                                amount.setError("Enter an amount greater than zero");
+                                return;
+                            }
+                            if (!transactions.contains(transaction)) { dialog.dismiss(); return; }
+                            transaction.setAmount(value);
                             transaction.setDate(selectedDate.getTimeInMillis());
                             boolean income = type.getSelectedItemPosition() == 1;
                             transaction.setType(income ? "INCOME" : "EXPENSE");
                             transaction.setDirection(income ? "CREDIT" : "DEBIT");
                             transaction.setSender(income ? name : "");
                             transaction.setReceiverName(income ? "" : name);
-                            notifyItemChanged(position);
-                        } catch (NumberFormatException ignored) { }
-                    }).show();
+                            notifyItemChanged(transactions.indexOf(transaction));
+                            dialog.dismiss();
+                        } catch (NumberFormatException invalid) {
+                            amount.setError("Enter a valid amount");
+                        }
+                    }));
+            dialog.show();
         }
     }
 }

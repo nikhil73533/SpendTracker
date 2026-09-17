@@ -13,6 +13,7 @@ public interface TransactionRepository {
     void importTransactions(List<Transaction> transactions, ImportCallback callback);
     void updateTransaction(Transaction transaction);
     void deleteTransaction(Transaction transaction);
+    void deleteTransactions(List<Integer> transactionIds, DeleteCallback callback);
     LiveData<Transaction> getTransactionById(int id);
     LiveData<Summary> getSummary(long startDate, long endDate);
     LiveData<List<String>> getCategories();
@@ -58,5 +59,8 @@ public interface TransactionRepository {
 
     interface ImportCallback {
         void onComplete(BulkImportResult result);
+    }
+    interface DeleteCallback {
+        void onComplete(int deleted, String error);
     }
 }

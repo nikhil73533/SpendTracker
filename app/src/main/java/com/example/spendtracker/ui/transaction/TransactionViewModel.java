@@ -19,6 +19,29 @@ public class TransactionViewModel extends ViewModel {
     private final LiveData<List<String>> categoriesByType;
     private final LiveData<List<String>> incomeCategories;
     private final LiveData<List<String>> expenseCategories;
+    private final MutableLiveData<DeletionResult> deletionResult = new MutableLiveData<>();
+
+    public static final class DeletionResult {
+        public final int count;
+        public final String error;
+        public final Integer undoId;
+        DeletionResult(int count, String error, Integer undoId) {
+            this.count = count;
+            this.error = error;
+            this.undoId = undoId;
+        }
+    }
+
+    public LiveData<DeletionResult> getDeletionResult() { return deletionResult; }
+    public void consumeDeletionResult() { deletionResult.setValue(null); }
+    public void deleteTransactions(List<Transaction> transactions) {
+        java.util.List<Integer> ids = new java.util.ArrayList<>();
+        for (Transaction transaction : transactions) if (transaction.getId() > 0) ids.add(transaction.getId());
+        if (ids.isEmpty()) return;
+        repository.deleteTransactions(ids, (count, error) -> deletionResult.postValue(
+                new DeletionResult(count, error, ids.size() == 1 ? ids.get(0) : null)));
+    }
+    public void restoreTransaction(int id) { repository.restoreTransaction(id); }
 
     @Inject
     public TransactionViewModel(TransactionRepository repository, SecurityRepository securityRepository) {

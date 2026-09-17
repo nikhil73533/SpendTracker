@@ -1,8 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/selection_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="8dp"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+        <CheckBox
+            android:id="@+id/check_select_all"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/select_all"
+            android:contentDescription="@string/select_all_shown_transactions" />
+        <TextView
+            android:id="@+id/tv_selection_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center" />
+        <Button
+            android:id="@+id/btn_delete_selected"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/delete_selected" />
+        <ImageButton
+            android:id="@+id/btn_cancel_selection"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="@string/cancel_selection" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_transactions"
@@ -36,4 +75,5 @@
             android:alpha="0.5"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
     </LinearLayout>
-</FrameLayout>
+    </FrameLayout>
+</LinearLayout>

@@ -10,25 +10,23 @@ import com.example.prediction.domain.model.IncrementalPredictionResult;
 import com.example.prediction.domain.model.PredictionTransaction;
 import com.example.prediction.domain.service.IncrementalPredictionService;
 import com.example.spendtracker.data.sms.duplicate.DuplicateDetector;
+import com.example.spendtracker.data.sms.extraction.CounterpartyExtractor;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.pdfimport.parser.BankStatementParserFactory;
 import com.example.spendtracker.ui.pdfimport.parser.RawTransactionRow;
 import com.example.spendtracker.ui.pdfimport.ocr.MlKitPdfOcrEngine;
-import com.example.spendtracker.ui.pdfimport.ocr.OcrDocument;
+import com.example.spendtracker.ui.pdfimport.ocr.PositionedPdfTextStripper;
+import com.example.spendtracker.ui.pdfimport.parser.StatementFields;
 import com.example.spendtracker.ui.pdfimport.ocr.OcrEngine;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
-import com.tom_roush.pdfbox.text.PDFTextStripper;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.InputStream;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -42,37 +40,6 @@ public class PdfParserService {
 
     private static final String TAG = "PdfParserService";
     private boolean isInitialized = false;
-
-    private static final String[] DATE_FORMATS = {
-            "dd/MM/yyyy",
-            "dd/MM/yy",
-            "dd-MM-yyyy",
-            "dd-MM-yy",
-            "dd.MM.yyyy",
-            "dd.MM.yy",
-            "dd MMM yyyy",
-            "dd MMM yy",
-            "dd MMMM yyyy",
-            "dd-MMM-yyyy",
-            "dd-MMM-yy",
-            "dd/MMM/yyyy",
-            "dd/MMM/yy",
-            "dd-MMMM-yyyy",
-            "yyyy-MM-dd",
-            "yyyy/MM/dd",
-            "yyyy.MM.dd",
-            "d/MM/yyyy",
-            "d/MM/yy",
-            "d-MM-yyyy",
-            "d-MM-yy",
-            "d MMM yyyy",
-            "d MMM yy",
-            "d MMMM yyyy",
-            "d-MMM-yyyy",
-            "d-MMM-yy",
-            "d/MMM/yyyy",
-            "d/MMM/yy"
-    };
 
     private final DuplicateDetector duplicateDetector;
     private final OcrEngine ocrEngine;
@@ -101,6 +68,7 @@ public class PdfParserService {
         public int duplicatesSkipped = 0;
         public List<Transaction> transactions = new ArrayList<>();
         public String error = null;
+        public String warning = null;
 
         public FileImportResult(String fileName) {
             this.fileName = fileName != null ? fileName : "Statement.pdf";
@@ -119,62 +87,75 @@ public class PdfParserService {
         init(appContext);
 
         String fileName = getFileName(appContext, uri);
-        JSONObject rootJson = new JSONObject();
-        rootJson.put("fileName", fileName);
-
         BankStatementParserFactory factory = new BankStatementParserFactory();
-        String embeddedText = extractEmbeddedTextFromPdf(appContext, uri);
-        String selectedText = embeddedText == null ? "" : embeddedText;
-        BankStatementParserFactory.ParseOutput parseOutput = factory.parse(
-                headerOf(selectedText), selectedText);
-        boolean usedOcr = false;
+        List<String> embeddedPages = extractEmbeddedTextFromPdf(appContext, uri);
+        String embeddedHeader = headerOf(String.join("\n", embeddedPages));
+        java.util.Map<Integer, String> ocrPages = java.util.Collections.emptyMap();
         boolean ocrAttempted = false;
-
-        // Parse embedded text first even when its layout heuristic looks unusual. If it yields
-        // no rows, compare it with OCR instead of blindly replacing one extraction with another.
-        if (!isUsableStatementText(embeddedText) || parseOutput.rows.isEmpty()) {
-            ocrAttempted = true;
+        String ocrWarning = null;
+        for (String page : embeddedPages) {
+            if (!isUsableStatementText(page) || needsOcrRetry(page, factory.parse(embeddedHeader, page).rows)) {
+                ocrAttempted = true;
+                break;
+            }
+        }
+        if (ocrAttempted) {
             try {
-                String ocrText = ocrEngine.recognizePdf(appContext, uri).getText();
-                BankStatementParserFactory.ParseOutput ocrOutput = factory.parse(headerOf(ocrText), ocrText);
-                if (ocrOutput.rows.size() > parseOutput.rows.size()
-                        || (selectedText.trim().isEmpty() && !ocrText.trim().isEmpty())) {
-                    selectedText = ocrText;
-                    parseOutput = ocrOutput;
-                    usedOcr = true;
-                }
+                ocrPages = ocrEngine.recognizePdf(appContext, uri).getPageTexts();
             } catch (Exception ocrError) {
                 Log.w(TAG, "OCR fallback failed", ocrError);
-                if (selectedText.trim().isEmpty() || parseOutput.rows.isEmpty()) throw ocrError;
+                ocrWarning = "OCR could not read all pages. Check the preview against your statement.";
             }
         }
-
-        if (selectedText.trim().isEmpty()) {
-            rootJson.put("error", "No readable text found in PDF. The file may be blank, encrypted, or an unsupported scan.");
-            return rootJson;
-        }
-
-        String bankName = parseOutput.parser.getBankName();
-        List<RawTransactionRow> rawRows = parseOutput.rows;
-
-        Log.i(TAG, "Statement extraction=" + (usedOcr ? "OCR" : "PDF_TEXT")
-                + ", textChars=" + selectedText.length() + ", rows=" + rawRows.size());
-
-        rootJson.put("bankName", bankName);
-        rootJson.put("extractionMethod", usedOcr ? "OCR" : "PDF_TEXT");
-        rootJson.put("ocrAttempted", ocrAttempted);
-        rootJson.put("totalFound", rawRows.size());
-
-        JSONArray jsonArray = new JSONArray();
-        for (RawTransactionRow rawRow : rawRows) {
-            JSONObject rowJson = mapRawRowToJson(rawRow, bankName, usedOcr ? 0.75 : 1.0);
-            if (rowJson != null) {
-                jsonArray.put(rowJson);
-            }
-        }
-        rootJson.put("transactions", jsonArray);
-
+        JSONObject rootJson = parsePageTexts(embeddedPages, ocrPages, ocrAttempted);
+        rootJson.put("fileName", fileName);
+        if (ocrWarning != null) rootJson.put("warning", ocrWarning);
         return rootJson;
+    }
+
+    /** Choose one extraction per page; a scanned page cannot replace correct digital rows elsewhere. */
+    JSONObject parsePageTexts(List<String> embeddedPages, java.util.Map<Integer, String> ocrPages,
+                             boolean ocrAttempted) throws JSONException {
+        BankStatementParserFactory factory = new BankStatementParserFactory();
+        String documentText = String.join("\n", embeddedPages) + "\n" + String.join("\n", ocrPages.values());
+        String bankName = factory.getParser(headerOf(documentText), documentText).getBankName();
+        JSONObject root = new JSONObject();
+        JSONArray transactions = new JSONArray();
+        boolean usedOcr = false, usedText = false;
+        int found = 0, incompletePages = 0;
+        int pageCount = Math.max(embeddedPages.size(), ocrPages.keySet().stream().mapToInt(Integer::intValue).max().orElse(0));
+        for (int page = 1; page <= pageCount; page++) {
+            String embedded = page <= embeddedPages.size() ? embeddedPages.get(page - 1) : "";
+            String ocr = ocrPages.getOrDefault(page, "");
+            List<RawTransactionRow> textRows = factory.parse(documentText, embedded).rows;
+            List<RawTransactionRow> ocrRows = factory.parse(documentText, ocr).rows;
+            boolean preferOcr = validRowCount(ocrRows) > validRowCount(textRows)
+                    || (validRowCount(ocrRows) > 0 && validRowCount(ocrRows) == validRowCount(textRows)
+                    && !embedded.contains("DATE\t") && ocr.contains("DATE\t"));
+            List<RawTransactionRow> selected = preferOcr ? ocrRows : textRows;
+            String selectedText = preferOcr ? ocr : embedded;
+            if (needsOcrRetry(selectedText, selected)
+                    || (selected.isEmpty() && (embedded.trim().isEmpty() || ocrAttempted))) incompletePages++;
+            found += selected.size();
+            for (RawTransactionRow row : selected) {
+                JSONObject item = mapRawRowToJson(row, bankName, preferOcr ? 0.75 : 1.0);
+                if (item != null) {
+                    item.put("pageNumber", page);
+                    transactions.put(item);
+                    if (preferOcr) usedOcr = true;
+                    else usedText = true;
+                }
+            }
+        }
+        root.put("bankName", bankName);
+        root.put("extractionMethod", usedOcr ? (usedText ? "MIXED" : "OCR") : "PDF_TEXT");
+        root.put("ocrAttempted", ocrAttempted);
+        root.put("totalFound", found);
+        root.put("transactions", transactions);
+        if (incompletePages > 0) root.put("warning",
+                "Some pages contain unreadable rows or no transactions. Compare the preview with the statement before importing.");
+        if (documentText.trim().isEmpty()) root.put("error", "No readable text found in PDF. The file may be blank or an unsupported scan.");
+        return root;
     }
 
     /**
@@ -191,6 +172,7 @@ public class PdfParserService {
         }
 
         result.bankName = rootJson.optString("bankName", "Bank");
+        result.warning = rootJson.optString("warning", null);
         result.totalFound = rootJson.optInt("totalFound", 0);
 
         JSONArray jsonArray = rootJson.optJSONArray("transactions");
@@ -270,24 +252,42 @@ public class PdfParserService {
         }
     }
 
-    private String extractEmbeddedTextFromPdf(Context context, Uri uri) throws Exception {
-        String fullText;
+    private List<String> extractEmbeddedTextFromPdf(Context context, Uri uri) throws Exception {
+        List<String> pages = new ArrayList<>();
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
-            if (is == null) return null;
+            if (is == null) throw new IllegalStateException("Unable to open selected PDF");
 
-            PDDocument document = PDDocument.load(is);
-            if (document.isEncrypted()) {
-                document.close();
-                throw new IllegalStateException("PDF is password protected or encrypted");
+            try (PDDocument document = PDDocument.load(is)) {
+                if (document.isEncrypted()) {
+                    throw new IllegalStateException("PDF is password protected or encrypted");
+                }
+                PositionedPdfTextStripper stripper = new PositionedPdfTextStripper();
+                stripper.getText(document);
+                java.util.Map<Integer, String> positioned = stripper.getDocument().getPageTexts();
+                for (int page = 1; page <= document.getNumberOfPages(); page++) {
+                    String layout = positioned.getOrDefault(page, "");
+                    pages.add(layout);
+                }
             }
-
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true);
-            fullText = stripper.getText(document);
-            document.close();
         }
 
-        return fullText;
+        return pages;
+    }
+
+    static int validRowCount(List<RawTransactionRow> rows) {
+        int valid = 0;
+        for (RawTransactionRow row : rows) {
+            Double amount = row.getDebitAmount() != null ? row.getDebitAmount() : row.getCreditAmount();
+            if (StatementFields.date(row.getDateStr()) != null && amount != null
+                    && Double.isFinite(amount) && amount > 0) valid++;
+        }
+        return valid;
+    }
+
+    static boolean needsOcrRetry(String text, List<RawTransactionRow> rows) {
+        int valid = validRowCount(rows);
+        if (valid == 0 || valid < rows.size()) return true;
+        return StatementFields.countDatedRows(text) > valid;
     }
 
     private JSONObject mapRawRowToJson(RawTransactionRow rawRow, String bankName, double extractionConfidence) {
@@ -310,7 +310,8 @@ public class PdfParserService {
         }
 
         String narration = rawRow.getNarration().trim();
-        String time = extractTimeFromNarration(narration);
+        String time = extractTimeFromNarration(rawRow.getRawLine());
+        if (time.isEmpty()) time = extractTimeFromNarration(narration);
         long timestamp = parseDateToMillis(rawRow.getDateStr(), time);
         if (timestamp <= 0) return null;
 
@@ -319,7 +320,8 @@ public class PdfParserService {
             upiId = extractUpiFromNarration(narration);
         }
 
-        String merchant = extractMerchantFromNarration(narration, bankName);
+        CounterpartyExtractor.Result counterparty = new CounterpartyExtractor().extract(narration);
+        String merchant = counterparty.displayName();
         String referenceNo = rawRow.getReferenceNo();
         String sourceTransactionId = createSourceTransactionId(bankName, referenceNo, rawRow.getDateStr(),
                 time, direction, amount, narration);
@@ -336,9 +338,12 @@ public class PdfParserService {
             json.put("sourceTransactionId", sourceTransactionId);
             json.put("upiId", upiId);
             json.put("merchant", merchant);
-            json.put("counterpartyName", merchant);
-            json.put("senderName", "CREDIT".equals(direction) ? merchant : JSONObject.NULL);
-            json.put("receiverName", "DEBIT".equals(direction) ? merchant : JSONObject.NULL);
+            json.put("counterpartySource", counterparty.source);
+            json.put("counterpartyConfidence", counterparty.confidence);
+            json.put("counterpartyIsHandle", counterparty.name.isEmpty() && !counterparty.handle.isEmpty());
+            json.put("counterpartyName", counterparty.name.isEmpty() ? JSONObject.NULL : counterparty.name);
+            json.put("senderName", "CREDIT".equals(direction) && !counterparty.name.isEmpty() ? counterparty.name : JSONObject.NULL);
+            json.put("receiverName", "DEBIT".equals(direction) && !counterparty.name.isEmpty() ? counterparty.name : JSONObject.NULL);
             json.put("type", type);
             json.put("direction", direction);
             json.put("amount", amount);
@@ -377,7 +382,8 @@ public class PdfParserService {
                         merchant.isEmpty() ? narration : merchant, upiId, amount, type, timestamp
                 );
                 IncrementalPredictionResult pred = predictionService.predict(pt);
-                category = (pred != null && pred.getCategory() != null) ? pred.getCategory() : "Uncategorized";
+                category = (pred != null && pred.getCategory() != null && !pred.needsUserConfirmation())
+                        ? pred.getCategory() : "Uncategorized";
             } catch (Exception e) {
                 category = "Uncategorized";
             }
@@ -407,38 +413,7 @@ public class PdfParserService {
     }
 
     private String extractMerchantFromNarration(String narration, String bankName) {
-        if (narration == null || narration.isEmpty()) return "";
-
-        Matcher upiMatcher = Pattern.compile("(?:UPI/|UPI-)(?:DR|CR)?/(?:\\d+/)?([^/]+)", Pattern.CASE_INSENSITIVE).matcher(narration);
-        if (upiMatcher.find() && upiMatcher.group(1) != null) {
-            return cleanMerchantName(upiMatcher.group(1));
-        }
-
-        Matcher posMatcher = Pattern.compile("(?:POS|ECOM|NEFT|IMPS|RTGS|INF)[/-]?([^/-]+)", Pattern.CASE_INSENSITIVE).matcher(narration);
-        if (posMatcher.find() && posMatcher.group(1) != null) {
-            return cleanMerchantName(posMatcher.group(1));
-        }
-
-        Matcher toByMatcher = Pattern.compile("(?:TO|BY|FROM|PAID TO)\\s+([A-Z0-9\\s&.'-]{2,30})", Pattern.CASE_INSENSITIVE).matcher(narration);
-        if (toByMatcher.find() && toByMatcher.group(1) != null) {
-            return cleanMerchantName(toByMatcher.group(1));
-        }
-
-        String firstToken = narration.split("[/\\-\\s]")[0];
-        if (firstToken.length() >= 3 && !firstToken.matches("\\d+")) {
-            return cleanMerchantName(firstToken);
-        }
-
-        return narration.length() > 30 ? narration.substring(0, 30).trim() : narration;
-    }
-
-    private String cleanMerchantName(String name) {
-        if (name == null) return "";
-        String cleaned = name.replaceAll("[^a-zA-Z0-9\\s&.-]", "").replaceAll("\\s+", " ").trim();
-        if (cleaned.length() > 30) {
-            cleaned = cleaned.substring(0, 30).trim();
-        }
-        return cleaned;
+        return new CounterpartyExtractor().extract(narration).displayName();
     }
 
     private String extractUpiFromNarration(String narration) {
@@ -448,28 +423,19 @@ public class PdfParserService {
     }
 
     private long parseDateToMillis(String dateStr, String time) {
-        if (dateStr == null || dateStr.trim().isEmpty()) return 0L;
-        String cleanDate = dateStr.trim();
-
-        for (String format : DATE_FORMATS) {
+        String normalized = StatementFields.date(dateStr);
+        if (normalized == null) return 0L;
+        java.time.LocalDate date = java.time.LocalDate.parse(normalized);
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        if (time == null || time.trim().isEmpty()) return date.atStartOfDay(zone).toInstant().toEpochMilli();
+        for (String pattern : new String[]{"h:mm:ss a", "h:mm a", "H:mm:ss", "H:mm"}) {
             try {
-                SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.ENGLISH);
-                sdf.setLenient(false);
-                Date parsed = sdf.parse(cleanDate);
-                if (parsed != null) {
-                    if (time == null || time.trim().isEmpty()) return parsed.getTime();
-                    String[] timeFormats = {"HH:mm:ss", "HH:mm", "hh:mm a", "hh:mm:ss a"};
-                    for (String timeFormat : timeFormats) {
-                        try {
-                            SimpleDateFormat withTime = new SimpleDateFormat(format + " " + timeFormat, Locale.ENGLISH);
-                            withTime.setLenient(false);
-                            Date dated = withTime.parse(cleanDate + " " + time.trim().toUpperCase(Locale.ENGLISH));
-                            if (dated != null) return dated.getTime();
-                        } catch (ParseException ignored) { }
-                    }
-                    return parsed.getTime();
-                }
-            } catch (ParseException ignored) {
+                java.time.format.DateTimeFormatter formatter = new java.time.format.DateTimeFormatterBuilder()
+                        .parseCaseInsensitive().appendPattern(pattern).toFormatter(Locale.ENGLISH);
+                String normalizedTime = time.trim().replaceAll("(?i)(\\d)([AP]M)$", "$1 $2");
+                java.time.LocalTime parsed = java.time.LocalTime.parse(normalizedTime, formatter);
+                return date.atTime(parsed).atZone(zone).toInstant().toEpochMilli();
+            } catch (java.time.DateTimeException ignored) {
             }
         }
         return 0L;
@@ -518,7 +484,7 @@ public class PdfParserService {
 
     private String extractTimeFromNarration(String narration) {
         if (narration == null) return "";
-        Matcher matcher = Pattern.compile("\\b(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?(?:\\s?(?:AM|PM))?\\b", Pattern.CASE_INSENSITIVE).matcher(narration);
+        Matcher matcher = Pattern.compile("\\b(?:[01]?\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?(?:\\s?(?:AM|PM))?\\b", Pattern.CASE_INSENSITIVE).matcher(narration);
         return matcher.find() ? matcher.group().trim() : "";
     }
 

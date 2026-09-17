@@ -37,6 +37,64 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
     }
 
     private final DataFormatter formatter;
+    private final TransactionSelection selection = new TransactionSelection();
+    private Runnable selectionChanged;
+
+    public void enableSelection(Runnable selectionChanged) { this.selectionChanged = selectionChanged; }
+    public boolean isSelecting() { return selection.isActive(); }
+    public int getSelectionCount() { return selection.size(); }
+
+    public Transaction transactionAt(int position) {
+        if (position < 0 || position >= getItemCount()) return null;
+        ListItem item = getItem(position);
+        return item instanceof TransactionItem ? ((TransactionItem) item).getTransaction() : null;
+    }
+
+    public java.util.List<Transaction> getSelectedTransactions() {
+        java.util.List<Transaction> result = new java.util.ArrayList<>();
+        for (ListItem item : getCurrentList()) {
+            if (item instanceof TransactionItem) {
+                Transaction transaction = ((TransactionItem) item).getTransaction();
+                if (selection.contains(transaction.getId())) result.add(transaction);
+            }
+        }
+        return result;
+    }
+
+    private java.util.List<Integer> transactionIds() {
+        java.util.List<Integer> ids = new java.util.ArrayList<>();
+        for (ListItem item : getCurrentList()) {
+            if (item instanceof TransactionItem) ids.add(((TransactionItem) item).getTransaction().getId());
+        }
+        return ids;
+    }
+
+    public int getTransactionCount() { return transactionIds().size(); }
+    public void selectAll(boolean checked) {
+        selection.selectAll(checked ? transactionIds() : java.util.Collections.emptyList());
+        refreshSelection();
+    }
+    public void clearSelection() { selection.clear(); refreshSelection(); }
+    public void restoreSelection(java.util.List<Integer> ids) {
+        selection.selectAll(ids);
+        selection.retain(transactionIds());
+        refreshSelection();
+    }
+    private void toggleSelection(Transaction transaction) {
+        selection.toggle(transaction.getId());
+        refreshSelection();
+    }
+    private void refreshSelection() {
+        notifyItemRangeChanged(0, getItemCount());
+        if (selectionChanged != null) selectionChanged.run();
+    }
+    @Override
+    public void onCurrentListChanged(@NonNull java.util.List<ListItem> previous,
+                                     @NonNull java.util.List<ListItem> current) {
+        super.onCurrentListChanged(previous, current);
+        selection.retain(transactionIds());
+        if (selectionChanged != null) selectionChanged.run();
+    }
 
     public GroupedTransactionAdapter(OnTransactionClickListener listener, DataFormatter formatter) {
         super(new DiffCallback());
@@ -149,8 +207,9 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
         }
     }
 
-    static class TransactionViewHolder extends RecyclerView.ViewHolder {
+    class TransactionViewHolder extends RecyclerView.ViewHolder {
         private final android.widget.ImageView ivIcon;
+        private final android.widget.CheckBox selectionBox;
         private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime, tvGroupTag;
         private final DataFormatter formatter;
 
@@ -158,6 +217,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             super(itemView);
             this.formatter = formatter;
             ivIcon = itemView.findViewById(R.id.iv_category_icon);
+            selectionBox = itemView.findViewById(R.id.check_daily_transaction);
             tvCategory = itemView.findViewById(R.id.tv_category);
             tvReceiver = itemView.findViewById(R.id.tv_receiver);
             tvDescription = itemView.findViewById(R.id.tv_description);
@@ -170,6 +230,14 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
         public void bind(TransactionItem item, OnTransactionClickListener listener) {
             Transaction transaction = item.getTransaction();
+            selectionBox.setOnCheckedChangeListener(null);
+            selectionBox.setVisibility(isSelecting() ? View.VISIBLE : View.GONE);
+            ivIcon.setVisibility(isSelecting() ? View.INVISIBLE : View.VISIBLE);
+            selectionBox.setChecked(selection.contains(transaction.getId()));
+            selectionBox.setOnCheckedChangeListener((button, checked) -> {
+                Transaction current = transactionAt(getAdapterPosition());
+                if (current != null) toggleSelection(current);
+            });
             tvCategory.setText(transaction.getCategory());
             
             // Requirement 12: Mask PII (Receiver, Description)
@@ -177,7 +245,10 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvDescription.setText(formatter.maskPII(transaction.getDescription()));
             
             tvSource.setText(transaction.getSource());
-            tvTime.setText(timeFormat.format(new Date(transaction.getDate())));
+            tvTime.setText("DATE_ONLY".equals(transaction.getTimestampPrecision()) ? ""
+                    : "SMS_RECEIVED".equals(transaction.getTimestampPrecision())
+                    ? itemView.getContext().getString(R.string.sms_received_time, timeFormat.format(new Date(transaction.getDate())))
+                    : timeFormat.format(new Date(transaction.getDate())));
 
             if ("INCOME".equals(transaction.getType())) {
                 tvIncomeAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_blue_light));
@@ -196,6 +267,11 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
             // Category click for dropdown
             tvCategory.setOnClickListener(v -> {
+                if (isSelecting()) {
+                    Transaction current = transactionAt(getAdapterPosition());
+                    if (current != null) toggleSelection(current);
+                    return;
+                }
                 android.widget.PopupMenu popup = new android.widget.PopupMenu(v.getContext(), v);
                 java.util.List<String> categories = listener.getCategoriesByType(transaction.getType());
                 for (String cat : categories) {
@@ -213,7 +289,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
 
             // Simple icon mapping (using some emojis or standard icons)
             int iconRes = android.R.drawable.ic_menu_help;
-            String category = transaction.getCategory().toLowerCase();
+            String category = transaction.getCategory() == null ? "" : transaction.getCategory().toLowerCase(Locale.ROOT);
             if (category.contains("food")) iconRes = android.R.drawable.ic_menu_gallery;
             else if (category.contains("transport")) iconRes = android.R.drawable.ic_menu_directions;
             else if (category.contains("gift")) iconRes = android.R.drawable.btn_star_big_on;
@@ -222,9 +298,20 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             ivIcon.setImageResource(iconRes);
 
             // Clicking the item opens the edit form
-            itemView.setOnClickListener(v -> listener.onEdit(transaction));
+            itemView.setOnClickListener(v -> {
+                Transaction current = transactionAt(getAdapterPosition());
+                if (current == null) return;
+                if (isSelecting()) toggleSelection(current);
+                else listener.onEdit(current);
+            });
 
             itemView.setOnLongClickListener(v -> {
+                Transaction current = transactionAt(getAdapterPosition());
+                if (current == null) return true;
+                if (selectionChanged != null) {
+                    toggleSelection(current);
+                    return true;
+                }
                 new android.app.AlertDialog.Builder(v.getContext())
                     .setTitle("Delete Transaction")
                     .setMessage("Delete this transaction of " + formatter.formatAmount(transaction.getAmount()) + "?")
@@ -233,6 +320,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                     .show();
                 return true;
             });
+            tvCategory.setOnLongClickListener(v -> itemView.performLongClick());
 
             // Transaction Group tag
             String groupName = transaction.getTransactionGroupName();
@@ -268,6 +356,12 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();
                 return Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
+                       oldT.getDate() == newT.getDate() &&
+                       Objects.equals(oldT.getTimestampPrecision(), newT.getTimestampPrecision()) &&
+                       Objects.equals(oldT.getSender(), newT.getSender()) &&
+                       Objects.equals(oldT.getReceiverName(), newT.getReceiverName()) &&
+                       Objects.equals(oldT.getSource(), newT.getSource()) &&
+                       Objects.equals(oldT.getTransactionGroupName(), newT.getTransactionGroupName()) &&
                        Objects.equals(oldT.getCategory(), newT.getCategory()) &&
                        Objects.equals(oldT.getType(), newT.getType()) &&          // type change triggers rebind
                        Objects.equals(oldT.getDescription(), newT.getDescription());

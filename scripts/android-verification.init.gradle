@@ -1,0 +1,16 @@
+// Run device tests in an isolated application, never against the user's installed database.
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.plugins.withId('com.android.application') {
+            project.androidComponents.finalizeDsl { android ->
+                android.defaultConfig.applicationId = 'com.example.spendtracker.verification'
+                android.defaultConfig.testApplicationId = 'com.example.spendtracker.verification.test'
+                android.defaultConfig.testInstrumentationRunnerArguments['class'] = [
+                    'com.example.spendtracker.ui.pdfimport.StatementOcrIntegrationTest',
+                    'com.example.spendtracker.ui.pdfimport.TransactionInteractionTest',
+                    'com.example.spendtracker.data.local.database.SoftDeleteIntegrationTest'
+                ].join(',')
+            }
+        }
+    }
+}

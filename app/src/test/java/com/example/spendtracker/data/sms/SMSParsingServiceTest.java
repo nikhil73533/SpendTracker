@@ -207,7 +207,7 @@ public class SMSParsingServiceTest {
     @Test
     public void testTransferDetection() {
         ParseResult r = service.parse("HDFCBK",
-            "Rs 10,000 transferred from your Savings A/c XX1234 to Current A/c XX5678.",
+            "Rs 10,000 transferred from your Savings A/c XX1234 to your Current A/c XX5678.",
             System.currentTimeMillis());
 
         assertTrue(r.isSuccess());
@@ -220,7 +220,7 @@ public class SMSParsingServiceTest {
     @Test
     public void testFundTransfer() {
         ParseResult r = service.parse("SBIUPI",
-            "Fund Transfer of INR 5000 from your A/c XX1111 to A/c XX2222 successful.",
+            "Fund Transfer of INR 5000 from your A/c XX1111 to your A/c XX2222 successful.",
             System.currentTimeMillis());
 
         assertTrue(r.isSuccess());

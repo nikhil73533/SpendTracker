@@ -29,5 +29,8 @@ public enum ParseStatus {
     DUPLICATE,
 
     /** A transaction was detected but it represents a failed/declined payment — not persisted by default. */
-    FAILED_TRANSACTION
+    FAILED_TRANSACTION,
+
+    /** Pending authorization/settlement: must not be persisted as a completed payment. */
+    PENDING_TRANSACTION
 }

@@ -114,6 +114,8 @@ public class PdfIngestionFragment extends Fragment {
     }
 
     private void renderState(PdfIngestionViewModel.UiState state) {
+        requireView().findViewById(R.id.btn_select_pdf).setEnabled(!state.isLoading);
+        requireView().findViewById(R.id.btn_import_selected).setEnabled(!state.isLoading && !state.reviewTransactions.isEmpty());
         layoutProgress.setVisibility(state.isLoading ? View.VISIBLE : View.GONE);
         if (state.isLoading && state.completedFiles == 0) {
             cardResults.setVisibility(View.GONE);
@@ -132,10 +134,11 @@ public class PdfIngestionFragment extends Fragment {
             resultAdapter.setResults(state.fileResults);
             int parsed = 0;
             for (PdfParserService.FileImportResult result : state.fileResults) parsed += result.successfullyParsed;
-            tvResultSummaryHeader.setText(state.fileResults.size() + " PDF file(s) processed • " + parsed + " candidate transaction(s) extracted");
+            tvResultSummaryHeader.setText(state.fileResults.size() + " PDF file(s) processed • " + parsed
+                    + " candidate transaction(s) extracted • " + state.reviewTransactions.size() + " in preview");
         }
         reviewAdapter.submit(state.reviewTransactions);
-        cardReview.setVisibility(state.reviewTransactions.isEmpty() ? View.GONE : View.VISIBLE);
+        cardReview.setVisibility(state.isLoading || state.reviewTransactions.isEmpty() ? View.GONE : View.VISIBLE);
         BulkImportResult result = state.importResult;
         if (result != null) {
             if (result.isSuccess()) {

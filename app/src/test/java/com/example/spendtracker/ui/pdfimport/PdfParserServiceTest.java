@@ -16,6 +16,60 @@ public class PdfParserServiceTest {
 
     private PdfParserService parserService;
 
+    @Test
+    public void iciciCounterpartyNamesAndHandlesRemainDistinctThroughJson() throws Exception {
+        String text = "ICICI Bank\nDATE\tNARRATION\tDEBIT\tCREDIT\tBALANCE\n"
+                + "16/09/2026\tMMT/IMPS/123456789012/SHINE HAIR/AXIS BANK LTD\t\t500.00\t1500.00\n"
+                + "17/09/2026\tUPI/123456789013/UPI/ravi@okaxis/State Bank Of India\t100.00\t\t1400.00\n"
+                + "17/09/2026\tVPS/ACT/202609161234/123456789014/HYDERABAD\t200.00\t\t1200.00\n";
+        JSONArray rows = parserService.parsePageTexts(java.util.Collections.singletonList(text),
+                java.util.Collections.emptyMap(), false).getJSONArray("transactions");
+        assertEquals(3, rows.length());
+        assertEquals("SHINE HAIR", rows.getJSONObject(0).getString("senderName"));
+        assertEquals("CREDIT", rows.getJSONObject(0).getString("direction"));
+        assertEquals("ravi@okaxis", rows.getJSONObject(1).getString("merchant"));
+        assertTrue(rows.getJSONObject(1).getBoolean("counterpartyIsHandle"));
+        assertTrue(rows.getJSONObject(1).isNull("counterpartyName"));
+        assertEquals("ACT", rows.getJSONObject(2).getString("receiverName"));
+        assertEquals(200, rows.getJSONObject(2).getDouble("amount"), .001);
+    }
+
+    @Test
+    public void combinesDigitalAndScannedPagesWithoutReplacingValidDigitalRows() throws Exception {
+        String header = "DATE\tNARRATION\tDEBIT\tCREDIT\tBALANCE\n";
+        String digital = "SBI\n" + header + "04/09/2026\tSHOP\t125.00\t\t875.00\n";
+        String scanned = header + "05/09/2026\tSALARY\t\t5000.00\t5875.00\n";
+        java.util.Map<Integer, String> ocr = new java.util.LinkedHashMap<>();
+        // Simulate less accurate OCR of the digital page. Equal counts retain embedded cells.
+        ocr.put(1, header + "04/09/2026\tSHOP\t725.00\t\t875.00\n");
+        ocr.put(2, scanned);
+        JSONObject result = parserService.parsePageTexts(java.util.Arrays.asList(digital, ""), ocr, true);
+        assertEquals("MIXED", result.getString("extractionMethod"));
+        JSONArray rows = result.getJSONArray("transactions");
+        assertEquals(2, rows.length());
+        assertEquals(125, rows.getJSONObject(0).getDouble("amount"), .001);
+        assertEquals(5000, rows.getJSONObject(1).getDouble("amount"), .001);
+        assertEquals("CREDIT", rows.getJSONObject(1).getString("direction"));
+        assertEquals("SBI", rows.getJSONObject(1).getString("bankName"));
+        assertEquals(2, rows.getJSONObject(1).getInt("pageNumber"));
+    }
+
+    @Test
+    public void preservesPrintedTimeAndDoesNotInventTimeForDateOnlyRows() throws Exception {
+        String text = "DATE\tNARRATION\tAMOUNT\tTYPE\tBALANCE\n"
+                + "04/09/2026 9:35 PM\tSHOP\t125.00\tDebited\t875.00\n"
+                + "05/09/2026\tPAYROLL\t5000.00\tIncome\t5875.00\n";
+        JSONArray rows = parserService.parsePageTexts(java.util.Collections.singletonList(text),
+                java.util.Collections.emptyMap(), false).getJSONArray("transactions");
+        assertEquals(2, rows.length());
+        assertEquals("DATE_TIME", rows.getJSONObject(0).getString("timestampPrecision"));
+        java.time.LocalDateTime firstDate = java.time.Instant.ofEpochMilli(rows.getJSONObject(0).getLong("dateMillis"))
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+        assertEquals(21, firstDate.getHour());
+        assertEquals(35, firstDate.getMinute());
+        assertEquals("DATE_ONLY", rows.getJSONObject(1).getString("timestampPrecision"));
+    }
+
     @Before
     public void setUp() {
         parserService = new PdfParserService();

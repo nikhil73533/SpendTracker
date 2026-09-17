@@ -3,29 +3,19 @@ package com.example.spendtracker.data.sms.extraction;
 import com.example.spendtracker.data.sms.model.ExtractionResult;
 import java.util.regex.Pattern;
 
-/**
- * Extracts the transaction status: SUCCESS, FAILED, PENDING, or REVERSED.
- * Most SMS messages are about successful transactions, so SUCCESS is the default.
- */
 public class TransactionStatusExtractor {
+    private static final Pattern FAILED = Pattern.compile("(?i)\\b(failed|declined|unsuccessful|rejected|could\\s+not|not\\s+(?:been\\s+)?(?:processed|debited|credited|refunded|reversed|received))\\b");
+    private static final Pattern PENDING = Pattern.compile("(?i)\\b(pending|processing|in\\s+progress|awaiting)\\b");
+    private static final Pattern REVERSED = Pattern.compile(
+            "(?i)\\b(?:refunded|reversed|credited\\s+back)\\b|\\brefund\\b.{0,60}\\bcredited\\b|\\bcredited\\b.{0,40}\\bas\\s+(?:a\\s+)?refund\\b");
+    private static final Pattern NEGATED = Pattern.compile("(?i)\\b(?:not|no)\\s+(?:been\\s+)?(?:refunded|reversed|credited)");
 
-    private static final Pattern FAILED_PATTERN = Pattern.compile(
-        "(?i)\\b(failed|declined|unsuccessful|rejected|not\\s+processed|could\\s+not)\\b");
-    private static final Pattern PENDING_PATTERN = Pattern.compile(
-        "(?i)\\b(pending|processing|in\\s+progress|awaiting)\\b");
-    private static final Pattern REVERSED_PATTERN = Pattern.compile(
-        "(?i)\\b(reversed|reversal|refund(?:ed)?|credited\\s+back|amount\\s+reversed)\\b");
-
-    public ExtractionResult<String> extract(String normalizedMessage, String lowercaseMessage) {
-        if (lowercaseMessage == null) return ExtractionResult.of("SUCCESS", 0.50);
-
-        if (FAILED_PATTERN.matcher(lowercaseMessage).find())
-            return ExtractionResult.of("FAILED", 0.90);
-        if (REVERSED_PATTERN.matcher(lowercaseMessage).find())
-            return ExtractionResult.of("REVERSED", 0.85);
-        if (PENDING_PATTERN.matcher(lowercaseMessage).find())
-            return ExtractionResult.of("PENDING", 0.80);
-
-        return ExtractionResult.of("SUCCESS", 0.90);
+    public ExtractionResult<String> extract(String normalized, String lowercase) {
+        String text = TransactionText.posted(normalized);
+        if (REVERSED.matcher(text).find() && !NEGATED.matcher(text).find())
+            return ExtractionResult.of("REVERSED", .95);
+        if (FAILED.matcher(text).find()) return ExtractionResult.of("FAILED", .90);
+        if (PENDING.matcher(text).find()) return ExtractionResult.of("PENDING", .85);
+        return ExtractionResult.of("SUCCESS", .80);
     }
 }

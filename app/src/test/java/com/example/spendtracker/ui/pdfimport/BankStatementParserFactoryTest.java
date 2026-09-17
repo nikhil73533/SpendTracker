@@ -30,6 +30,12 @@ public class BankStatementParserFactoryTest {
     }
 
     @Test
+    public void issuingBankHeadingTakesPriorityOverCounterpartyBanks() {
+        assertEquals("SBI", factory.getParser("STATE BANK OF INDIA\nAccount Statement",
+                "STATE BANK OF INDIA\nUPI TRANSFER TO HDFC BANK").getBankName());
+    }
+
+    @Test
     public void genericFallbackPreservesDetectedBank() {
         String text = "HDFC BANK\n" +
                 "1 04/Sep/2026 UPI payment 500.00 DR 10,000.00\n";

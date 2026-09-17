@@ -34,6 +34,7 @@ public class BankConfig {
     public static class PatternConfig {
         private String name;
         private String regex;
+        private java.util.regex.Pattern compiledPattern;
         private int amountGroup;
         private int accountGroup;
         private int receiverGroup;
@@ -48,7 +49,12 @@ public class BankConfig {
         public void setName(String name) { this.name = name; }
 
         public String getRegex() { return regex; }
-        public void setRegex(String regex) { this.regex = regex; }
+        public void setRegex(String regex) { this.regex = regex; this.compiledPattern = null; }
+        public synchronized java.util.regex.Pattern compiledPattern() {
+            if (compiledPattern == null) compiledPattern = java.util.regex.Pattern.compile(regex,
+                    java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+            return compiledPattern;
+        }
 
         public int getAmountGroup() { return amountGroup; }
         public void setAmountGroup(int amountGroup) { this.amountGroup = amountGroup; }

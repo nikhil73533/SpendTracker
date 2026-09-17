@@ -14,6 +14,8 @@ import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.example.spendtracker.ui.pdfimport.parser.GenericStatementParser;
+import com.example.spendtracker.ui.pdfimport.parser.StatementFields;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -22,7 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 /** On-device OCR for scanned statement pages. Runs only from a background thread. */
 public class MlKitPdfOcrEngine implements OcrEngine {
-    private static final float RENDER_SCALE = 2.5f;
+    private static final float RENDER_SCALE = 3.0f;
+    private static final int MAX_RENDER_PIXELS = 8_000_000;
     private static final long OCR_TIMEOUT_SECONDS = 45;
 
     @Override
@@ -35,20 +38,31 @@ public class MlKitPdfOcrEngine implements OcrEngine {
                 for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
                     try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
                         Bitmap original = renderPage(page);
-                        Text text = recognize(recognizer, original);
-                        // A low-output page benefits from a high-contrast retry. This is deliberately
-                        // conditional to avoid damaging clean digital scans.
-                        if (text.getText().trim().length() < 20) {
-                            Bitmap processed = preprocess(original);
-                            try {
-                                Text retry = recognize(recognizer, processed);
-                                if (retry.getText().length() > text.getText().length()) text = retry;
-                            } finally {
-                                processed.recycle();
+                        try {
+                            List<OcrLine> best = lines(pageIndex + 1, recognize(recognizer, original));
+                            String table = new OcrDocument(best).getText();
+                            int validRows = validRows(table);
+                            int datedRows = StatementFields.countDatedRows(table);
+                            // Names alone can be plentiful. Retry when transaction fields are missing.
+                            if (validRows == 0 || datedRows > validRows) {
+                                Bitmap processed = preprocess(original);
+                                try {
+                                    List<OcrLine> retry = lines(pageIndex + 1, recognize(recognizer, processed));
+                                    String retryTable = new OcrDocument(retry).getText();
+                                    int retryRows = validRows(retryTable);
+                                    if (retryRows > validRows || (retryRows == validRows
+                                            && !table.contains("DATE\t") && retryTable.contains("DATE\t"))) best = retry;
+                                } catch (Exception retryError) {
+                                    // Keep the original recognition if an optional retry fails.
+                                    android.util.Log.w("StatementOCR", "Contrast retry failed", retryError);
+                                } finally {
+                                    processed.recycle();
+                                }
                             }
+                            allLines.addAll(best);
+                        } finally {
+                            original.recycle();
                         }
-                        appendLines(allLines, pageIndex + 1, text);
-                        original.recycle();
                     }
                 }
             }
@@ -59,11 +73,14 @@ public class MlKitPdfOcrEngine implements OcrEngine {
     }
 
     private Bitmap renderPage(PdfRenderer.Page page) {
-        int width = Math.max(1, Math.round(page.getWidth() * RENDER_SCALE));
-        int height = Math.max(1, Math.round(page.getHeight() * RENDER_SCALE));
+        float scale = Math.min(RENDER_SCALE,
+                (float) Math.sqrt((double) MAX_RENDER_PIXELS / ((double) page.getWidth() * page.getHeight())));
+        int width = Math.max(1, Math.round(page.getWidth() * scale));
+        int height = Math.max(1, Math.round(page.getHeight() * scale));
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        bitmap.eraseColor(Color.WHITE);
         Matrix matrix = new Matrix();
-        matrix.postScale(RENDER_SCALE, RENDER_SCALE);
+        matrix.postScale(scale, scale);
         page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
         return bitmap;
     }
@@ -72,26 +89,41 @@ public class MlKitPdfOcrEngine implements OcrEngine {
         return Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)), OCR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    private void appendLines(List<OcrLine> output, int pageNumber, Text text) {
+    private int validRows(String text) {
+        return (int) new GenericStatementParser().parse(text).stream()
+                .filter(row -> StatementFields.date(row.getDateStr()) != null).count();
+    }
+
+    private List<OcrLine> lines(int pageNumber, Text text) {
+        List<OcrLine> output = new ArrayList<>();
         List<Text.Line> lines = new ArrayList<>();
         for (Text.TextBlock block : text.getTextBlocks()) lines.addAll(block.getLines());
         lines.sort(Comparator.comparingInt(line -> line.getBoundingBox() == null ? 0 : line.getBoundingBox().top));
         for (Text.Line line : lines) {
-            if (!line.getText().trim().isEmpty()) output.add(new OcrLine(pageNumber, line.getText(), line.getBoundingBox()));
+            if (line.getElements().isEmpty()) {
+                if (!line.getText().trim().isEmpty()) output.add(new OcrLine(pageNumber, line.getText(), line.getBoundingBox()));
+            } else {
+                for (Text.Element word : line.getElements()) {
+                    if (!word.getText().trim().isEmpty()) output.add(new OcrLine(pageNumber, word.getText(), word.getBoundingBox()));
+                }
+            }
         }
+        return output;
     }
 
     private Bitmap preprocess(Bitmap source) {
         Bitmap output = Bitmap.createBitmap(source.getWidth(), source.getHeight(), Bitmap.Config.ARGB_8888);
-        int[] pixels = new int[source.getWidth() * source.getHeight()];
-        source.getPixels(pixels, 0, source.getWidth(), 0, 0, source.getWidth(), source.getHeight());
-        for (int i = 0; i < pixels.length; i++) {
-            int color = pixels[i];
-            int gray = (Color.red(color) * 30 + Color.green(color) * 59 + Color.blue(color) * 11) / 100;
-            int value = gray > 170 ? 255 : (gray < 90 ? 0 : gray);
-            pixels[i] = Color.rgb(value, value, value);
+        int[] pixels = new int[source.getWidth()];
+        for (int y = 0; y < source.getHeight(); y++) {
+            source.getPixels(pixels, 0, source.getWidth(), 0, y, source.getWidth(), 1);
+            for (int i = 0; i < pixels.length; i++) {
+                int color = pixels[i];
+                int gray = (Color.red(color) * 30 + Color.green(color) * 59 + Color.blue(color) * 11) / 100;
+                int value = gray > 170 ? 255 : (gray < 90 ? 0 : gray);
+                pixels[i] = Color.rgb(value, value, value);
+            }
+            output.setPixels(pixels, 0, source.getWidth(), 0, y, source.getWidth(), 1);
         }
-        output.setPixels(pixels, 0, source.getWidth(), 0, 0, source.getWidth(), source.getHeight());
         return output;
     }
 }

@@ -28,6 +28,14 @@ public class BankStatementParserFactory {
      * @return Best matching BankStatementParser
      */
     public BankStatementParser getParser(String textHeader, String fullText) {
+        // Prefer the issuing bank's heading over other banks mentioned in transaction details.
+        if (textHeader != null) {
+            for (String line : textHeader.split("\\r?\\n")) {
+                for (BankStatementParser parser : parsers) {
+                    if (parser.canParse(line, "")) return parser;
+                }
+            }
+        }
         for (BankStatementParser parser : parsers) {
             if (parser.canParse(textHeader, fullText)) {
                 return parser;

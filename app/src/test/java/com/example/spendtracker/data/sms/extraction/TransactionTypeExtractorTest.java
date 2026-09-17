@@ -42,12 +42,12 @@ public class TransactionTypeExtractorTest {
     }
 
     @Test
-    public void testTransferKeyword() {
+    public void testThirdPartyTransferIsExpenseWithoutOwnershipEvidence() {
         ExtractionResult<String> r = extractor.extract(
             "Rs 10000 transferred from A/c XX1234 to A/c XX5678.",
             "rs 10000 transferred from a/c xx1234 to a/c xx5678.");
         assertTrue(r.isPresent());
-        assertEquals("TRANSFER", r.getValue());
+        assertEquals("EXPENSE", r.getValue());
     }
 
     @Test
@@ -55,8 +55,7 @@ public class TransactionTypeExtractorTest {
         ExtractionResult<String> r = extractor.extract(
             "Fund Transfer of INR 5000 successful.",
             "fund transfer of inr 5000 successful.");
-        assertTrue(r.isPresent());
-        assertEquals("TRANSFER", r.getValue());
+        assertFalse("Transfer rail alone does not establish direction or ownership", r.isPresent());
     }
 
     @Test

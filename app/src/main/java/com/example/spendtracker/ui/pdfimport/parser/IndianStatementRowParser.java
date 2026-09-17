@@ -30,10 +30,10 @@ final class IndianStatementRowParser {
                     + "(?:\\s*(?:CR|DR|C|D))?(?![A-Z0-9@])");
 
     private static final Pattern CREDIT_MARKER = Pattern.compile(
-            "(?i)(?:^|[\\s/\\-])(?:CR|CREDIT|CREDITED|DEPOSIT|DEPOSITED|RECEIVED|REFUND)(?=$|[\\s/\\-])"
+            "(?i)(?:^|[\\s/\\-])(?:CR|CREDIT|CREDITED|DEPOSIT|DEPOSITED|INCOME|RECEIVED|REFUND)(?=$|[\\s/\\-])"
                     + "|\\bBY\\s+TRANSFER\\b");
     private static final Pattern DEBIT_MARKER = Pattern.compile(
-            "(?i)(?:^|[\\s/\\-])(?:DR|DEBIT|DEBITED|WITHDRAWAL|WITHDRAWN|WDL|PURCHASE)(?=$|[\\s/\\-])"
+            "(?i)(?:^|[\\s/\\-])(?:DR|DEBIT|DEBITED|WITHDRAWAL|WITHDRAWN|WDL|EXPENSE|PURCHASE)(?=$|[\\s/\\-])"
                     + "|\\b(?:TO\\s+TRANSFER|PAID\\s+TO)\\b");
 
     private static final Pattern UNDATED_TRANSACTION_START = Pattern.compile(
@@ -51,6 +51,9 @@ final class IndianStatementRowParser {
     static List<RawTransactionRow> parse(String fullText) {
         List<CandidateRow> candidates = new ArrayList<>();
         if (fullText == null || fullText.trim().isEmpty()) return new ArrayList<>();
+
+        // Do not reinterpret rejected structured rows using narration or balance as amounts.
+        if (fullText.contains("DATE\t")) return TabularStatementParser.parse(fullText);
 
         ColumnLayout columnLayout = detectColumnLayout(fullText);
         CandidateRow current = null;
@@ -79,7 +82,7 @@ final class IndianStatementRowParser {
 
         List<RawTransactionRow> rows = new ArrayList<>();
         for (CandidateRow candidate : candidates) {
-            if (candidate.amount <= 0) continue;
+            if (candidate.amount <= 0 || !candidate.directionCertain) continue;
             RawTransactionRow row = new RawTransactionRow();
             row.setDateStr(candidate.date);
             row.setNarration(candidate.cleanedNarration);
@@ -102,7 +105,9 @@ final class IndianStatementRowParser {
 
     private static void populateAmounts(CandidateRow row, ColumnLayout columnLayout) {
         String flatRow = row.rawLine.replace('\n', ' ').replaceAll("\\s+", " ").trim();
-        List<AmountToken> amounts = extractAmounts(flatRow);
+        String monetaryText = flatRow.replaceAll(DATE_EXPRESSION, " ")
+                .replaceAll("\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b", " ");
+        List<AmountToken> amounts = extractAmounts(monetaryText);
         if (amounts.isEmpty()) return;
 
         if (isBalanceOnlyRow(row.narration)) {
@@ -112,7 +117,8 @@ final class IndianStatementRowParser {
             return;
         }
 
-        Direction markerDirection = directionFromText(flatRow);
+        // A CR on the running balance is not evidence that the transaction is a credit.
+        Direction markerDirection = directionFromText(AMOUNT_CANDIDATE_PATTERN.matcher(monetaryText).replaceAll(" "));
         AmountToken transactionAmount;
 
         if (columnLayout.isSeparate() && amounts.size() >= 3) {

@@ -67,8 +67,9 @@ public class SMSPreprocessor {
         // Trim again after processing
         normalized = normalized.trim();
 
-        String lowercase = normalized.toLowerCase();
-        String normalizedSender = sender != null ? sender.trim().toUpperCase() : "";
+        normalized = normalized.replace('\u00a0', ' ').replace('\u202f', ' ');
+        String lowercase = normalized.toLowerCase(java.util.Locale.ROOT);
+        String normalizedSender = sender != null ? sender.trim().toUpperCase(java.util.Locale.ROOT) : "";
 
         return new PreprocessedSMS(body, normalized, lowercase, normalizedSender, timestamp);
     }

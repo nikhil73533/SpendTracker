@@ -31,6 +31,13 @@ public class BankConfigProvider {
         this.context = null;
     }
 
+    public BankConfigProvider(List<BankConfig> configs) {
+        this.context = null;
+        this.allConfigs = Collections.unmodifiableList(new ArrayList<>(configs));
+        for (BankConfig config : configs) configCache.put(config.getBankName().toLowerCase(java.util.Locale.ROOT), config);
+        this.loaded = true;
+    }
+
     /**
      * Returns all loaded bank configurations. Loads from assets on first call.
      */
@@ -78,10 +85,19 @@ public class BankConfigProvider {
 
     private BankConfig loadConfig(String assetPath) {
         try (InputStream is = context.getAssets().open(assetPath)) {
-            byte[] buf = new byte[is.available()];
-            is.read(buf);
-            String json = new String(buf, StandardCharsets.UTF_8);
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[4096];
+            int count;
+            while ((count = is.read(chunk)) != -1) buffer.write(chunk, 0, count);
+            return parseJson(new String(buffer.toByteArray(), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
+    /** Shared deserialization entry point for real-asset contract tests. */
+    public static BankConfig parseJson(String json) {
+        try {
             JSONObject obj = new JSONObject(json);
             BankConfig config = new BankConfig();
             config.setBankName(obj.getString("bankName"));
@@ -104,6 +120,7 @@ public class BankConfigProvider {
                 BankConfig.PatternConfig pc = new BankConfig.PatternConfig();
                 pc.setName(p.optString("name", ""));
                 pc.setRegex(p.getString("regex"));
+                java.util.regex.Pattern.compile(pc.getRegex());
                 pc.setAmountGroup(p.optInt("amountGroup", 0));
                 pc.setAccountGroup(p.optInt("accountGroup", 0));
                 pc.setReceiverGroup(p.optInt("receiverGroup", 0));

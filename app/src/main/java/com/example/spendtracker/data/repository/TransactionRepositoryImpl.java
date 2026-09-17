@@ -354,6 +354,25 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     }
 
     @Override
+    public void deleteTransactions(List<Integer> transactionIds, DeleteCallback callback) {
+        List<Integer> ids = new ArrayList<>(new java.util.LinkedHashSet<>(transactionIds));
+        executorService.execute(() -> {
+            int deleted = 0;
+            String error = null;
+            try {
+                long deletedAt = System.currentTimeMillis();
+                deleted = transactionDao.softDeleteTransactions(ids, deletedAt);
+                clonedTransactionDao.softDeleteTransactions(ids, deletedAt);
+            } catch (Exception e) {
+                android.util.Log.e("Transactions", "Batch deletion failed", e);
+                error = deleted > 0 ? "Transactions moved to Trash, but backup synchronization failed."
+                        : "Could not delete transactions. Please try again.";
+            }
+            if (callback != null) callback.onComplete(deleted, error);
+        });
+    }
+
+    @Override
     public void restoreTransaction(int transactionId) {
         executorService.execute(() -> {
             transactionDao.restoreTransaction(transactionId);

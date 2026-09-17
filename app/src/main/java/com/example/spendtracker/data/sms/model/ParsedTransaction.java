@@ -39,6 +39,7 @@ public class ParsedTransaction {
 
     // ── Date / time ──────────────────────────────────────────────────────────
     private Long parsedDate;              // From SMS body (may be null)
+    private String timestampPrecision = "SMS_RECEIVED";
     private long smsTimestamp;            // From SMS metadata (always set)
 
     // ── SMS metadata ─────────────────────────────────────────────────────────
@@ -102,6 +103,8 @@ public class ParsedTransaction {
     public void setReferenceId(String referenceId) { this.referenceId = referenceId; }
 
     public Long getParsedDate() { return parsedDate; }
+    public String getTimestampPrecision() { return timestampPrecision; }
+    public void setTimestampPrecision(String precision) { timestampPrecision = precision; }
     public void setParsedDate(Long parsedDate) { this.parsedDate = parsedDate; }
 
     public long getSmsTimestamp() { return smsTimestamp; }

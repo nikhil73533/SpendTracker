@@ -1,4 +1,5 @@
 <resources>
+    <string name="sms_received_time">Received %1$s</string>
     <string name="app_name">SpendTracker</string>
     <string name="action_go">Go</string>
     <string name="baking_title">Baking with Gemini</string>
@@ -108,4 +109,15 @@
     <string name="content_desc_add_category">Add new category</string>
     <string name="add_group">Add Group</string>
     <string name="content_desc_add_group">Add new group</string>
+    <string name="select_transaction">Select transaction</string>
+    <string name="select_all">Select all</string>
+    <string name="select_all_shown_transactions">Select all transactions in the current daily view</string>
+    <string name="delete_selected">Delete</string>
+    <string name="cancel_selection">Cancel selection</string>
+    <string name="selection_count">%1$d selected</string>
+    <string name="delete_selected_title">Delete selected transactions?</string>
+    <string name="delete_selected_message">Move these %1$d selected transactions to Trash? Select all includes the transactions in the current daily view. You can restore them from Trash.</string>
+    <string name="batch_deleted">%1$d transactions moved to Trash</string>
+    <string name="delete_failed">Could not delete transactions. Please try again.</string>
+    <string name="undo">Undo</string>
 </resources>

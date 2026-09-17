@@ -19,6 +19,13 @@ public class GenericStatementParserTest {
     }
 
     @Test
+    public void doesNotDefaultUnknownDirectionToExpense() {
+        List<RawTransactionRow> rows = parser.parse(
+                "Date Description Amount Balance\n04/09/2026 MERCHANT 500.00 1000.00\n");
+        assertTrue(rows.isEmpty());
+    }
+
+    @Test
     public void testGenericParser() {
         String sampleText = "UNKNOWN COOPERATIVE BANK\n" +
                 "Date Description Amount Balance\n" +

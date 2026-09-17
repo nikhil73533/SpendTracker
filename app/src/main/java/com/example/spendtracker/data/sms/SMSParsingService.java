@@ -89,10 +89,26 @@ public class SMSParsingService {
                               SourceTypeExtractor sourceTypeExtractor, TransactionStatusExtractor statusExtractor,
                               BankNormalizer bankNormalizer, MerchantNormalizer merchantNormalizer,
                               TransactionValidator validator, DuplicateDetector duplicateDetector) {
+        this(preprocessor, transactionDetector, bankIdentifier, amountExtractor, typeExtractor,
+                merchantExtractor, accountExtractor, upiExtractor, dateExtractor, sourceTypeExtractor,
+                statusExtractor, bankNormalizer, merchantNormalizer, validator, duplicateDetector,
+                new BankConfigProvider());
+    }
+
+    /** Uses the same asset configuration representation in JVM tests and production. */
+    public SMSParsingService(SMSPreprocessor preprocessor,
+                              TransactionDetector transactionDetector, BankIdentifier bankIdentifier,
+                              AmountExtractor amountExtractor, TransactionTypeExtractor typeExtractor,
+                              MerchantExtractor merchantExtractor, AccountExtractor accountExtractor,
+                              UpiExtractor upiExtractor, DateExtractor dateExtractor,
+                              SourceTypeExtractor sourceTypeExtractor, TransactionStatusExtractor statusExtractor,
+                              BankNormalizer bankNormalizer, MerchantNormalizer merchantNormalizer,
+                              TransactionValidator validator, DuplicateDetector duplicateDetector,
+                              BankConfigProvider configs) {
         this.preprocessor = preprocessor;
         this.transactionDetector = transactionDetector;
         this.bankIdentifier = bankIdentifier;
-        this.bankConfigProvider = new BankConfigProvider();
+        this.bankConfigProvider = configs;
         this.amountExtractor = amountExtractor;
         this.typeExtractor = typeExtractor;
         this.merchantExtractor = merchantExtractor;
@@ -126,6 +142,15 @@ public class SMSParsingService {
         }
 
         if (timestamp <= 0) timestamp = System.currentTimeMillis();
+
+        // Gate lifecycle before any permissive bank regex can create a ledger record.
+        if (!TransactionText.isAuthorization(body)) {
+            String lifecycle = statusExtractor.extract(body, body).getValue();
+            if ("FAILED".equals(lifecycle) || "PENDING".equals(lifecycle)) {
+                return ParseResult.builder().status("FAILED".equals(lifecycle)
+                        ? ParseStatus.FAILED_TRANSACTION : ParseStatus.PENDING_TRANSACTION).build();
+            }
+        }
 
         // Step 1: Preprocess the incoming raw message.
         // This generates a normalized representation (e.g. standardizing spaces/newlines)
@@ -240,8 +265,8 @@ public class SMSParsingService {
 
             for (BankConfig.PatternConfig pc : config.getPatterns()) {
                 try {
-                    Pattern pattern = Pattern.compile(pc.getRegex(), Pattern.CASE_INSENSITIVE);
-                    Matcher m = pattern.matcher(sms.getNormalizedMessage());
+                    Pattern pattern = pc.compiledPattern();
+                    Matcher m = pattern.matcher(TransactionText.posted(sms.getNormalizedMessage()));
                     if (!m.find()) continue;
 
                     ParsedTransaction parsed = new ParsedTransaction();
@@ -252,11 +277,16 @@ public class SMSParsingService {
                     // Extract amount
                     double amount = safeGroupDouble(m, pc.getAmountGroup());
                     if (amount <= 0) continue;
+                    ExtractionResult<Double> verifiedAmount = amountExtractor.extract(sms.getNormalizedMessage());
+                    if (!verifiedAmount.isPresent() || Math.abs(amount - verifiedAmount.getValue()) > .001) continue;
                     parsed.setAmount(amount);
                     parsed.setAmountConfidence(0.95);
 
                     // Extract type from config
-                    parsed.setTransactionType(pc.getType());
+                    ExtractionResult<String> actionType = typeExtractor.extract(sms.getNormalizedMessage(), sms.getLowercaseMessage());
+                    // A config's generic transfer template does not establish account ownership.
+                    parsed.setTransactionType(actionType.isPresent() ? actionType.getValue() :
+                            ("TRANSFER".equals(pc.getType()) ? null : pc.getType()));
                     parsed.setTransactionTypeConfidence(0.95);
 
                     // Extract receiver/merchant
@@ -268,7 +298,15 @@ public class SMSParsingService {
 
                     // Extract UPI ID
                     String upi = safeGroupString(m, pc.getUpiGroup());
-                    if (!upi.isEmpty()) parsed.setUpiId(upi);
+                    if (upi.contains("@")) parsed.setUpiId(upi);
+                    else if (!upi.isEmpty()) parsed.setReferenceId(upi);
+
+                    String configDate = safeGroupString(m, pc.getDateGroup());
+                    if (!configDate.isEmpty()) {
+                        DateExtractor.Result date = dateExtractor.extractDetailed(configDate, sms.getTimestamp());
+                        parsed.setParsedDate(date.timestamp);
+                        parsed.setTimestampPrecision(date.precision);
+                    }
 
                     // Extract account
                     String account = safeGroupString(m, pc.getAccountGroup());
@@ -375,10 +413,10 @@ public class SMSParsingService {
         }
 
         // Date
-        ExtractionResult<Long> dateResult = dateExtractor.extract(
-                sms.getNormalizedMessage(), sms.getTimestamp());
-        if (dateResult.isPresent()) {
-            parsed.setParsedDate(dateResult.getValue());
+        DateExtractor.Result dateResult = dateExtractor.extractDetailed(sms.getNormalizedMessage(), sms.getTimestamp());
+        if (parsed.getParsedDate() == null || !"SMS_RECEIVED".equals(dateResult.precision)) {
+            parsed.setParsedDate(dateResult.timestamp);
+            parsed.setTimestampPrecision(dateResult.precision);
         }
     }
 
@@ -409,7 +447,7 @@ public class SMSParsingService {
         // For transfers, set category to "Transfer"
         String category = "TRANSFER".equals(type) ? "Transfer" : "Other";
 
-        return new Transaction(
+        Transaction transaction = new Transaction(
                 0,
                 parsed.getAmount() != null ? parsed.getAmount() : 0,
                 category,
@@ -426,6 +464,12 @@ public class SMSParsingService {
                 parsed.getToAccount(),
                 parsed.getFees()
         );
+        transaction.setReferenceNumber(parsed.getReferenceId());
+        // Daily renders the payer for income; keep receiverName for legacy prediction consumers.
+        if ("INCOME".equals(type)) transaction.setSender(merchant);
+        transaction.setDirection("EXPENSE".equals(type) ? "DEBIT" : "INCOME".equals(type) ? "CREDIT" : "UNKNOWN");
+        transaction.setTimestampPrecision(parsed.getTimestampPrecision());
+        return transaction;
     }
 
     // ── Regex helpers ────────────────────────────────────────────────────────

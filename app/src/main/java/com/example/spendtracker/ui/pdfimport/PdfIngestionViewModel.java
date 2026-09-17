@@ -62,35 +62,43 @@ public class PdfIngestionViewModel extends ViewModel {
 
     public void parsePdfs(Context context, List<Uri> uris) {
         if (uris == null || uris.isEmpty()) return;
+        if (state.getValue() != null && state.getValue().isLoading) return;
         final Context appContext = context.getApplicationContext();
         state.setValue(new UiState(true, "Preparing statement import…", 0, uris.size(),
                 new ArrayList<>(), new ArrayList<>(), null, null));
         executor.execute(() -> {
-            PdfParserService parser = new PdfParserService();
-            List<Transaction> existing = new ArrayList<>(transactionRepository.getTransactionsSync());
             List<Transaction> candidates = new ArrayList<>();
             List<PdfParserService.FileImportResult> results = new ArrayList<>();
-            for (int i = 0; i < uris.size(); i++) {
-                state.postValue(new UiState(true, "Extracting statement " + (i + 1) + " of " + uris.size(),
-                        i, uris.size(), results, candidates, null, null));
-                PdfParserService.FileImportResult result = parser.parsePdf(appContext, uris.get(i), existing);
-                results.add(result);
-                candidates.addAll(result.transactions);
-                existing.addAll(result.transactions);
+            try {
+                PdfParserService parser = new PdfParserService();
+                List<Transaction> existing = new ArrayList<>(transactionRepository.getTransactionsSync());
+                String batchId = UUID.randomUUID().toString();
+                for (int i = 0; i < uris.size(); i++) {
+                    state.postValue(new UiState(true, "Extracting statement " + (i + 1) + " of " + uris.size(),
+                            i, uris.size(), results, candidates, null, null));
+                    PdfParserService.FileImportResult result = parser.parsePdf(appContext, uris.get(i), existing);
+                    for (Transaction transaction : result.transactions) transaction.setImportBatchId(batchId);
+                    results.add(result);
+                    candidates.addAll(result.transactions);
+                    existing.addAll(result.transactions);
+                }
+                state.postValue(new UiState(false, candidates.isEmpty() ? "No importable transactions found" : "Review extracted transactions",
+                        uris.size(), uris.size(), results, candidates, null, null));
+            } catch (Exception error) {
+                android.util.Log.e("StatementImport", "Unable to complete statement extraction", error);
+                state.postValue(new UiState(false, "Extraction interrupted", results.size(), uris.size(),
+                        results, candidates, null, "Could not complete extraction. Please try again."));
             }
-            String batchId = UUID.randomUUID().toString();
-            for (Transaction transaction : candidates) transaction.setImportBatchId(batchId);
-            state.postValue(new UiState(false, candidates.isEmpty() ? "No importable transactions found" : "Review extracted transactions",
-                    uris.size(), uris.size(), results, candidates, null, null));
         });
     }
 
     public void importApproved(List<Transaction> approved) {
+        if (state.getValue() != null && state.getValue().isLoading) return;
         if (approved == null || approved.isEmpty()) {
             UiState previous = state.getValue();
-            state.setValue(new UiState(false, "", 0, 0,
-                    previous == null ? new ArrayList<>() : previous.fileResults, new ArrayList<>(),
-                    new BulkImportResult(0, 0, 0, "Select at least one transaction to import"), null));
+            if (previous != null) state.setValue(new UiState(false, previous.progress, previous.completedFiles,
+                    previous.totalFiles, previous.fileResults, previous.reviewTransactions, null,
+                    "Select at least one transaction to import"));
             return;
         }
         UiState previous = state.getValue();
@@ -105,7 +113,7 @@ public class PdfIngestionViewModel extends ViewModel {
     /** Removes a candidate only from the pending preview; no persisted transaction is touched. */
     public void removeFromReview(Transaction transaction) {
         UiState previous = state.getValue();
-        if (previous == null || transaction == null) return;
+        if (previous == null || transaction == null || previous.isLoading) return;
         List<Transaction> remaining = new ArrayList<>(previous.reviewTransactions);
         if (!remaining.remove(transaction)) return;
         state.setValue(new UiState(previous.isLoading, previous.progress, previous.completedFiles,
