@@ -61,6 +61,24 @@ public class CategoryManagementFragment extends Fragment {
         setupTabLayout();
         setupFab();
         observeViewModel();
+        binding.btnBudgetNotifications.setOnClickListener(v -> {
+            boolean appEnabled = androidx.core.app.NotificationManagerCompat.from(requireContext()).areNotificationsEnabled();
+            android.content.Intent settings = new android.content.Intent(appEnabled
+                    ? android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+                    : android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            settings.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, requireContext().getPackageName());
+            if (appEnabled) settings.putExtra(android.provider.Settings.EXTRA_CHANNEL_ID,
+                    com.example.spendtracker.util.AppNotifications.BUDGETS);
+            startActivity(settings);
+        });
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        if (binding != null) binding.btnBudgetNotifications.setText(
+                com.example.spendtracker.util.AppNotifications.enabled(requireContext(),
+                        com.example.spendtracker.util.AppNotifications.BUDGETS)
+                        ? "Budget notifications enabled · Settings" : "Budget notifications blocked · Enable");
     }
 
     private void setupToolbar() {
@@ -170,10 +188,14 @@ public class CategoryManagementFragment extends Fragment {
                 existing != null ? existing.monthlyBudget : 0.0,
                 existing != null ? existing.annuallyBudget : 0.0
         };
+        final boolean[] bindingPeriod = {false};
 
         if (existing != null) {
             etName.setText(existing.name);
             spinnerType.setSelection("INCOME".equalsIgnoreCase(existing.type) ? 1 : 0);
+            // Moving a category must not silently change transaction classification.
+            spinnerType.setEnabled(false);
+            etName.setEnabled(!com.example.spendtracker.util.CategoryValidation.reserved(existing.name));
             switchNotifications.setChecked(existing.notificationsEnabled);
         } else {
             // Default type based on currently selected tab
@@ -195,14 +217,13 @@ public class CategoryManagementFragment extends Fragment {
         Runnable updateMaxLimit = () -> {
             int pos = spinnerMaxRange.getSelectedItemPosition();
             float maxVal = (pos == 1) ? 50000f : ((pos == 2) ? 1000000f : 10000f);
-            float step = (pos == 2) ? 1000f : ((pos == 1) ? 500f : 100f);
-
+            sliderBudget.setStepSize(0f);
+            sliderBudget.setValue(0f);
             sliderBudget.setValueTo(maxVal);
-            sliderBudget.setStepSize(step);
             tvSliderLabel.setText(String.format(Locale.getDefault(), "Budget Bar (0 - ₹ %.0f)", maxVal));
 
             int currentPeriod = spinnerPeriod.getSelectedItemPosition();
-            float val = (float) budgets[currentPeriod];
+            float val = Double.isFinite(budgets[currentPeriod]) ? (float) budgets[currentPeriod] : 0f;
             if (val > maxVal) val = maxVal;
             if (val < 0) val = 0;
             sliderBudget.setValue(val);
@@ -210,6 +231,7 @@ public class CategoryManagementFragment extends Fragment {
 
         // Helper to bind current period settings into UI controls
         Runnable bindPeriodData = () -> {
+            bindingPeriod[0] = true;
             int currentPeriod = spinnerPeriod.getSelectedItemPosition();
             boolean isUnlimited = unlimited[currentPeriod];
             switchUnlimited.setChecked(isUnlimited);
@@ -222,9 +244,10 @@ public class CategoryManagementFragment extends Fragment {
                 else spinnerMaxRange.setSelection(0);
 
                 updateMaxLimit.run();
-                etBudgetAmount.setText(currentVal > 0 ? String.format(Locale.getDefault(), "%.0f", currentVal) : "0");
+                etBudgetAmount.setText(Double.isFinite(currentVal) ? String.format(Locale.US, "%.2f", currentVal) : "");
             }
             updateSummary.run();
+            bindingPeriod[0] = false;
         };
 
         // Event Listeners
@@ -243,13 +266,16 @@ public class CategoryManagementFragment extends Fragment {
         });
 
         switchUnlimited.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (bindingPeriod[0]) return;
             int currentPeriod = spinnerPeriod.getSelectedItemPosition();
             unlimited[currentPeriod] = isChecked;
             layoutBudgetInputs.setVisibility(isChecked ? View.GONE : View.VISIBLE);
-            if (!isChecked && budgets[currentPeriod] == 0) {
-                budgets[currentPeriod] = 1000.0;
-                etBudgetAmount.setText("1000");
-                sliderBudget.setValue(1000f);
+            if (!isChecked) {
+                if (!Double.isFinite(budgets[currentPeriod]) || budgets[currentPeriod] <= 0) budgets[currentPeriod] = 1000.0;
+                etBudgetAmount.setText(String.format(Locale.US, "%.2f", budgets[currentPeriod]));
+                updateMaxLimit.run();
+            } else if (!Double.isFinite(budgets[currentPeriod]) || budgets[currentPeriod] < 0) {
+                budgets[currentPeriod] = 0;
             }
             updateSummary.run();
         });
@@ -258,7 +284,7 @@ public class CategoryManagementFragment extends Fragment {
             if (fromUser) {
                 int currentPeriod = spinnerPeriod.getSelectedItemPosition();
                 budgets[currentPeriod] = value;
-                etBudgetAmount.setText(String.format(Locale.getDefault(), "%.0f", value));
+                etBudgetAmount.setText(String.format(Locale.US, "%.2f", value));
                 updateSummary.run();
             }
         });
@@ -266,15 +292,18 @@ public class CategoryManagementFragment extends Fragment {
         etBudgetAmount.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (bindingPeriod[0]) return;
                 try {
                     double val = Double.parseDouble(s.toString().trim());
                     int currentPeriod = spinnerPeriod.getSelectedItemPosition();
                     budgets[currentPeriod] = val;
-                    if (val <= sliderBudget.getValueTo() && val >= sliderBudget.getValueFrom()) {
+                    if (Double.isFinite(val) && val <= sliderBudget.getValueTo() && val >= sliderBudget.getValueFrom()) {
                         sliderBudget.setValue((float) val);
                     }
                     updateSummary.run();
-                } catch (Exception ignored) {}
+                } catch (NumberFormatException ignored) {
+                    budgets[spinnerPeriod.getSelectedItemPosition()] = Double.NaN;
+                }
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -282,12 +311,21 @@ public class CategoryManagementFragment extends Fragment {
         // Initialize state
         bindPeriodData.run();
 
-        new AlertDialog.Builder(requireContext())
+        AlertDialog categoryDialog = new AlertDialog.Builder(requireContext())
                 .setTitle(existing != null ? "Edit Category & Budget" : "Add Category")
                 .setView(view)
-                .setPositiveButton(existing != null ? "Save" : "Add", (dialog, which) -> {
+                .setPositiveButton(existing != null ? "Save" : "Add", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+        categoryDialog.setOnShowListener(ignored -> categoryDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
                     String name = etName.getText().toString().trim();
                     String type = (String) spinnerType.getSelectedItem();
+                    for (CategoryEntity category : allCategoryEntities) {
+                        if ((existing == null || category.id != existing.id)
+                                && name.equalsIgnoreCase(category.name) && type.equals(category.type)) {
+                            etName.setError("Already exists in " + type); return;
+                        }
+                    }
                     if (!name.isEmpty()) {
                         CategoryEntity catToSave = new CategoryEntity(
                                 existing != null ? existing.id : 0,
@@ -300,21 +338,27 @@ public class CategoryManagementFragment extends Fragment {
                                 unlimited[2], budgets[2],
                                 switchNotifications.isChecked()
                         );
+                        String error = com.example.spendtracker.util.CategoryValidation.error(catToSave);
+                        if (error != null) { Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show(); return; }
                         viewModel.saveCategory(catToSave);
+                        categoryDialog.dismiss();
                     } else {
                         Toast.makeText(requireContext(), "Please enter category name", Toast.LENGTH_SHORT).show();
                     }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+                }));
+        categoryDialog.show();
     }
 
     private void showDeleteConfirmation(CategoryEntity category) {
+        if (com.example.spendtracker.util.CategoryValidation.reserved(category.name)) {
+            Toast.makeText(requireContext(), "System categories cannot be deleted", Toast.LENGTH_SHORT).show();
+            return;
+        }
         new AlertDialog.Builder(requireContext())
                 .setTitle("Delete Category")
-                .setMessage("Are you sure you want to delete category: " + category.name + "?")
+                .setMessage("Delete " + category.name + "? Its transactions will be kept under Uncategorized.")
                 .setPositiveButton("Delete", (dialog, which) -> {
-                    viewModel.deleteCategory(category.name);
+                    viewModel.deleteCategory(category.id);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();

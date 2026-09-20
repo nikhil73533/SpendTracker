@@ -1,21 +1,27 @@
 package com.example.spendtracker.util;
 
 import android.content.Context;
+import android.content.ClipData;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.pdf.PdfDocument;
+import android.net.Uri;
 import android.os.Environment;
+import androidx.core.content.FileProvider;
 
 import com.example.spendtracker.domain.model.Transaction;
+import com.example.spendtracker.ui.dashboard.MonthlySummaryAdapter;
 import com.example.spendtracker.ui.dashboard.DashboardViewModel;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -130,14 +136,7 @@ public class PdfReportService {
         // Finish current page & save
         pageBuilder.finishDocument();
 
-        File reportsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
-        if (reportsDir != null && !reportsDir.exists()) {
-            boolean created = reportsDir.mkdirs();
-            if (!created && !reportsDir.exists()) {
-                throw new java.io.IOException("Failed to create directory: " + reportsDir.getAbsolutePath());
-            }
-        }
-        File file = new File(reportsDir, "SpendTracker_Report.pdf");
+        File file = reportFile(context, "SpendTracker_Report.pdf");
 
         try (FileOutputStream fos = new FileOutputStream(file)) {
             document.writeTo(fos);
@@ -148,6 +147,49 @@ public class PdfReportService {
         return file;
     }
 
+    /** Renders the same month and week rows shown by the Monthly dashboard tab. */
+    public static File generateMonthlySummaryReport(Context context, List<MonthlySummaryAdapter.MonthSummary> summaries) throws Exception {
+        if (summaries == null || summaries.isEmpty()) {
+            throw new IllegalArgumentException("No monthly summaries available");
+        }
+        PdfDocument document = new PdfDocument();
+        try {
+            new MonthlySummaryRenderer(document, summaries).render();
+            File file = reportFile(context, "SpendTracker_Monthly_Summary.pdf");
+            try (FileOutputStream output = new FileOutputStream(file)) {
+                document.writeTo(output);
+            }
+            return file;
+        } finally {
+            document.close();
+        }
+    }
+
+    /** Shares only an already-created report file and grants the target app read access. */
+    public static void share(Context context, File file, String subject, String chooserTitle) {
+        Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", file);
+        Intent intent = new Intent(Intent.ACTION_SEND)
+                .setType("application/pdf")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .putExtra(Intent.EXTRA_SUBJECT, subject)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.setClipData(ClipData.newRawUri(subject, uri));
+        context.startActivity(Intent.createChooser(intent, chooserTitle));
+    }
+
+    private static File reportFile(Context context, String fileName) throws java.io.IOException {
+        File reportsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+        if (reportsDir == null) throw new java.io.IOException("Report storage is unavailable");
+        if (!reportsDir.exists() && !reportsDir.mkdirs()) {
+            throw new java.io.IOException("Failed to create report directory");
+        }
+        int extensionIndex = fileName.lastIndexOf('.');
+        String prefix = extensionIndex > 0 ? fileName.substring(0, extensionIndex) : fileName;
+        String extension = extensionIndex > 0 ? fileName.substring(extensionIndex) : ".pdf";
+        // Each export is a distinct shareable record; never replace a previous report.
+        return File.createTempFile(prefix + "-", extension, reportsDir);
+    }
+
     // ── Payload Construction ──────────────────────────────────────────────────
 
     public static ReportPayload buildPayload(DashboardViewModel.TotalPageData data, List<Transaction> transactions, String dateRangeLabel) {
@@ -155,37 +197,27 @@ public class PdfReportService {
         payload.dateRangeLabel = (dateRangeLabel != null && !dateRangeLabel.isEmpty()) ? dateRangeLabel : "All Time";
         payload.transactions = transactions != null ? transactions : new ArrayList<>();
 
-        if (data != null) {
-            payload.totalIncome = data.income;
-            payload.accountExpenses = data.accountExpenses;
-            payload.cardExpenses = data.cardExpenses;
-            payload.totalExpense = data.accountExpenses + data.cardExpenses;
-            payload.totalTransfers = data.transfers;
-            payload.transferIncoming = data.transferIncoming;
-            payload.transferOutgoing = data.transferOutgoing;
-            payload.netSavings = payload.totalIncome - payload.totalExpense;
-        } else {
-            // Calculate from transactions directly if data is null
-            for (Transaction t : payload.transactions) {
-                if ("TRANSFER".equalsIgnoreCase(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory())) {
-                    payload.totalTransfers += t.getAmount();
-                } else if ("INCOME".equalsIgnoreCase(t.getType())) {
-                    payload.totalIncome += t.getAmount();
-                } else {
-                    payload.totalExpense += t.getAmount();
-                    if ("Credit Card".equalsIgnoreCase(t.getSourceType())) {
-                        payload.cardExpenses += t.getAmount();
-                    } else {
-                        payload.accountExpenses += t.getAmount();
-                    }
-                }
+        // The report is validated from its own transaction rows. Dashboard aggregates can be
+        // emitted independently, so using them here could create a PDF whose totals do not match
+        // the details printed later in the document.
+        for (Transaction t : payload.transactions) {
+            if (isTransfer(t)) {
+                if (TransferDirection.isIncoming(t)) payload.transferIncoming += t.getAmount();
+                else payload.transferOutgoing += t.getAmount();
+            } else if ("INCOME".equalsIgnoreCase(t.getType())) {
+                payload.totalIncome += t.getAmount();
+            } else {
+                payload.totalExpense += t.getAmount();
+                if ("Credit Card".equalsIgnoreCase(t.getSourceType())) payload.cardExpenses += t.getAmount();
+                else payload.accountExpenses += t.getAmount();
             }
-            payload.netSavings = payload.totalIncome - payload.totalExpense;
         }
+        // This is the signed amount displayed as “Transfer (Total)” in the Total dashboard.
+        payload.totalTransfers = payload.transferIncoming - payload.transferOutgoing;
+        payload.netSavings = payload.totalIncome - payload.totalExpense;
 
         // Build Category Breakdown
-        Map<String, double[]> catMap = new LinkedHashMap<>(); // name -> [count, expenseSum, incomeSum]
-        Map<String, String> catTypeMap = new LinkedHashMap<>();
+        Map<String, double[]> catMap = new LinkedHashMap<>(); // type + name -> [count, total]
 
         // Build Bank Breakdown
         Map<String, double[]> bankMap = new LinkedHashMap<>(); // name -> [count, sum]
@@ -194,20 +226,16 @@ public class PdfReportService {
         Map<String, double[]> sourceMap = new LinkedHashMap<>(); // name -> [count, sum]
 
         for (Transaction t : payload.transactions) {
-            boolean isTransfer = "TRANSFER".equalsIgnoreCase(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+            boolean isTransfer = isTransfer(t);
 
             // Category breakdown (exclude transfers from expense/income category percentages)
             if (!isTransfer) {
                 String cat = (t.getCategory() != null && !t.getCategory().isEmpty()) ? t.getCategory() : "Other";
-                double[] arr = catMap.computeIfAbsent(cat, k -> new double[]{0, 0, 0});
+                String type = "INCOME".equalsIgnoreCase(t.getType()) ? "INCOME" : "EXPENSE";
+                String key = type + "\u0000" + cat;
+                double[] arr = catMap.computeIfAbsent(key, k -> new double[]{0, 0});
                 arr[0]++; // count
-                if ("INCOME".equalsIgnoreCase(t.getType())) {
-                    arr[2] += t.getAmount();
-                    catTypeMap.put(cat, "INCOME");
-                } else {
-                    arr[1] += t.getAmount();
-                    catTypeMap.put(cat, "EXPENSE");
-                }
+                arr[1] += t.getAmount();
             }
 
             // Bank breakdown (exclude transfers)
@@ -229,11 +257,12 @@ public class PdfReportService {
 
         double totalCatExpense = payload.totalExpense > 0 ? payload.totalExpense : 1.0;
         for (Map.Entry<String, double[]> entry : catMap.entrySet()) {
-            String cat = entry.getKey();
+            int separator = entry.getKey().indexOf('\u0000');
+            String type = separator >= 0 ? entry.getKey().substring(0, separator) : "EXPENSE";
+            String cat = separator >= 0 ? entry.getKey().substring(separator + 1) : entry.getKey();
             double[] arr = entry.getValue();
             int count = (int) arr[0];
-            double amt = arr[1] > 0 ? arr[1] : arr[2];
-            String type = catTypeMap.getOrDefault(cat, "EXPENSE");
+            double amt = arr[1];
             double pct = "EXPENSE".equals(type) ? (amt / totalCatExpense) * 100.0 : 0.0;
             payload.categoryBreakdown.add(new CategorySummaryItem(cat, type, count, amt, pct));
         }
@@ -247,6 +276,11 @@ public class PdfReportService {
         }
 
         return payload;
+    }
+
+    private static boolean isTransfer(Transaction transaction) {
+        return transaction != null && ("TRANSFER".equalsIgnoreCase(transaction.getType())
+                || transaction.getCategory().toLowerCase(Locale.ROOT).contains("transfer"));
     }
 
     // ── Page & Drawing Engine ─────────────────────────────────────────────────
@@ -389,7 +423,7 @@ public class PdfReportService {
             y += cardHeight + cardGap;
 
             // Row 2 Cards
-            drawCard(marginLeft, y, cardWidth, cardHeight, "Total Transfers", formatCurrency(payload.totalTransfers), "#7C3AED", "#F3E8FF");
+            drawCard(marginLeft, y, cardWidth, cardHeight, "Transfer Movement (Net)", formatCurrency(payload.totalTransfers), "#7C3AED", "#F3E8FF");
             drawCard(marginLeft + cardWidth + cardGap, y, cardWidth, cardHeight, "Account vs Card Exp", "Acct: " + formatCurrencyShort(payload.accountExpenses) + " | Card: " + formatCurrencyShort(payload.cardExpenses), "#475569", "#F8FAFC");
             drawCard(marginLeft + (cardWidth + cardGap) * 2, y, cardWidth, cardHeight, "Transfer Incoming/Outgoing", "In: " + formatCurrencyShort(payload.transferIncoming) + " | Out: " + formatCurrencyShort(payload.transferOutgoing), "#475569", "#F8FAFC");
 
@@ -661,7 +695,13 @@ public class PdfReportService {
             int rowIdx = 0;
 
             for (Transaction t : payload.transactions) {
+                boolean continuesOnNewPage = y + 20 > maxY;
                 ensureSpace(20);
+                if (continuesOnNewPage) {
+                    drawTableHeader("Transaction Records (continued)",
+                            new String[]{"Date & Time", "Category", "Description / Contact", "Source", "Type", "Amount"},
+                            new float[]{95, 80, 140, 85, 55, 68});
+                }
 
                 if (rowIdx % 2 == 1) {
                     paint.setColor(Color.parseColor("#F8FAFC"));
@@ -687,7 +727,7 @@ public class PdfReportService {
                 canvas.drawText(truncate(t.getSource(), 15), marginLeft + 317, y + 12, paint);
 
                 // Type Badge
-                drawTypeBadge(marginLeft + 402, y + 2, t.getType());
+                drawTypeBadge(marginLeft + 402, y + 2, transactionTypeLabel(t));
 
                 // Amount
                 paint.setColor(Color.parseColor("#0F172A"));
@@ -699,6 +739,13 @@ public class PdfReportService {
             }
         }
 
+        private String transactionTypeLabel(Transaction transaction) {
+            if (isTransfer(transaction)) {
+                return TransferDirection.isIncoming(transaction) ? "TRANSFER IN" : "TRANSFER OUT";
+            }
+            return transaction.getType();
+        }
+
         private void drawTypeBadge(float x, float top, String rawType) {
             String type = rawType != null ? rawType.toUpperCase() : "EXPENSE";
             String bgHex = "#FEE2E2"; // Light red
@@ -707,7 +754,7 @@ public class PdfReportService {
             if ("INCOME".equals(type)) {
                 bgHex = "#DCFCE7"; // Light green
                 textHex = "#15803D";
-            } else if ("TRANSFER".equals(type) || "TRANSFER".equalsIgnoreCase(type)) {
+            } else if (type.startsWith("TRANSFER")) {
                 bgHex = "#F3E8FF"; // Light purple
                 textHex = "#6B21A8";
             }
@@ -728,6 +775,155 @@ public class PdfReportService {
         public void finishDocument() {
             drawPageFooter();
             document.finishPage(currentPage);
+        }
+    }
+
+    /** A compact, paginated version of the month and week cards in the Monthly tab. */
+    private static final class MonthlySummaryRenderer {
+        private static final int WIDTH = 595;
+        private static final int HEIGHT = 842;
+        private static final int LEFT = 38;
+        private static final int RIGHT = 557;
+        private final PdfDocument document;
+        private final List<MonthlySummaryAdapter.MonthSummary> summaries;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private PdfDocument.Page page;
+        private Canvas canvas;
+        private int pageNumber = 1;
+        private float y;
+
+        MonthlySummaryRenderer(PdfDocument document, List<MonthlySummaryAdapter.MonthSummary> summaries) {
+            this.document = document;
+            this.summaries = summaries;
+        }
+
+        void render() {
+            startPage();
+            drawHeader();
+            for (MonthlySummaryAdapter.MonthSummary summary : summaries) drawMonth(summary);
+            drawFooter();
+            document.finishPage(page);
+        }
+
+        private void startPage() {
+            page = document.startPage(new PdfDocument.PageInfo.Builder(WIDTH, HEIGHT, pageNumber).create());
+            canvas = page.getCanvas();
+            canvas.drawColor(Color.WHITE);
+            y = 36;
+        }
+
+        private void ensure(float height) {
+            if (y + height <= 778) return;
+            drawFooter();
+            document.finishPage(page);
+            pageNumber++;
+            startPage();
+            paint.setColor(Color.rgb(15, 23, 42));
+            canvas.drawRect(0, 0, WIDTH, 30, paint);
+            paint.setColor(Color.WHITE);
+            paint.setTextSize(10);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            canvas.drawText("SpendTracker monthly summary", LEFT, 20, paint);
+            y = 48;
+        }
+
+        private void drawHeader() {
+            paint.setColor(Color.rgb(15, 23, 42));
+            canvas.drawRoundRect(new RectF(LEFT, y, RIGHT, y + 76), 12, 12, paint);
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            paint.setTextSize(22);
+            canvas.drawText("Monthly summary", LEFT + 20, y + 31, paint);
+            paint.setTypeface(Typeface.DEFAULT);
+            paint.setColor(Color.rgb(203, 213, 225));
+            paint.setTextSize(10);
+            canvas.drawText("Income, expenses and weekly balances", LEFT + 20, y + 50, paint);
+            canvas.drawText("Generated " + new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(new Date()), LEFT + 20, y + 66, paint);
+            y += 96;
+        }
+
+        private void drawMonth(MonthlySummaryAdapter.MonthSummary summary) {
+            int rowCount = summary.weeks == null ? 0 : summary.weeks.size();
+            ensure(112 + rowCount * 24);
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(summary.monthTimestamp);
+            String title = new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(calendar.getTime());
+            String start = new SimpleDateFormat("dd MMM", Locale.getDefault()).format(calendar.getTime());
+            calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH));
+            String end = new SimpleDateFormat("dd MMM", Locale.getDefault()).format(calendar.getTime());
+
+            paint.setColor(Color.rgb(30, 41, 59));
+            canvas.drawRoundRect(new RectF(LEFT, y, RIGHT, y + 70), 9, 9, paint);
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            paint.setTextSize(15);
+            canvas.drawText(title, LEFT + 16, y + 25, paint);
+            paint.setTypeface(Typeface.DEFAULT);
+            paint.setColor(Color.rgb(203, 213, 225));
+            paint.setTextSize(9.5f);
+            canvas.drawText(start + " - " + end, LEFT + 16, y + 43, paint);
+
+            float cardWidth = (RIGHT - LEFT - 64) / 3f;
+            drawMonthMetric(LEFT + 16, y + 52, cardWidth, "Income", summary.income, Color.rgb(22, 163, 74));
+            drawMonthMetric(LEFT + 32 + cardWidth, y + 52, cardWidth, "Expense", summary.expense, Color.rgb(248, 113, 113));
+            drawMonthMetric(LEFT + 48 + cardWidth * 2, y + 52, cardWidth, "Balance", summary.income - summary.expense, Color.rgb(96, 165, 250));
+            // Metric cards extend 20pt below the month banner; leave a clear gap before the table.
+            y += 98;
+
+            if (rowCount == 0) return;
+            paint.setColor(Color.rgb(15, 23, 42));
+            canvas.drawRect(LEFT, y, RIGHT, y + 20, paint);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            paint.setTextSize(8.5f);
+            paint.setColor(Color.WHITE);
+            canvas.drawText("WEEK", LEFT + 8, y + 13, paint);
+            canvas.drawText("INCOME", LEFT + 250, y + 13, paint);
+            canvas.drawText("EXPENSE", LEFT + 340, y + 13, paint);
+            canvas.drawText("BALANCE", LEFT + 440, y + 13, paint);
+            y += 20;
+            for (MonthlySummaryAdapter.WeeklySummary week : summary.weeks) {
+                ensure(28);
+                paint.setColor(Color.rgb(248, 250, 252));
+                canvas.drawRect(LEFT, y, RIGHT, y + 24, paint);
+                paint.setColor(Color.rgb(30, 41, 59));
+                paint.setTextSize(9f);
+                paint.setTypeface(Typeface.DEFAULT);
+                canvas.drawText(safe(week.range, 28), LEFT + 8, y + 16, paint);
+                canvas.drawText(formatCurrency(week.income), LEFT + 250, y + 16, paint);
+                canvas.drawText(formatCurrency(week.expense), LEFT + 340, y + 16, paint);
+                canvas.drawText(formatCurrency(week.income - week.expense), LEFT + 440, y + 16, paint);
+                y += 24;
+            }
+            y += 16;
+        }
+
+        private void drawMonthMetric(float x, float top, float width, String label, double value, int color) {
+            paint.setColor(Color.rgb(51, 65, 85));
+            canvas.drawRoundRect(new RectF(x, top, x + width, top + 38), 5, 5, paint);
+            paint.setColor(Color.rgb(203, 213, 225));
+            paint.setTextSize(7.5f);
+            paint.setTypeface(Typeface.DEFAULT);
+            canvas.drawText(label, x + 7, top + 12, paint);
+            paint.setColor(color);
+            paint.setTextSize(10f);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            canvas.drawText(formatCurrency(value), x + 7, top + 28, paint);
+        }
+
+        private void drawFooter() {
+            paint.setColor(Color.rgb(203, 213, 225));
+            canvas.drawLine(LEFT, 800, RIGHT, 800, paint);
+            paint.setColor(Color.rgb(100, 116, 139));
+            paint.setTextSize(8.5f);
+            paint.setTypeface(Typeface.DEFAULT);
+            canvas.drawText("Generated by SpendTracker", LEFT, 818, paint);
+            String pageLabel = "Page " + pageNumber;
+            canvas.drawText(pageLabel, RIGHT - paint.measureText(pageLabel), 818, paint);
+        }
+
+        private String safe(String value, int max) {
+            if (value == null) return "-";
+            return value.length() > max ? value.substring(0, max - 2) + ".." : value;
         }
     }
 

@@ -11,6 +11,8 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+<com.google.android.material.button.MaterialButton android:id="@+id/btn_share_receipt"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Share total summary PDF" />
         <!-- Expense Account Summary Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"

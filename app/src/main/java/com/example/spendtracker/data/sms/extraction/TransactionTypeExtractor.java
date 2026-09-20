@@ -14,6 +14,12 @@ public class TransactionTypeExtractor {
             + "credited|deposited|received|refunded|reversed|cr)\\b");
     private static final Pattern INCOME = Pattern.compile("(?i)credited|deposited|received|refunded|reversed|cr");
 
+    public String extractDirection(String message) {
+        String text = TransactionText.posted(message);
+        Matcher action = DIRECTION.matcher(text);
+        return action.find() && INCOME.matcher(action.group(1)).matches() ? "CREDIT" : "DEBIT";
+    }
+
     public ExtractionResult<String> extract(String normalized, String lowercase) {
         String text = TransactionText.posted(normalized);
         if (text.isEmpty()) return ExtractionResult.empty();

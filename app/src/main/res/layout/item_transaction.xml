@@ -17,6 +17,11 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp">
 
+        <ImageButton android:id="@+id/share_receipt" android:layout_width="32dp" android:layout_height="32dp"
+            android:src="@android:drawable/ic_menu_share" android:contentDescription="Share PDF receipt"
+            android:padding="7dp" android:background="?attr/selectableItemBackgroundBorderless" app:tint="@color/text_secondary"
+            app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
         <ImageView
             android:id="@+id/iv_category_icon"
             android:layout_width="24dp"
@@ -59,7 +64,7 @@
             android:layout_height="wrap_content"
             android:textColor="@color/text_secondary"
             android:textSize="10sp"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/share_receipt"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="10:30 AM" />
 
@@ -128,9 +133,9 @@
             android:gravity="end"
             android:textColor="@color/income_blue"
             android:textSize="14sp"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toBottomOf="@id/tv_description"
             app:layout_constraintEnd_toStartOf="@id/tv_expense_amount"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toTopOf="@id/tv_receiver"
             tools:text="₹ 0.00" />
 
         <TextView
@@ -140,9 +145,9 @@
             android:gravity="end"
             android:textColor="@color/expense_red"
             android:textSize="14sp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="@id/tv_description"
+            app:layout_constraintEnd_toStartOf="@id/share_receipt"
+            app:layout_constraintTop_toTopOf="@id/tv_receiver"
             tools:text="₹ 30.00" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

@@ -35,6 +35,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private final TransactionGroupDao transactionGroupDao;
     private final RepeatedAlertDao repeatedAlertDao;
     private final Context context;
+    private final com.example.spendtracker.data.local.database.SpendTrackerDatabase database;
     private final ExecutorService executorService;
 
     /**
@@ -79,8 +80,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                                    @ClonedDatabase TransactionDao clonedTransactionDao,
                                    CategoryDao categoryDao,
                                    TransactionGroupDao transactionGroupDao,
-                                   RepeatedAlertDao repeatedAlertDao) {
+                                   RepeatedAlertDao repeatedAlertDao,
+                                   @MainDatabase com.example.spendtracker.data.local.database.SpendTrackerDatabase database) {
         this.context = context;
+        this.database = database;
         this.transactionDao = transactionDao;
         this.clonedTransactionDao = clonedTransactionDao;
         this.categoryDao = categoryDao;
@@ -135,6 +138,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             List<TransactionEntity> all = transactionDao.getAllTransactionsSync();
             for (TransactionEntity e : all) {
                 if ("Transfer".equalsIgnoreCase(e.category) && !"TRANSFER".equals(e.type)) {
+                    if ("UNKNOWN".equals(e.direction)) e.direction = "INCOME".equals(e.type) ? "CREDIT" : "DEBIT";
                     e.type = "TRANSFER";
                     transactionDao.updateTransaction(e);
                 }
@@ -202,7 +206,16 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void addTransaction(Transaction transaction) {
+        addTransaction(transaction, false);
+    }
+
+    @Override public void addConfirmedTransaction(Transaction transaction) {
+        addTransaction(transaction, true);
+    }
+
+    private void addTransaction(Transaction transaction, boolean confirmed) {
         executorService.execute(() -> {
+            if (confirmed) transaction.setConfidenceScore(1.0);
             TransactionEntity entity = mapToEntity(transaction);
             
             // Re-evaluate group
@@ -218,9 +231,11 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             
             long newId = transactionDao.insertTransaction(entity);
             clonedTransactionDao.insertTransaction(entity); // Mirror to cloned database
+            if (confirmed && newId > 0) learnConfirmed(transaction, (int) newId);
 
             // Evaluate category budget range and trigger warning notifications if exceeded
             BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
+            com.example.spendtracker.util.UpiLimitWorker.checkNow(context);
 
             if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
                 // Check for duplicate transactions within 48 hours
@@ -312,7 +327,17 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void updateTransaction(Transaction transaction) {
+        updateTransaction(transaction, false);
+    }
+
+    @Override public void updateConfirmedTransaction(Transaction transaction) {
+        updateTransaction(transaction, true);
+    }
+
+    private void updateTransaction(Transaction transaction, boolean confirmed) {
         executorService.execute(() -> {
+            if (transactionDao.getTransactionByIdSync(transaction.getId()) == null) return;
+            if (confirmed) transaction.setConfidenceScore(1.0);
             TransactionEntity entity = mapToEntity(transaction);
             
             // Re-evaluate group
@@ -328,10 +353,21 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             
             transactionDao.updateTransaction(entity);
             clonedTransactionDao.updateTransaction(entity); // Mirror to cloned database
+            if (confirmed) learnConfirmed(transaction, transaction.getId());
 
             // Evaluate category budget range and trigger warning notifications if exceeded
             BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
+            com.example.spendtracker.util.UpiLimitWorker.checkNow(context);
         });
+    }
+
+    private void learnConfirmed(Transaction transaction, int id) {
+        try {
+            com.example.spendtracker.util.CategoryPrediction.service(context).learn(
+                    "transaction:" + id, com.example.spendtracker.util.CategoryPrediction.from(transaction), transaction.getCategory());
+        } catch (RuntimeException e) {
+            android.util.Log.e("CategoryPrediction", "Transaction saved but category learning failed", e);
+        }
     }
 
     @Override
@@ -467,28 +503,20 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public void saveCategory(CategoryEntity category) {
-        executorService.execute(() -> {
-            if (category == null || category.name == null || category.name.trim().isEmpty()) return;
-            String cleanName = category.name.trim();
-            category.name = cleanName;
+        executorService.execute(() -> database.runInTransaction(() -> saveCategorySync(category)));
+    }
 
-            if (category.id > 0) {
-                CategoryEntity existing = categoryDao.getCategoryByIdSync(category.id);
-                if (existing != null && existing.name != null && !existing.name.trim().isEmpty() && !existing.name.equals(cleanName)) {
-                    // Category was renamed -> update all transactions referencing old category name
-                    transactionDao.renameCategory(existing.name.trim(), cleanName);
-                }
-                categoryDao.updateCategory(category);
-            } else {
-                CategoryEntity existing = categoryDao.getCategoryByNameSync(cleanName);
-                if (existing != null) {
-                    category.id = existing.id;
-                    categoryDao.updateCategory(category);
-                } else {
-                    categoryDao.insertCategory(category);
-                }
-            }
-        });
+    private void categoryError(String message) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show());
+    }
+
+    private void saveCategorySync(CategoryEntity category) {
+        CategoryEntity old = category == null ? null : categoryDao.getCategoryByIdSync(category.id);
+        String error = new CategoryMutations(categoryDao, transactionDao, transactionGroupDao).save(category);
+        if (error != null) categoryError(error);
+        else if (old != null && !old.name.equals(category.name))
+            com.example.spendtracker.util.CategoryPrediction.service(context).renameCategory(old.type, old.name, category.name);
     }
 
     @Override
@@ -509,21 +537,34 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     @Override
     public void deleteCategory(String name) {
         executorService.execute(() -> {
-            List<CategoryEntity> categories = categoryDao.getAllCategoriesSync();
-            for (CategoryEntity c : categories) {
-                if (c.name.equals(name)) { categoryDao.deleteCategory(c); break; }
-            }
+            List<CategoryEntity> matches = new ArrayList<>();
+            for (CategoryEntity c : categoryDao.getAllCategoriesSync()) if (c.name.equalsIgnoreCase(name)) matches.add(c);
+            if (matches.size() == 1) database.runInTransaction(() -> deleteCategorySync(matches.get(0).id));
+            else categoryError("Select the category's Expense or Income tab in Manage Categories");
         });
+    }
+
+    @Override public void deleteCategory(int id) {
+        executorService.execute(() -> database.runInTransaction(() -> deleteCategorySync(id)));
+    }
+
+    private void deleteCategorySync(int id) {
+        CategoryEntity old = categoryDao.getCategoryByIdSync(id);
+        String error = new CategoryMutations(categoryDao, transactionDao, transactionGroupDao).delete(id);
+        if (error != null) categoryError(error);
+        else if (old != null)
+            com.example.spendtracker.util.CategoryPrediction.service(context).renameCategory(old.type, old.name, null);
     }
 
     @Override
     public void renameCategory(String oldName, String newName) {
         executorService.execute(() -> {
-            transactionDao.renameCategory(oldName, newName);
-            List<CategoryEntity> categories = categoryDao.getAllCategoriesSync();
-            for (CategoryEntity c : categories) {
-                if (c.name.equals(oldName)) { c.name = newName; categoryDao.updateCategory(c); break; }
-            }
+            List<CategoryEntity> matches = new ArrayList<>();
+            for (CategoryEntity c : categoryDao.getAllCategoriesSync()) if (c.name.equalsIgnoreCase(oldName)) matches.add(c);
+            if (matches.size() != 1) { categoryError("Rename this category in its Expense or Income tab"); return; }
+            CategoryEntity category = matches.get(0);
+            category.name = newName;
+            database.runInTransaction(() -> saveCategorySync(category));
         });
     }
 
@@ -684,6 +725,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         t.setDirection(entity.direction);
         t.setTimestampPrecision(entity.timestampPrecision);
         t.setImportBatchId(entity.importBatchId);
+        t.setConfidenceScore(entity.confidenceScore);
         // Populate group name for display
         if (entity.transactionGroupId > 0 && transactionGroupDao != null) {
             try {
@@ -696,6 +738,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     private TransactionEntity mapToEntity(Transaction transaction) {
         if (transaction == null) return null;
+        com.example.spendtracker.util.TransferDirection.normalize(transaction);
         TransactionEntity entity = new TransactionEntity(
             transaction.getId(), transaction.getAmount(), transaction.getCategory(),
             transaction.getCategoryEmoji(), transaction.getDescription(), transaction.getType(),
@@ -712,6 +755,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         entity.direction = transaction.getDirection();
         entity.timestampPrecision = transaction.getTimestampPrecision();
         entity.importBatchId = emptyToNull(transaction.getImportBatchId());
+        entity.confidenceScore = transaction.getConfidenceScore();
         return entity;
     }
 

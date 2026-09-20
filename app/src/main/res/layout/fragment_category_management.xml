@@ -16,6 +16,14 @@
             app:title="Manage Categories"
             app:navigationIcon="@android:drawable/ic_menu_revert" />
 
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp" android:paddingVertical="4dp"
+            android:text="Tap to edit · Long-press to delete. Budget warnings apply to expenses." />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_budget_notifications"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Budget notification settings" />
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tab_layout_type"
             android:layout_width="match_parent"

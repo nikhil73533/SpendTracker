@@ -15,7 +15,8 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import com.example.spendtracker.ui.pdfimport.parser.GenericStatementParser;
-import com.example.spendtracker.ui.pdfimport.parser.StatementFields;
+import com.example.spendtracker.ui.pdfimport.parser.StatementExtractionQuality;
+import com.example.spendtracker.ui.pdfimport.parser.RawTransactionRow;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,7 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 /** On-device OCR for scanned statement pages. Runs only from a background thread. */
 public class MlKitPdfOcrEngine implements OcrEngine {
-    private static final float RENDER_SCALE = 3.0f;
+    // Small statement fonts need more pixels per glyph; retain the memory ceiling.
+    private static final float RENDER_SCALE = 4.0f;
     private static final int MAX_RENDER_PIXELS = 8_000_000;
     private static final long OCR_TIMEOUT_SECONDS = 45;
 
@@ -41,17 +43,15 @@ public class MlKitPdfOcrEngine implements OcrEngine {
                         try {
                             List<OcrLine> best = lines(pageIndex + 1, recognize(recognizer, original));
                             String table = new OcrDocument(best).getText();
-                            int validRows = validRows(table);
-                            int datedRows = StatementFields.countDatedRows(table);
+                            List<RawTransactionRow> rows = new GenericStatementParser().parse(table);
                             // Names alone can be plentiful. Retry when transaction fields are missing.
-                            if (validRows == 0 || datedRows > validRows) {
+                            if (StatementExtractionQuality.needsRetry(table, rows)) {
                                 Bitmap processed = preprocess(original);
                                 try {
                                     List<OcrLine> retry = lines(pageIndex + 1, recognize(recognizer, processed));
                                     String retryTable = new OcrDocument(retry).getText();
-                                    int retryRows = validRows(retryTable);
-                                    if (retryRows > validRows || (retryRows == validRows
-                                            && !table.contains("DATE\t") && retryTable.contains("DATE\t"))) best = retry;
+                                    if (StatementExtractionQuality.prefer(retryTable,
+                                            new GenericStatementParser().parse(retryTable), table, rows)) best = retry;
                                 } catch (Exception retryError) {
                                     // Keep the original recognition if an optional retry fails.
                                     android.util.Log.w("StatementOCR", "Contrast retry failed", retryError);
@@ -87,11 +87,6 @@ public class MlKitPdfOcrEngine implements OcrEngine {
 
     private Text recognize(TextRecognizer recognizer, Bitmap bitmap) throws Exception {
         return Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)), OCR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    }
-
-    private int validRows(String text) {
-        return (int) new GenericStatementParser().parse(text).stream()
-                .filter(row -> StatementFields.date(row.getDateStr()) != null).count();
     }
 
     private List<OcrLine> lines(int pageNumber, Text text) {

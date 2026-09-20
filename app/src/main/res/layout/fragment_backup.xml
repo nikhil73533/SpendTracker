@@ -78,6 +78,15 @@
                     android:textColor="@color/white"
                     android:layout_marginBottom="16dp" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="-8dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="Each backup includes the encrypted finance database and the on-device category prediction model."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

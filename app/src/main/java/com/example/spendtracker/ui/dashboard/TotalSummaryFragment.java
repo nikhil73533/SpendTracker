@@ -53,7 +53,8 @@ public class TotalSummaryFragment extends Fragment {
 
         setupRecyclerView();
         binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
-        binding.btnDownloadPdf.setOnClickListener(v -> downloadPdfReport());
+        binding.btnShareReceipt.setOnClickListener(v -> requireReportAuthentication(this::shareTotalSummaryReport));
+        binding.btnDownloadPdf.setOnClickListener(v -> requireReportAuthentication(this::shareTotalSummaryReport));
         observeViewModel();
     }
 
@@ -160,7 +161,8 @@ public class TotalSummaryFragment extends Fragment {
         });
     }
 
-    private void downloadPdfReport() {
+    /** Generates a PDF from the same active date range rendered by the Total tab. */
+    private void shareTotalSummaryReport() {
         DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
         DashboardViewModel.DateRange range = viewModel.getDateRange().getValue();
 
@@ -191,12 +193,12 @@ public class TotalSummaryFragment extends Fragment {
                                 requireContext(), data, transactions, dateRangeLabel);
 
                         requireActivity().runOnUiThread(() -> {
-                            Intent intent = new Intent(Intent.ACTION_SEND);
-                            intent.setType("application/pdf");
-                            Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", pdfFile);
-                            intent.putExtra(Intent.EXTRA_STREAM, uri);
-                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            startActivity(Intent.createChooser(intent, "Share PDF Report"));
+                            try {
+                                com.example.spendtracker.util.PdfReportService.share(
+                                        requireContext(), pdfFile, "Total summary report", "Share total summary");
+                            } catch (RuntimeException error) {
+                                Toast.makeText(requireContext(), "No app available to share the report", Toast.LENGTH_LONG).show();
+                            }
                         });
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -205,6 +207,23 @@ public class TotalSummaryFragment extends Fragment {
                         );
                     }
                 }).start();
+            }
+        });
+    }
+
+    /** Avoids creating an unprotected file from a locked Privacy Mode session. */
+    private void requireReportAuthentication(Runnable action) {
+        if (!Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+            action.run();
+            return;
+        }
+        com.example.spendtracker.util.BiometricHelper.authenticate(requireActivity(), new com.example.spendtracker.util.BiometricHelper.BiometricCallback() {
+            @Override public void onSuccess() {
+                viewModel.setPrivacyModeEnabled(false);
+                action.run();
+            }
+            @Override public void onError(String error) {
+                if (isAdded()) Toast.makeText(requireContext(), "Authentication required to create a report", Toast.LENGTH_SHORT).show();
             }
         });
     }

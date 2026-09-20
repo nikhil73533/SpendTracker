@@ -17,6 +17,7 @@ import com.example.spendtracker.ui.pdfimport.parser.RawTransactionRow;
 import com.example.spendtracker.ui.pdfimport.ocr.MlKitPdfOcrEngine;
 import com.example.spendtracker.ui.pdfimport.ocr.PositionedPdfTextStripper;
 import com.example.spendtracker.ui.pdfimport.parser.StatementFields;
+import com.example.spendtracker.ui.pdfimport.parser.StatementExtractionQuality;
 import com.example.spendtracker.ui.pdfimport.ocr.OcrEngine;
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -129,14 +130,13 @@ public class PdfParserService {
             String ocr = ocrPages.getOrDefault(page, "");
             List<RawTransactionRow> textRows = factory.parse(documentText, embedded).rows;
             List<RawTransactionRow> ocrRows = factory.parse(documentText, ocr).rows;
-            boolean preferOcr = validRowCount(ocrRows) > validRowCount(textRows)
-                    || (validRowCount(ocrRows) > 0 && validRowCount(ocrRows) == validRowCount(textRows)
-                    && !embedded.contains("DATE\t") && ocr.contains("DATE\t"));
+            boolean preferOcr = StatementExtractionQuality.prefer(ocr, ocrRows, embedded, textRows);
             List<RawTransactionRow> selected = preferOcr ? ocrRows : textRows;
             String selectedText = preferOcr ? ocr : embedded;
             if (needsOcrRetry(selectedText, selected)
                     || (selected.isEmpty() && (embedded.trim().isEmpty() || ocrAttempted))) incompletePages++;
-            found += selected.size();
+            found += Math.max(selected.size(), Math.max(StatementFields.countDatedRows(embedded),
+                    StatementFields.countDatedRows(ocr)));
             for (RawTransactionRow row : selected) {
                 JSONObject item = mapRawRowToJson(row, bankName, preferOcr ? 0.75 : 1.0);
                 if (item != null) {
@@ -153,7 +153,7 @@ public class PdfParserService {
         root.put("totalFound", found);
         root.put("transactions", transactions);
         if (incompletePages > 0) root.put("warning",
-                "Some pages contain unreadable rows or no transactions. Compare the preview with the statement before importing.");
+                "Some rows may be missing, have unreadable descriptions, or disagree with the running balance. Compare the preview with the statement before importing.");
         if (documentText.trim().isEmpty()) root.put("error", "No readable text found in PDF. The file may be blank or an unsupported scan.");
         return root;
     }
@@ -236,7 +236,7 @@ public class PdfParserService {
 
         IncrementalPredictionService predictionService = null;
         try {
-            predictionService = new IncrementalPredictionService(appContext);
+            predictionService = com.example.spendtracker.util.CategoryPrediction.service(appContext);
         } catch (Exception e) {
             Log.w(TAG, "Could not initialize IncrementalPredictionService for category prediction", e);
         }
@@ -275,19 +275,11 @@ public class PdfParserService {
     }
 
     static int validRowCount(List<RawTransactionRow> rows) {
-        int valid = 0;
-        for (RawTransactionRow row : rows) {
-            Double amount = row.getDebitAmount() != null ? row.getDebitAmount() : row.getCreditAmount();
-            if (StatementFields.date(row.getDateStr()) != null && amount != null
-                    && Double.isFinite(amount) && amount > 0) valid++;
-        }
-        return valid;
+        return StatementExtractionQuality.validRows(rows);
     }
 
     static boolean needsOcrRetry(String text, List<RawTransactionRow> rows) {
-        int valid = validRowCount(rows);
-        if (valid == 0 || valid < rows.size()) return true;
-        return StatementFields.countDatedRows(text) > valid;
+        return StatementExtractionQuality.needsRetry(text, rows);
     }
 
     private JSONObject mapRawRowToJson(RawTransactionRow rawRow, String bankName, double extractionConfidence) {
@@ -321,6 +313,7 @@ public class PdfParserService {
         }
 
         CounterpartyExtractor.Result counterparty = new CounterpartyExtractor().extract(narration);
+        if (!counterparty.handle.isEmpty()) upiId = counterparty.handle;
         String merchant = counterparty.displayName();
         String referenceNo = rawRow.getReferenceNo();
         String sourceTransactionId = createSourceTransactionId(bankName, referenceNo, rawRow.getDateStr(),
@@ -373,15 +366,18 @@ public class PdfParserService {
         String upiId = json.optString("upiId", "");
         String merchant = json.optString("merchant", "");
 
+        double confidence = 0.0;
         String category;
         if ("TRANSFER".equals(type)) {
             category = "Transfer";
+            confidence = 1.0;
         } else if (predictionService != null) {
             try {
                 PredictionTransaction pt = new PredictionTransaction(
-                        merchant.isEmpty() ? narration : merchant, upiId, amount, type, timestamp
+                        merchant, upiId, amount, type, timestamp, narration
                 );
                 IncrementalPredictionResult pred = predictionService.predict(pt);
+                confidence = pred == null ? 0.0 : pred.getConfidence();
                 category = (pred != null && pred.getCategory() != null && !pred.needsUserConfirmation())
                         ? pred.getCategory() : "Uncategorized";
             } catch (Exception e) {
@@ -395,6 +391,7 @@ public class PdfParserService {
         t.setAmount(amount);
         t.setType(type);
         t.setCategory(category);
+        t.setConfidenceScore(confidence);
         t.setDate(timestamp);
         t.setDescription(narration);
         t.setBankName(bankName);

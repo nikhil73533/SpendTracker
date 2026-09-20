@@ -1,289 +1,286 @@
 package com.example.spendtracker.ui.more;
 
-import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.Manifest;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.*;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.os.*;
+import android.provider.Settings;
+import android.provider.Telephony;
+import android.text.InputType;
+import android.view.*;
+import android.widget.*;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.ViewModelProvider;
-import androidx.navigation.Navigation;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.navigation.fragment.NavHostFragment;
+import androidx.recyclerview.widget.*;
 import com.example.spendtracker.R;
-import com.example.spendtracker.domain.model.Transaction;
-import com.example.spendtracker.ui.transaction.TransactionViewModel;
+import com.example.spendtracker.data.local.dao.BillAlertDao;
+import com.example.spendtracker.data.local.entity.BillAlertEntity;
+import com.example.spendtracker.data.sms.*;
+import com.example.spendtracker.util.*;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import dagger.hilt.android.AndroidEntryPoint;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import javax.inject.Inject;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.*;
 
-/**
- * Bill Alerts Fragment — scans existing parsed transactions to detect recurring
- * bills and subscriptions. Does NOT modify SMS parsing logic.
- *
- * Detection algorithm:
- * 1. Groups EXPENSE transactions by receiver/payee name
- * 2. Identifies receivers with 2+ transactions in different months
- * 3. Estimates frequency (monthly/weekly) and average amount
- * 4. Presents detected bills with estimated next due date
- */
 @AndroidEntryPoint
 public class BillAlertsFragment extends Fragment {
+    @Inject BillAlertDao dao;
+    @Inject AlertParsingService service;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private View root;
+    private final BillsAdapter adapter = new BillsAdapter();
+    private final DateTimeFormatter dates = DateTimeFormatter.ofPattern("d MMM uuuu", Locale.getDefault());
+    private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(), granted -> refresh());
+    private final ActivityResultLauncher<String> smsPermission = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(), granted -> { if (granted) scanSms(); else toast("SMS permission is needed to scan. You can still paste a message."); });
+    private final Runnable ticker = new Runnable() {
+        @Override public void run() { refresh(); handler.postDelayed(this, 30_000); }
+    };
 
-    private TransactionViewModel viewModel;
-    private RecyclerView rvBillAlerts;
-    private View layoutEmptyState;
-    private TextView tvAlertsHeader;
-    private BillAlertAdapter adapter;
-
-    @javax.inject.Inject
-    com.example.spendtracker.data.sms.AlertParsingService alertParsingService;
-
-    // Custom keyword UI
-    private com.google.android.material.textfield.TextInputEditText etKeywordInput;
-    private com.google.android.material.chip.ChipGroup chipGroupKeywords;
-
-    @Nullable
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_bill_alerts, container, false);
+    @Nullable @Override public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
+        root = inflater.inflate(R.layout.fragment_bill_alerts, container, false);
+        return root;
     }
 
-    @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        viewModel = new ViewModelProvider(requireActivity()).get(TransactionViewModel.class);
-
-        view.findViewById(R.id.toolbar).setOnClickListener(v ->
-            Navigation.findNavController(v).navigateUp());
-        ((com.google.android.material.appbar.MaterialToolbar) view.findViewById(R.id.toolbar))
-            .setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
-
-        rvBillAlerts = view.findViewById(R.id.rv_bill_alerts);
-        layoutEmptyState = view.findViewById(R.id.layout_empty_state);
-        tvAlertsHeader = view.findViewById(R.id.tv_alerts_header);
-
-        adapter = new BillAlertAdapter();
-        rvBillAlerts.setLayoutManager(new LinearLayoutManager(requireContext()));
-        rvBillAlerts.setAdapter(adapter);
-
-        view.findViewById(R.id.btn_scan_bills).setOnClickListener(v -> scanForBills());
-
-        // ── Custom Alert Keyword Section ──────────────────────────────────
-        etKeywordInput = view.findViewById(R.id.et_keyword_input);
-        chipGroupKeywords = view.findViewById(R.id.chip_group_keywords);
-
-        View btnAddKeyword = view.findViewById(R.id.btn_add_keyword);
-        if (btnAddKeyword != null && etKeywordInput != null) {
-            btnAddKeyword.setOnClickListener(v -> {
-                String keyword = etKeywordInput.getText() != null ? etKeywordInput.getText().toString().trim() : "";
-                if (!keyword.isEmpty()) {
-                    alertParsingService.addCustomKeyword(keyword);
-                    etKeywordInput.setText("");
-                    refreshKeywordChips();
-                    Toast.makeText(requireContext(), "Alert keyword added: \"" + keyword + "\"", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        refreshKeywordChips();
-
-        // Show empty state initially
-        layoutEmptyState.setVisibility(View.VISIBLE);
-    }
-
-    /**
-     * Refreshes the ChipGroup to display all user-defined alert keywords.
-     * Each chip has a close icon to allow removal.
-     */
-    private void refreshKeywordChips() {
-        if (chipGroupKeywords == null) return;
-        chipGroupKeywords.removeAllViews();
-        java.util.Set<String> keywords = alertParsingService.getCustomKeywords();
-        for (String keyword : keywords) {
-            com.google.android.material.chip.Chip chip = new com.google.android.material.chip.Chip(requireContext());
-            chip.setText(keyword);
-            chip.setCloseIconVisible(true);
-            chip.setOnCloseIconClickListener(v -> {
-                alertParsingService.removeCustomKeyword(keyword);
-                refreshKeywordChips();
-            });
-            chipGroupKeywords.addView(chip);
-        }
-    }
-
-    private void scanForBills() {
-        viewModel.getTransactions().observe(getViewLifecycleOwner(), transactions -> {
-            if (transactions == null || transactions.isEmpty()) {
-                showEmpty();
-                return;
-            }
-
-            List<BillAlert> detectedBills = detectRecurringBills(transactions);
-            if (detectedBills.isEmpty()) {
-                showEmpty();
-                Toast.makeText(requireContext(), "No recurring bills detected in your transactions", Toast.LENGTH_SHORT).show();
+    @Override public void onViewCreated(@NonNull View view, @Nullable Bundle state) {
+        ((MaterialToolbar) view.findViewById(R.id.toolbar)).setNavigationOnClickListener(v ->
+                NavHostFragment.findNavController(this).navigateUp());
+        RecyclerView list = view.findViewById(R.id.rv_bill_alerts);
+        list.setLayoutManager(new LinearLayoutManager(requireContext()));
+        list.setAdapter(adapter);
+        view.findViewById(R.id.btn_add_bill).setOnClickListener(v -> pasteMessage());
+        view.findViewById(R.id.btn_scan_bills).setOnClickListener(v -> {
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)
+                smsPermission.launch(Manifest.permission.READ_SMS);
+            else scanSms();
+        });
+        view.findViewById(R.id.btn_notifications).setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(requireContext(),
+                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    && !requireContext().getSharedPreferences("bill_ui", 0).getBoolean("permission_requested", false)) {
+                requireContext().getSharedPreferences("bill_ui", 0).edit().putBoolean("permission_requested", true).apply();
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
             } else {
-                layoutEmptyState.setVisibility(View.GONE);
-                tvAlertsHeader.setVisibility(View.VISIBLE);
-                rvBillAlerts.setVisibility(View.VISIBLE);
-                adapter.submitList(detectedBills);
+                boolean appEnabled = androidx.core.app.NotificationManagerCompat.from(requireContext()).areNotificationsEnabled();
+                Intent settings = new Intent(appEnabled ? Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS
+                        : Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().getPackageName());
+                if (appEnabled) settings.putExtra(Settings.EXTRA_CHANNEL_ID, AppNotifications.BILLS);
+                startActivity(settings);
             }
+        });
+        dao.getActiveAlerts().observe(getViewLifecycleOwner(), bills -> {
+            adapter.bills = bills == null ? new ArrayList<>() : new ArrayList<>(bills);
+            adapter.bills.sort(Comparator.comparingLong(b -> b.dueEpochDay));
+            view.findViewById(R.id.tv_empty).setVisibility(adapter.bills.isEmpty() ? View.VISIBLE : View.GONE);
+            refresh();
         });
     }
 
-    private void showEmpty() {
-        layoutEmptyState.setVisibility(View.VISIBLE);
-        rvBillAlerts.setVisibility(View.GONE);
-        tvAlertsHeader.setVisibility(View.GONE);
+    @Override public void onResume() {
+        super.onResume();
+        BillReminderWorker.checkNow(requireContext());
+        handler.post(ticker);
     }
+    @Override public void onPause() { handler.removeCallbacks(ticker); super.onPause(); }
+    @Override public void onDestroyView() { handler.removeCallbacks(ticker); root = null; super.onDestroyView(); }
+    @Override public void onDestroy() { executor.shutdown(); super.onDestroy(); }
 
-    /**
-     * Detects recurring bills by grouping expense transactions by payee
-     * and identifying those with regular monthly/weekly patterns.
-     */
-    private List<BillAlert> detectRecurringBills(List<Transaction> transactions) {
-        // Group expenses by receiverName
-        Map<String, List<Transaction>> byPayee = new HashMap<>();
-        for (Transaction t : transactions) {
-            if (!"EXPENSE".equals(t.getType())) continue;
-            String payee = t.getReceiverName();
-            if (payee == null || payee.trim().isEmpty()) continue;
-            payee = payee.trim();
-            if (!byPayee.containsKey(payee)) {
-                byPayee.put(payee, new ArrayList<>());
-            }
-            byPayee.get(payee).add(t);
-        }
+    private void refresh() {
+        if (root == null) return;
+        boolean enabled = AppNotifications.enabled(requireContext(), AppNotifications.BILLS);
+        ((Button) root.findViewById(R.id.btn_notifications)).setText(enabled
+                ? "Notifications enabled · Settings" : "Notifications blocked · Enable");
+        adapter.notifyDataSetChanged();
+    }
+    private void toast(String message) { if (isAdded()) Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show(); }
 
-        List<BillAlert> alerts = new ArrayList<>();
-        Calendar cal = Calendar.getInstance();
-
-        for (Map.Entry<String, List<Transaction>> entry : byPayee.entrySet()) {
-            List<Transaction> txns = entry.getValue();
-            if (txns.size() < 2) continue; // Need at least 2 transactions
-
-            // Check if they span different months
-            java.util.Set<String> months = new java.util.HashSet<>();
-            double totalAmount = 0;
-            long latestDate = 0;
-            String category = "";
-            for (Transaction t : txns) {
-                cal.setTimeInMillis(t.getDate());
-                months.add(cal.get(Calendar.YEAR) + "-" + cal.get(Calendar.MONTH));
-                totalAmount += t.getAmount();
-                if (t.getDate() > latestDate) {
-                    latestDate = t.getDate();
-                    category = t.getCategory() != null ? t.getCategory() : "";
+    private void scanSms() {
+        Context context = requireContext().getApplicationContext();
+        root.findViewById(R.id.btn_scan_bills).setEnabled(false);
+        executor.execute(() -> {
+            String result;
+            int count = 0;
+            long since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(90);
+            try (Cursor cursor = context.getContentResolver().query(Telephony.Sms.Inbox.CONTENT_URI,
+                    new String[]{"address", "body", "date"}, "date >= ?", new String[]{Long.toString(since)}, "date ASC")) {
+                if (cursor != null) while (cursor.moveToNext()) {
+                    String body = cursor.getString(1);
+                    long timestamp = cursor.getLong(2);
+                    if (new BillMessageParser().parse(body, timestamp, ZoneId.systemDefault()).isBill) {
+                        service.processMessage(cursor.getString(0), body, timestamp);
+                        count++;
+                    }
                 }
-            }
-
-            if (months.size() < 2) continue; // Must span at least 2 different months
-
-            double avgAmount = totalAmount / txns.size();
-            // Estimate frequency: if avg gap between txns is ~28-32 days, it's monthly
-            String frequency = "Monthly";
-            long avgGap = computeAverageGap(txns);
-            if (avgGap < 10 * 24 * 60 * 60 * 1000L) {
-                frequency = "Weekly";
-            } else if (avgGap > 80 * 24 * 60 * 60 * 1000L) {
-                frequency = "Quarterly";
-            }
-
-            // Estimate next due date
-            long nextDue = latestDate + avgGap;
-
-            alerts.add(new BillAlert(entry.getKey(), category, avgAmount, frequency, nextDue, txns.size()));
-        }
-
-        // Sort by next due (soonest first)
-        alerts.sort((a, b) -> Long.compare(a.nextDue, b.nextDue));
-        return alerts;
+                result = count + " bill message(s) checked. Review extracted amounts and dates.";
+            } catch (Exception e) { result = "Could not scan SMS. Check SMS permission and try again."; }
+            String message = result;
+            handler.post(() -> {
+                if (root != null) { root.findViewById(R.id.btn_scan_bills).setEnabled(true); toast(message); }
+            });
+        });
     }
 
-    private long computeAverageGap(List<Transaction> txns) {
-        if (txns.size() < 2) return 30L * 24 * 60 * 60 * 1000; // default monthly
-        List<Long> dates = new ArrayList<>();
-        for (Transaction t : txns) dates.add(t.getDate());
-        dates.sort(Long::compare);
-        long totalGap = 0;
-        for (int i = 1; i < dates.size(); i++) {
-            totalGap += dates.get(i) - dates.get(i - 1);
-        }
-        return totalGap / (dates.size() - 1);
+    private void pasteMessage() {
+        EditText input = new EditText(requireContext());
+        input.setHint("Paste the bill or payment-due message");
+        input.setMinLines(4);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext()).setTitle("Add bill from message")
+                .setView(input).setNegativeButton("Cancel", null).setPositiveButton("Extract & review", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String body = input.getText().toString().trim();
+            if (body.isEmpty()) { input.setError("Paste a message first"); return; }
+            BillMessageParser.Result parsed = new BillMessageParser().parse(body, System.currentTimeMillis(), ZoneId.systemDefault());
+            BillAlertEntity bill = new BillAlertEntity();
+            bill.sender = parsed.biller;
+            bill.lastMessage = body;
+            bill.amount = parsed.amount;
+            bill.dueEpochDay = parsed.dueDate == null ? 0 : parsed.dueDate.toEpochDay();
+            bill.dueMinuteOfDay = parsed.dueMinuteOfDay;
+            dialog.dismiss();
+            review(bill);
+        }));
+        dialog.show();
     }
 
-    // ── Data class ───────────────────────────────────────────────────────────
-
-    static class BillAlert {
-        String payeeName;
-        String category;
-        double averageAmount;
-        String frequency;
-        long nextDue;
-        int occurrences;
-
-        BillAlert(String payeeName, String category, double averageAmount, String frequency, long nextDue, int occurrences) {
-            this.payeeName = payeeName;
-            this.category = category;
-            this.averageAmount = averageAmount;
-            this.frequency = frequency;
-            this.nextDue = nextDue;
-            this.occurrences = occurrences;
-        }
+    private EditText field(LinearLayout layout, String hint, String value, int type) {
+        EditText input = new EditText(requireContext());
+        input.setHint(hint); input.setInputType(type); input.setText(value); layout.addView(input);
+        return input;
     }
 
-    // ── Adapter ──────────────────────────────────────────────────────────────
+    private void review(BillAlertEntity bill) {
+        LinearLayout fields = new LinearLayout(requireContext());
+        fields.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int) (20 * getResources().getDisplayMetrics().density);
+        fields.setPadding(padding, padding / 2, padding, padding / 2);
+        TextView source = new TextView(requireContext());
+        source.setText(bill.lastMessage);
+        fields.addView(source);
+        EditText name = field(fields, "Biller / sender name", bill.sender, InputType.TYPE_CLASS_TEXT);
+        EditText amount = field(fields, "Amount due (₹)", bill.amount > 0 ? String.format(Locale.US, "%.2f", bill.amount) : "",
+                InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        final LocalDate[] selected = {bill.dueEpochDay == 0 ? null : LocalDate.ofEpochDay(bill.dueEpochDay)};
+        final int[] dueMinute = {bill.dueMinuteOfDay};
+        Button dateButton = new Button(requireContext());
+        dateButton.setText(selected[0] == null ? "Choose due date (required)" : "Due " + dates.format(selected[0]));
+        dateButton.setOnClickListener(v -> {
+            LocalDate initial = selected[0] == null ? LocalDate.now() : selected[0];
+            new DatePickerDialog(requireContext(), (picker, year, month, day) -> {
+                selected[0] = LocalDate.of(year, month + 1, day);
+                dateButton.setText("Due " + dates.format(selected[0]));
+            }, initial.getYear(), initial.getMonthValue() - 1, initial.getDayOfMonth()).show();
+        });
+        fields.addView(dateButton);
+        Button timeButton = new Button(requireContext());
+        timeButton.setText(dueMinute[0] < 0 ? "Choose due time (optional)" : dueTimeLabel(dueMinute[0]));
+        timeButton.setOnClickListener(v -> {
+            int initialHour = dueMinute[0] < 0 ? 9 : dueMinute[0] / 60;
+            int initialMinute = dueMinute[0] < 0 ? 0 : dueMinute[0] % 60;
+            new TimePickerDialog(requireContext(), (picker, hour, minute) -> {
+                dueMinute[0] = hour * 60 + minute;
+                timeButton.setText(dueTimeLabel(dueMinute[0]));
+            }, initialHour, initialMinute, false).show();
+        });
+        fields.addView(timeButton);
+        ScrollView scroll = new ScrollView(requireContext()); scroll.addView(fields);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext()).setTitle("Review bill details")
+                .setView(scroll).setNegativeButton("Cancel", null).setPositiveButton("Save reminder", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String sender = name.getText().toString().trim();
+            if (sender.isEmpty()) { name.setError("Enter a biller name"); return; }
+            double value;
+            try { value = Double.parseDouble(amount.getText().toString()); }
+            catch (NumberFormatException e) { amount.setError("Enter a valid amount"); return; }
+            if (!Double.isFinite(value) || value <= 0) { amount.setError("Amount must be greater than zero"); return; }
+            if (selected[0] == null) { toast("Choose the due date first"); return; }
+            double confirmed = value;
+            LocalDate due = selected[0];
+            int confirmedTime = dueMinute[0];
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            executor.execute(() -> {
+                try {
+                    service.saveReviewed(bill.id, sender, bill.lastMessage, confirmed, due, confirmedTime);
+                    handler.post(() -> { dialog.dismiss(); if (root != null) toast(due.isBefore(LocalDate.now())
+                            ? "Saved as overdue. No future reminders scheduled." : "Bill reminder saved"); });
+                } catch (Exception e) {
+                    handler.post(() -> { if (dialog.isShowing()) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true); toast("Could not save bill. Please try again."); });
+                }
+            });
+        }));
+        dialog.show();
+    }
 
-    static class BillAlertAdapter extends RecyclerView.Adapter<BillAlertAdapter.ViewHolder> {
-        private List<BillAlert> items = new ArrayList<>();
-        private final SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault());
+    private String dueTimeLabel(int minuteOfDay) {
+        return "Due time " + java.time.LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)
+                .format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()));
+    }
 
-        void submitList(List<BillAlert> list) {
-            this.items = list;
-            notifyDataSetChanged();
+    private void finishBill(BillAlertEntity bill, boolean delete) {
+        new AlertDialog.Builder(requireContext()).setTitle(delete ? "Delete bill?" : "Mark bill paid?")
+                .setMessage("Reminders for this bill will stop.")
+                .setNegativeButton("Cancel", null).setPositiveButton(delete ? "Delete" : "Mark paid", (d, w) ->
+                    executor.execute(() -> {
+                        try { service.resolve(bill.id, delete); }
+                        catch (Exception e) { handler.post(() -> toast("Could not update bill. Please try again.")); }
+                    })).show();
+    }
+
+    private class BillsAdapter extends RecyclerView.Adapter<BillHolder> {
+        List<BillAlertEntity> bills = new ArrayList<>();
+        @NonNull @Override public BillHolder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+            return new BillHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bill_alert, parent, false));
         }
-
-        @NonNull
-        @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bill_alert, parent, false);
-            return new ViewHolder(v);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            BillAlert alert = items.get(position);
-            holder.tvName.setText(alert.payeeName);
-            holder.tvCategory.setText(alert.category + " • " + alert.occurrences + " transactions");
-            holder.tvAmount.setText(String.format(Locale.getDefault(), "≈ ₹ %.0f", alert.averageAmount));
-            holder.tvFrequency.setText(alert.frequency);
-            holder.tvNextDue.setText("Next: " + sdf.format(new Date(alert.nextDue)));
-        }
-
-        @Override
-        public int getItemCount() { return items.size(); }
-
-        static class ViewHolder extends RecyclerView.ViewHolder {
-            TextView tvName, tvCategory, tvAmount, tvFrequency, tvNextDue;
-            ViewHolder(@NonNull View itemView) {
-                super(itemView);
-                tvName = itemView.findViewById(R.id.tv_bill_name);
-                tvCategory = itemView.findViewById(R.id.tv_bill_category);
-                tvAmount = itemView.findViewById(R.id.tv_bill_amount);
-                tvFrequency = itemView.findViewById(R.id.tv_bill_frequency);
-                tvNextDue = itemView.findViewById(R.id.tv_bill_next_due);
+        @Override public int getItemCount() { return bills.size(); }
+        @Override public void onBindViewHolder(@NonNull BillHolder holder, int position) {
+            BillAlertEntity bill = bills.get(position);
+            View v = holder.itemView;
+            ((TextView) v.findViewById(R.id.tv_bill_name)).setText(bill.sender);
+            ((TextView) v.findViewById(R.id.tv_bill_amount)).setText(bill.amount > 0
+                    ? String.format(Locale.getDefault(), "₹%,.2f", bill.amount) : "Amount needs review");
+            ((TextView) v.findViewById(R.id.tv_bill_due)).setText(bill.dueEpochDay == 0
+                    ? "Due date needs review" : "Due " + dates.format(LocalDate.ofEpochDay(bill.dueEpochDay))
+                    + (bill.dueMinuteOfDay < 0 ? "" : " at " + dueTimeLabel(bill.dueMinuteOfDay).replace("Due time ", "")));
+            long now = System.currentTimeMillis();
+            long next = BillReminderSchedule.next(bill.dueEpochDay, bill.dueMinuteOfDay, bill.lastNotifiedAt, now, ZoneId.systemDefault());
+            String status;
+            boolean review = bill.dueEpochDay == 0 || bill.amount <= 0;
+            if (review) status = "Review required · reminders not scheduled";
+            else if (LocalDate.now().toEpochDay() > bill.dueEpochDay) status = "Overdue · mark paid or update the due date";
+            else if (!AppNotifications.enabled(requireContext(), AppNotifications.BILLS)) status = "Notifications blocked · enable above";
+            else if (next == 0) status = "Final reminder sent · awaiting payment";
+            else if (next <= now) status = "Reminder ready · waiting for Android to run";
+            else {
+                long minutes = Math.max(1, (next - now) / 60_000);
+                status = String.format(Locale.getDefault(), "Next reminder in %dd %dh %dm · around %s",
+                        minutes / 1440, minutes / 60 % 24, minutes % 60,
+                        Instant.ofEpochMilli(next).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d MMM, h:mm a")));
             }
+            ((TextView) v.findViewById(R.id.tv_bill_countdown)).setText(status);
+            LinearProgressIndicator progress = v.findViewById(R.id.bill_progress);
+            progress.setProgress(review ? 0 : BillReminderSchedule.progress(Math.max(bill.createdAt, bill.lastNotifiedAt), next, now));
+            progress.setContentDescription(status);
+            v.findViewById(R.id.btn_review).setOnClickListener(button -> review(bill));
+            v.findViewById(R.id.btn_paid).setOnClickListener(button -> finishBill(bill, false));
+            v.findViewById(R.id.btn_delete).setOnClickListener(button -> finishBill(bill, true));
         }
+    }
+    private static class BillHolder extends RecyclerView.ViewHolder {
+        BillHolder(View view) { super(view); }
     }
 }

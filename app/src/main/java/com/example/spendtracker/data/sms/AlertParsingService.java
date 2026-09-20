@@ -1,206 +1,135 @@
 package com.example.spendtracker.data.sms;
 
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Build;
-
-import androidx.core.app.NotificationCompat;
-
-import com.example.spendtracker.R;
 import com.example.spendtracker.data.local.dao.BillAlertDao;
 import com.example.spendtracker.data.local.entity.BillAlertEntity;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
+import com.example.spendtracker.util.AppNotifications;
+import com.example.spendtracker.util.BillReminderSchedule;
+import dagger.hilt.android.qualifiers.ApplicationContext;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.regex.*;
 
-import dagger.hilt.android.qualifiers.ApplicationContext;
-
-/**
- * Service dedicated to identifying repeating SMS patterns and creating proactive bill alerts.
- * This runs independently of the transaction parsing system.
- *
- * <p>Also supports user-defined custom alert keywords stored in SharedPreferences
- * (avoiding any database schema changes). When a matching keyword is detected in an
- * incoming message, a system notification is fired proactively.
- */
+/** Persists bills before the SMS receiver finishes; mutations must run off the UI thread. */
 @Singleton
 public class AlertParsingService {
-    private static final String TAG = "AlertParsingService";
-    private static final String PREFS_NAME = "alert_keywords";
-    private static final String KEY_KEYWORDS = "custom_keywords";
-    private static final String CHANNEL_ID = "bill_alert_channel";
-
-    private final BillAlertDao billAlertDao;
+    private final BillAlertDao dao;
     private final Context context;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Runnable scheduleCheck;
+    private final BillMessageParser parser = new BillMessageParser();
 
-    // Regex to match digits (OTP, amounts, IDs) to create a generic template
-    private static final Pattern DIGIT_PATTERN = Pattern.compile("\\d+");
-    // Regex to match common amount patterns like Rs. 500 or ₹ 1000
-    private static final Pattern AMOUNT_PATTERN = Pattern.compile("(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{2})?)", Pattern.CASE_INSENSITIVE);
+    @Inject public AlertParsingService(BillAlertDao dao, @ApplicationContext Context context) {
+        this(dao, context, () -> BillReminderWorker.checkNow(context));
+    }
 
-    @Inject
-    public AlertParsingService(BillAlertDao billAlertDao, @ApplicationContext Context context) {
-        this.billAlertDao = billAlertDao;
+    AlertParsingService(BillAlertDao dao, Context context, Runnable scheduleCheck) {
+        this.dao = dao;
         this.context = context;
-        createNotificationChannel();
+        this.scheduleCheck = scheduleCheck;
     }
 
-    /**
-     * Processes every incoming message to check for repeating patterns
-     * and user-defined custom alert keywords.
-     */
-    public void processMessage(String sender, String body, long timestamp) {
-        if (body == null || body.isBlank() || sender == null) return;
+    public synchronized void processMessage(String sender, String body, long timestamp) {
+        if (sender == null || body == null || body.trim().isEmpty()) return;
+        BillMessageParser.Result parsed = parser.parse(body, timestamp, ZoneId.systemDefault());
+        if (!parsed.isBill) return;
+        saveDetected(sender, body, timestamp, parsed.amount, parsed.dueDate, parsed.dueMinuteOfDay);
+    }
 
-        executor.execute(() -> {
-            // 1. Custom keyword matching — fires notification immediately
-            checkCustomKeywords(sender, body);
+    private void saveDetected(String sender, String body, long timestamp, double amount, LocalDate due, int dueMinuteOfDay) {
+        // Preserve account/reference digits so bills for two cards never collapse together.
+        // Exact-message deduplication is intentionally conservative; unrelated reminders are not merged.
+        String template = body.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
+        long day = due == null ? 0 : due.toEpochDay();
+        BillAlertEntity existing = dao.findBill(sender, template, day);
+        if (existing != null) {
+            // Never reopen paid/dismissed bills when the same reminder arrives again.
+            existing.occurrenceCount++;
+            existing.lastSeen = timestamp;
+            existing.lastMessage = body;
+            if (amount > 0) existing.amount = amount;
+            if (dueMinuteOfDay >= 0) existing.dueMinuteOfDay = dueMinuteOfDay;
+            dao.update(existing);
+        } else {
+            BillAlertEntity alert = new BillAlertEntity(sender, template, body, 1, timestamp, amount);
+            alert.createdAt = System.currentTimeMillis();
+            alert.dueEpochDay = day;
+            alert.dueMinuteOfDay = dueMinuteOfDay;
+            dao.insert(alert);
+        }
+        scheduleCheck.run();
+    }
 
-            // 2. Repeating pattern detection — stores in bill_alerts table
-            String template = generateTemplate(body);
-            double amount = extractAmount(body);
+    public synchronized void saveReviewed(int id, String sender, String body, double amount, LocalDate due, int dueMinuteOfDay) {
+        if (sender == null || sender.trim().isEmpty() || due == null || !Double.isFinite(amount) || amount <= 0)
+            throw new IllegalArgumentException("Name, positive amount and due date are required");
+        if (id == 0) {
+            saveDetected(sender.trim(), body, System.currentTimeMillis(), amount, due, dueMinuteOfDay);
+            return;
+        }
+        BillAlertEntity alert = dao.getById(id);
+        if (alert == null || alert.isResolved) return;
+        if (alert.dueEpochDay != due.toEpochDay()) alert.lastNotifiedAt = 0;
+        alert.sender = sender.trim();
+        alert.amount = amount;
+        alert.dueEpochDay = due.toEpochDay();
+        alert.dueMinuteOfDay = dueMinuteOfDay;
+        alert.lastMessage = body;
+        if (alert.createdAt == 0) alert.createdAt = System.currentTimeMillis();
+        dao.update(alert);
+        AppNotifications.cancelBill(context, id);
+        scheduleCheck.run();
+    }
 
-            BillAlertEntity existing = billAlertDao.findByTemplate(template, sender);
-            if (existing != null) {
-                existing.occurrenceCount++;
-                existing.lastSeen = timestamp;
-                existing.lastMessage = body;
-                if (amount > 0) existing.amount = amount;
-                billAlertDao.update(existing);
-            } else {
-                BillAlertEntity newAlert = new BillAlertEntity(
-                        sender,
-                        template,
-                        body,
-                        1,
-                        timestamp,
-                        amount
-                );
-                billAlertDao.insert(newAlert);
+    public synchronized void resolve(int id, boolean delete) {
+        if (delete) dao.delete(id); else dao.resolveAlert(id);
+        AppNotifications.cancelBill(context, id);
+    }
+
+    public synchronized void notifyDueBills() {
+        long now = System.currentTimeMillis();
+        ZoneId zone = ZoneId.systemDefault();
+        for (BillAlertEntity bill : dao.getActiveAlertsSync()) {
+            if (bill.amount <= 0 || bill.dueEpochDay == 0) continue;
+            long next = BillReminderSchedule.next(bill.dueEpochDay, bill.dueMinuteOfDay, bill.lastNotifiedAt, now, zone);
+            if (next == 0 || next > now) continue;
+            String date = LocalDate.ofEpochDay(bill.dueEpochDay).format(DateTimeFormatter.ofPattern("d MMM uuuu"));
+            String body = String.format(Locale.getDefault(), "₹%.2f due %s. Mark paid in Bill Alerts to stop reminders.", bill.amount, date);
+            if (AppNotifications.post(context, AppNotifications.BILLS, bill.id, "Bill due: " + bill.sender, body)) {
+                bill.lastNotifiedAt = now;
+                dao.update(bill);
             }
-        });
+        }
     }
 
-    // ── Custom Alert Keyword Management ──────────────────────────────────────
-
-    /**
-     * Adds a user-defined alert keyword. When any incoming message contains this
-     * keyword (case-insensitive), a notification is triggered.
-     */
+    // Retained preferences for compatibility. Keywords alone no longer fire unsolicited alerts.
     public void addCustomKeyword(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) return;
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        Set<String> keywords = new HashSet<>(getCustomKeywords());
-        keywords.add(keyword.trim().toLowerCase());
-        prefs.edit().putStringSet(KEY_KEYWORDS, keywords).apply();
+        Set<String> keywords = getCustomKeywords();
+        keywords.add(keyword.trim().toLowerCase(Locale.ROOT));
+        context.getSharedPreferences("alert_keywords", Context.MODE_PRIVATE).edit()
+                .putStringSet("custom_keywords", keywords).apply();
     }
-
-    /**
-     * Removes a user-defined alert keyword.
-     */
     public void removeCustomKeyword(String keyword) {
         if (keyword == null) return;
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        Set<String> keywords = new HashSet<>(getCustomKeywords());
-        keywords.remove(keyword.trim().toLowerCase());
-        prefs.edit().putStringSet(KEY_KEYWORDS, keywords).apply();
-    }
-
-    /**
-     * Returns all user-defined alert keywords.
-     */
-    public Set<String> getCustomKeywords() {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        Set<String> stored = prefs.getStringSet(KEY_KEYWORDS, null);
-        return stored != null ? new HashSet<>(stored) : new HashSet<>();
-    }
-
-    /**
-     * Checks the incoming message body against all user-defined alert keywords.
-     * If a match is found, fires a system notification.
-     */
-    private void checkCustomKeywords(String sender, String body) {
         Set<String> keywords = getCustomKeywords();
-        if (keywords.isEmpty()) return;
-
-        String bodyLower = body.toLowerCase();
-        for (String keyword : keywords) {
-            if (bodyLower.contains(keyword)) {
-                fireAlertNotification(sender, keyword, body);
-                break; // One notification per message
-            }
-        }
+        keywords.remove(keyword.trim().toLowerCase(Locale.ROOT));
+        context.getSharedPreferences("alert_keywords", Context.MODE_PRIVATE).edit()
+                .putStringSet("custom_keywords", keywords).apply();
     }
-
-    /**
-     * Fires a system notification for a matched custom alert keyword.
-     */
-    private void fireAlertNotification(String sender, String keyword, String body) {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm == null) return;
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("Bill Alert: \"" + keyword + "\" detected")
-                .setContentText("From " + sender + ": " + body.substring(0, Math.min(body.length(), 80)))
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true);
-
-        nm.notify((int) System.currentTimeMillis(), builder.build());
+    public Set<String> getCustomKeywords() {
+        Set<String> stored = context.getSharedPreferences("alert_keywords", Context.MODE_PRIVATE)
+                .getStringSet("custom_keywords", null);
+        return stored == null ? new HashSet<>() : new HashSet<>(stored);
     }
-
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Bill Alerts",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            channel.setDescription("Alerts for recurring bills and custom keyword matches");
-            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) nm.createNotificationChannel(channel);
-        }
-    }
-
-    // ── Template & Extraction Logic ─────────────────────────────────────────
-
-    /**
-     * Generates a template by replacing digits with '#'.
-     * This helps group similar messages even if they have different OTPs or dates.
-     */
     String generateTemplate(String body) {
-        String normalized = body.replaceAll("\\s+", " ").trim().toLowerCase();
-        return DIGIT_PATTERN.matcher(normalized).replaceAll("#");
+        return body.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT).replaceAll("\\d+", "#");
     }
-
-    /**
-     * Attempts to extract a monetary amount from the message.
-     */
     double extractAmount(String body) {
-        Matcher matcher = AMOUNT_PATTERN.matcher(body);
-        if (matcher.find()) {
-            try {
-                String group = matcher.group(1);
-                if (group != null) {
-                    String amountStr = group.replace(",", "");
-                    return Double.parseDouble(amountStr);
-                }
-            } catch (Exception ignored) {}
-        }
-        return 0.0;
+        Matcher match = Pattern.compile("(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{2})?)", Pattern.CASE_INSENSITIVE).matcher(body);
+        try { return match.find() ? Double.parseDouble(match.group(1).replace(",", "")) : 0; }
+        catch (NumberFormatException ignored) { return 0; }
     }
 }
-

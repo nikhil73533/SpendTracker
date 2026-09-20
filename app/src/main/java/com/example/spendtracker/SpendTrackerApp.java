@@ -10,5 +10,9 @@ public class SpendTrackerApp extends Application {
     public void onCreate() {
         super.onCreate();
         SQLiteDatabase.loadLibs(this);
+        com.example.spendtracker.util.BackupArchive.restorePredictionIfPending(this);
+        com.example.spendtracker.util.AppNotifications.createChannels(this);
+        com.example.spendtracker.data.sms.BillReminderWorker.ensureScheduled(this);
+        com.example.spendtracker.util.UpiLimitWorker.ensureScheduled(this);
     }
 }

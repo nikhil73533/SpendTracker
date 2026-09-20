@@ -158,6 +158,54 @@ public final class MerchantCategoryStatsDao_Impl implements MerchantCategoryStat
   }
 
   @Override
+  public List<MerchantCategoryStatsEntity> getAll() {
+    final String _sql = "SELECT * FROM merchant_category_stats ORDER BY lastSeenMs, id";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    __db.assertNotSuspendingTransaction();
+    final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+    try {
+      final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+      final int _cursorIndexOfMerchantKey = CursorUtil.getColumnIndexOrThrow(_cursor, "merchantKey");
+      final int _cursorIndexOfCategory = CursorUtil.getColumnIndexOrThrow(_cursor, "category");
+      final int _cursorIndexOfTransactionType = CursorUtil.getColumnIndexOrThrow(_cursor, "transactionType");
+      final int _cursorIndexOfCount = CursorUtil.getColumnIndexOrThrow(_cursor, "count");
+      final int _cursorIndexOfLastSeenMs = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeenMs");
+      final List<MerchantCategoryStatsEntity> _result = new ArrayList<MerchantCategoryStatsEntity>(_cursor.getCount());
+      while (_cursor.moveToNext()) {
+        final MerchantCategoryStatsEntity _item;
+        _item = new MerchantCategoryStatsEntity();
+        if (_cursor.isNull(_cursorIndexOfId)) {
+          _item.id = null;
+        } else {
+          _item.id = _cursor.getString(_cursorIndexOfId);
+        }
+        if (_cursor.isNull(_cursorIndexOfMerchantKey)) {
+          _item.merchantKey = null;
+        } else {
+          _item.merchantKey = _cursor.getString(_cursorIndexOfMerchantKey);
+        }
+        if (_cursor.isNull(_cursorIndexOfCategory)) {
+          _item.category = null;
+        } else {
+          _item.category = _cursor.getString(_cursorIndexOfCategory);
+        }
+        if (_cursor.isNull(_cursorIndexOfTransactionType)) {
+          _item.transactionType = null;
+        } else {
+          _item.transactionType = _cursor.getString(_cursorIndexOfTransactionType);
+        }
+        _item.count = _cursor.getInt(_cursorIndexOfCount);
+        _item.lastSeenMs = _cursor.getLong(_cursorIndexOfLastSeenMs);
+        _result.add(_item);
+      }
+      return _result;
+    } finally {
+      _cursor.close();
+      _statement.release();
+    }
+  }
+
+  @Override
   public List<MerchantCategoryStatsEntity> getStatsForMerchant(final String merchantKey,
       final String type) {
     final String _sql = "SELECT * FROM merchant_category_stats WHERE merchantKey = ? AND transactionType = ?";

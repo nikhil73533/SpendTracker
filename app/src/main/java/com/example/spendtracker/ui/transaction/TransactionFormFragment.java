@@ -498,6 +498,17 @@ public class TransactionFormFragment extends Fragment {
         if (transactionId == -1) {
             viewModel.addTransaction(transaction);
         } else {
+            if (existingTransaction != null) {
+                transaction.setSourceTransactionId(existingTransaction.getSourceTransactionId());
+                transaction.setReferenceNumber(existingTransaction.getReferenceNumber());
+                transaction.setDirection("TRANSFER".equals(selectedType) ?
+                        (com.example.spendtracker.util.TransferDirection.isIncoming(existingTransaction) ? "CREDIT" : "DEBIT") :
+                        ("INCOME".equals(selectedType) ? "CREDIT" : "DEBIT"));
+                transaction.setTimestampPrecision(existingTransaction.getTimestampPrecision());
+                transaction.setImportBatchId(existingTransaction.getImportBatchId());
+                transaction.setStatus(existingTransaction.getStatus());
+                transaction.setDeletedAt(existingTransaction.getDeletedAt());
+            }
             viewModel.updateTransaction(transaction);
         }
 

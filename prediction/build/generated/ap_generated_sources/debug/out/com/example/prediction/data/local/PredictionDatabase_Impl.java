@@ -11,6 +11,8 @@ import androidx.room.util.DBUtil;
 import androidx.room.util.TableInfo;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.sqlite.db.SupportSQLiteOpenHelper;
+import com.example.prediction.data.local.dao.CategoryFeedbackDao;
+import com.example.prediction.data.local.dao.CategoryFeedbackDao_Impl;
 import com.example.prediction.data.local.dao.GlobalCategoryStatsDao;
 import com.example.prediction.data.local.dao.GlobalCategoryStatsDao_Impl;
 import com.example.prediction.data.local.dao.MerchantCategoryStatsDao;
@@ -34,6 +36,8 @@ import javax.annotation.processing.Generated;
 @Generated("androidx.room.RoomProcessor")
 @SuppressWarnings({"unchecked", "deprecation"})
 public final class PredictionDatabase_Impl extends PredictionDatabase {
+  private volatile CategoryFeedbackDao _categoryFeedbackDao;
+
   private volatile PrototypeDao _prototypeDao;
 
   private volatile MerchantStatsDao _merchantStatsDao;
@@ -45,15 +49,16 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(4) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(5) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `prototypes` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `category` TEXT, `vector` BLOB, `merchantName` TEXT, `upiId` TEXT, `amount` REAL NOT NULL, `type` TEXT, `dayOfWeek` INTEGER NOT NULL, `hourOfDay` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS `merchant_stats` (`merchantName` TEXT NOT NULL, `frequency` INTEGER NOT NULL, `totalAmount` REAL NOT NULL, `averageAmount` REAL NOT NULL, `preferredCategory` TEXT, `lastCategory` TEXT, `lastTransactionDate` INTEGER NOT NULL, PRIMARY KEY(`merchantName`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `merchant_category_stats` (`id` TEXT NOT NULL, `merchantKey` TEXT NOT NULL, `category` TEXT NOT NULL, `transactionType` TEXT NOT NULL, `count` INTEGER NOT NULL, `lastSeenMs` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `global_category_stats` (`id` TEXT NOT NULL, `category` TEXT NOT NULL, `transactionType` TEXT NOT NULL, `count` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `category_feedback` (`id` TEXT NOT NULL, `merchant` TEXT NOT NULL, `tokens` TEXT NOT NULL, `type` TEXT NOT NULL, `category` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f3ea8647a3b01bc6d4125ebb9f24ce1c')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b17de2709c3e8924678b8652bd4962c4')");
       }
 
       @Override
@@ -62,6 +67,7 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
         db.execSQL("DROP TABLE IF EXISTS `merchant_stats`");
         db.execSQL("DROP TABLE IF EXISTS `merchant_category_stats`");
         db.execSQL("DROP TABLE IF EXISTS `global_category_stats`");
+        db.execSQL("DROP TABLE IF EXISTS `category_feedback`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -171,9 +177,25 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
                   + " Expected:\n" + _infoGlobalCategoryStats + "\n"
                   + " Found:\n" + _existingGlobalCategoryStats);
         }
+        final HashMap<String, TableInfo.Column> _columnsCategoryFeedback = new HashMap<String, TableInfo.Column>(6);
+        _columnsCategoryFeedback.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCategoryFeedback.put("merchant", new TableInfo.Column("merchant", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCategoryFeedback.put("tokens", new TableInfo.Column("tokens", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCategoryFeedback.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCategoryFeedback.put("category", new TableInfo.Column("category", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsCategoryFeedback.put("updatedAt", new TableInfo.Column("updatedAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysCategoryFeedback = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesCategoryFeedback = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoCategoryFeedback = new TableInfo("category_feedback", _columnsCategoryFeedback, _foreignKeysCategoryFeedback, _indicesCategoryFeedback);
+        final TableInfo _existingCategoryFeedback = TableInfo.read(db, "category_feedback");
+        if (!_infoCategoryFeedback.equals(_existingCategoryFeedback)) {
+          return new RoomOpenHelper.ValidationResult(false, "category_feedback(com.example.prediction.data.local.entity.CategoryFeedbackEntity).\n"
+                  + " Expected:\n" + _infoCategoryFeedback + "\n"
+                  + " Found:\n" + _existingCategoryFeedback);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "f3ea8647a3b01bc6d4125ebb9f24ce1c", "6ee49051c45b6f7dfa45e342aae6da3b");
+    }, "b17de2709c3e8924678b8652bd4962c4", "c834c3b7d0ee07815421e12a87d77930");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -184,7 +206,7 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "prototypes","merchant_stats","merchant_category_stats","global_category_stats");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "prototypes","merchant_stats","merchant_category_stats","global_category_stats","category_feedback");
   }
 
   @Override
@@ -197,6 +219,7 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
       _db.execSQL("DELETE FROM `merchant_stats`");
       _db.execSQL("DELETE FROM `merchant_category_stats`");
       _db.execSQL("DELETE FROM `global_category_stats`");
+      _db.execSQL("DELETE FROM `category_feedback`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
@@ -211,6 +234,7 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
   @NonNull
   protected Map<Class<?>, List<Class<?>>> getRequiredTypeConverters() {
     final HashMap<Class<?>, List<Class<?>>> _typeConvertersMap = new HashMap<Class<?>, List<Class<?>>>();
+    _typeConvertersMap.put(CategoryFeedbackDao.class, CategoryFeedbackDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(PrototypeDao.class, PrototypeDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(MerchantStatsDao.class, MerchantStatsDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(MerchantCategoryStatsDao.class, MerchantCategoryStatsDao_Impl.getRequiredConverters());
@@ -231,6 +255,20 @@ public final class PredictionDatabase_Impl extends PredictionDatabase {
       @NonNull final Map<Class<? extends AutoMigrationSpec>, AutoMigrationSpec> autoMigrationSpecs) {
     final List<Migration> _autoMigrations = new ArrayList<Migration>();
     return _autoMigrations;
+  }
+
+  @Override
+  public CategoryFeedbackDao categoryFeedbackDao() {
+    if (_categoryFeedbackDao != null) {
+      return _categoryFeedbackDao;
+    } else {
+      synchronized(this) {
+        if(_categoryFeedbackDao == null) {
+          _categoryFeedbackDao = new CategoryFeedbackDao_Impl(this);
+        }
+        return _categoryFeedbackDao;
+      }
+    }
   }
 
   @Override

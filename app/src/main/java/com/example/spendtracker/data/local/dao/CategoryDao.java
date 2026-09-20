@@ -30,6 +30,9 @@ public interface CategoryDao {
     @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1")
     CategoryEntity getCategoryByNameSync(String name);
 
+    @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) AND type = :type LIMIT 1")
+    CategoryEntity getCategoryByNameAndTypeSync(String name, String type);
+
     @Query("SELECT * FROM categories WHERE id = :id LIMIT 1")
     CategoryEntity getCategoryByIdSync(int id);
 

@@ -60,7 +60,7 @@ public final class MerchantNormalizer {
         s = NOISE.matcher(s).replaceAll(" ");
 
         // Normalize punctuation and symbols to space
-        s = s.replaceAll("[^a-z0-9 ]", " ");
+        s = s.replaceAll("[^\\p{L}\\p{M}0-9 ]", " ");
 
         // Collapse whitespace
         s = MULTI_SPACE.matcher(s).replaceAll(" ").strip();

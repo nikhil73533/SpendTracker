@@ -10,6 +10,12 @@ import org.junit.Test;
  * Unit tests for {@link TransactionTypeExtractor}.
  */
 public class TransactionTypeExtractorTest {
+    @org.junit.Test public void selfTransferRetainsCreditedDirection() {
+        TransactionTypeExtractor extractor = new TransactionTypeExtractor();
+        org.junit.Assert.assertEquals("CREDIT", extractor.extractDirection("A/c 1234 credited INR 500 for self-transfer"));
+        org.junit.Assert.assertEquals("DEBIT", extractor.extractDirection("A/c 1234 debited INR 500 for self-transfer"));
+    }
+
 
     private TransactionTypeExtractor extractor;
 

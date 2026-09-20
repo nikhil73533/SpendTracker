@@ -30,18 +30,27 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         public final double transfer;
         public final boolean isCurrentMonth;
         public final long timestamp;
+        public final int billReminderCount;
+        public final String billReminderLabel;
 
         public CalendarDay(int day, double income, double expense, boolean isCurrentMonth, long timestamp) {
             this(day, income, expense, 0.0, isCurrentMonth, timestamp);
         }
 
         public CalendarDay(int day, double income, double expense, double transfer, boolean isCurrentMonth, long timestamp) {
+            this(day, income, expense, transfer, isCurrentMonth, timestamp, 0, "");
+        }
+
+        public CalendarDay(int day, double income, double expense, double transfer, boolean isCurrentMonth,
+                           long timestamp, int billReminderCount, String billReminderLabel) {
             this.day = day;
             this.income = income;
             this.expense = expense;
             this.transfer = transfer;
             this.isCurrentMonth = isCurrentMonth;
             this.timestamp = timestamp;
+            this.billReminderCount = billReminderCount;
+            this.billReminderLabel = billReminderLabel == null ? "" : billReminderLabel;
         }
     }
 
@@ -74,6 +83,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         private final TextView tvIncome;
         private final TextView tvExpense;
         private final TextView tvTransfer;
+        private final TextView tvBillReminder;
         private final CalendarFormatter formatter;
 
         public ViewHolder(@NonNull View itemView, CalendarFormatter formatter) {
@@ -83,6 +93,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
             tvIncome = itemView.findViewById(R.id.tv_income);
             tvExpense = itemView.findViewById(R.id.tv_expense);
             tvTransfer = itemView.findViewById(R.id.tv_transfer);
+            tvBillReminder = itemView.findViewById(R.id.tv_bill_reminder);
         }
 
         public void bind(CalendarDay day, OnDayClickListener listener) {
@@ -146,6 +157,16 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
                 tvIncome.setVisibility(View.GONE);
                 tvExpense.setVisibility(View.GONE);
                 if (tvTransfer != null) tvTransfer.setVisibility(View.GONE);
+            }
+
+            if (day.billReminderCount > 0) {
+                tvBillReminder.setVisibility(View.VISIBLE);
+                String label = day.billReminderLabel.isEmpty() ? "Bill due" : day.billReminderLabel;
+                tvBillReminder.setText(day.billReminderCount == 1 ? "• " + label : "• " + day.billReminderCount + " bills");
+                tvBillReminder.setContentDescription(day.billReminderCount == 1 ? "Bill reminder: " + label
+                        : day.billReminderCount + " bill reminders");
+            } else {
+                tvBillReminder.setVisibility(View.GONE);
             }
 
             itemView.setOnClickListener(v -> listener.onDayClick(day));

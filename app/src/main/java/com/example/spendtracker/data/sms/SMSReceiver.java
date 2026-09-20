@@ -55,7 +55,7 @@ public class SMSReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (predictionService == null) {
-            predictionService = new IncrementalPredictionService(context);
+            predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
         }
         if (intent != null && "android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction())) {
             final PendingResult pendingResult = goAsync();
@@ -91,7 +91,11 @@ public class SMSReceiver extends BroadcastReceiver {
             long timestamp = message.timestamp;
 
             // Proactive alert system for repeating messages
-            alertParsingService.processMessage(sender, messageBody, timestamp);
+            try {
+                alertParsingService.processMessage(sender, messageBody, timestamp);
+            } catch (Exception e) {
+                android.util.Log.e("SMSReceiver", "Bill detection failed; continuing transaction parsing", e);
+            }
 
             // Parse through the modular pipeline
             ParseResult result = parsingService.parse(sender, messageBody, timestamp);
@@ -126,13 +130,7 @@ public class SMSReceiver extends BroadcastReceiver {
                 && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
 
             if (!isCategorized) {
-                PredictionTransaction pt = new PredictionTransaction(
-                    originalTransaction.getReceiverName(),
-                    originalTransaction.getUpiId(),
-                    originalTransaction.getAmount(),
-                    originalTransaction.getType(),
-                    originalTransaction.getDate()
-                );
+                PredictionTransaction pt = com.example.spendtracker.util.CategoryPrediction.from(originalTransaction);
 
                 IncrementalPredictionResult predResult = predictionService.predict(pt);
                 if (predResult != null && predResult.getCategory() != null) {

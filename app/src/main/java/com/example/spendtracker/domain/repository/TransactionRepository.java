@@ -12,6 +12,9 @@ public interface TransactionRepository {
     void addTransaction(Transaction transaction);
     void importTransactions(List<Transaction> transactions, ImportCallback callback);
     void updateTransaction(Transaction transaction);
+    /** Explicit user saves only; automated imports/predictions must not train themselves. */
+    void updateConfirmedTransaction(Transaction transaction);
+    void addConfirmedTransaction(Transaction transaction);
     void deleteTransaction(Transaction transaction);
     void deleteTransactions(List<Integer> transactionIds, DeleteCallback callback);
     LiveData<Transaction> getTransactionById(int id);
@@ -22,6 +25,7 @@ public interface TransactionRepository {
     void addCategory(String name, String type);
     void saveCategory(com.example.spendtracker.data.local.entity.CategoryEntity category);
     void deleteCategory(String name);
+    void deleteCategory(int id);
     void renameCategory(String oldName, String newName);
     LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getDailyTotals(long start, long end, String type);
     LiveData<List<com.example.spendtracker.domain.model.DailyTrend>> getWeeklyTotals(long start, long end, String type);

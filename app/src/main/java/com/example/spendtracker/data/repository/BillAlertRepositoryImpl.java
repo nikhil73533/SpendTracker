@@ -14,11 +14,13 @@ import javax.inject.Inject;
 
 public class BillAlertRepositoryImpl implements BillAlertRepository {
     private final BillAlertDao billAlertDao;
+    private final com.example.spendtracker.data.sms.AlertParsingService alertService;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Inject
-    public BillAlertRepositoryImpl(BillAlertDao billAlertDao) {
+    public BillAlertRepositoryImpl(BillAlertDao billAlertDao, com.example.spendtracker.data.sms.AlertParsingService alertService) {
         this.billAlertDao = billAlertDao;
+        this.alertService = alertService;
     }
 
     @Override
@@ -33,7 +35,7 @@ public class BillAlertRepositoryImpl implements BillAlertRepository {
 
     @Override
     public void resolveAlert(int id) {
-        executor.execute(() -> billAlertDao.resolveAlert(id));
+        executor.execute(() -> alertService.resolve(id, false));
     }
 
     private List<BillAlert> mapList(List<BillAlertEntity> entities) {
@@ -42,7 +44,8 @@ public class BillAlertRepositoryImpl implements BillAlertRepository {
             for (BillAlertEntity e : entities) {
                 list.add(new BillAlert(
                         e.id, e.sender, e.template, e.lastMessage,
-                        e.occurrenceCount, e.lastSeen, e.amount, e.isResolved
+                        e.occurrenceCount, e.lastSeen, e.amount, e.isResolved,
+                        e.dueEpochDay, e.dueMinuteOfDay
                 ));
             }
         }

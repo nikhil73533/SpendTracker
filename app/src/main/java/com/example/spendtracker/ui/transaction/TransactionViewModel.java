@@ -65,11 +65,11 @@ public class TransactionViewModel extends ViewModel {
     }
 
     public void addTransaction(Transaction transaction) {
-        repository.addTransaction(transaction);
+        repository.addConfirmedTransaction(transaction);
     }
 
     public void updateTransaction(Transaction transaction) {
-        repository.updateTransaction(transaction);
+        repository.updateConfirmedTransaction(transaction);
     }
 
     public void deleteTransaction(Transaction transaction) {
@@ -120,6 +120,8 @@ public class TransactionViewModel extends ViewModel {
     public void deleteCategory(String name) {
         repository.deleteCategory(name);
     }
+
+    public void deleteCategory(int id) { repository.deleteCategory(id); }
 
     public void renameCategory(String oldName, String newName) {
         repository.renameCategory(oldName, newName);

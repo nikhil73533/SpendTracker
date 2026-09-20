@@ -2,245 +2,148 @@ package com.example.prediction.domain.service;
 
 import android.content.Context;
 import com.example.prediction.data.local.PredictionDatabase;
-import com.example.prediction.data.local.entity.GlobalCategoryStatsEntity;
+import com.example.prediction.data.local.entity.CategoryFeedbackEntity;
 import com.example.prediction.data.local.entity.MerchantCategoryStatsEntity;
-import com.example.prediction.domain.model.IncrementalPredictionResult;
-import com.example.prediction.domain.model.PredictionTransaction;
-import com.example.prediction.domain.model.TransactionFeatures;
-import com.example.prediction.util.MerchantNormalizer;
-import com.example.prediction.util.PredictionLogger;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.example.prediction.domain.model.*;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
 
-/**
- * Incremental, fully-offline transaction categorization service.
- */
+/** Shared offline model. Call predict/learn/reset from a worker thread (Room disk access). */
 public class IncrementalPredictionService {
-
-    private static final String TAG = "IncrementalPredSvc";
-    private static final double CONFIRM_THRESHOLD = 0.70;
-    private static final int MERCHANT_MIN_SAMPLES = 3;
-    private static final double MERCHANT_HIGH_CONFIDENCE = 0.85;
-    private static final double W_MERCHANT = 0.80;
-    private static final double W_GLOBAL   = 0.20;
-    private static final double LAPLACE_ALPHA = 0.5;
-
+    private static final Object LOCK = new Object();
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static IncrementalCategoryModel model;
+    private static PredictionDatabase modelDatabase;
+    private static Map<String, MerchantCategoryStatsEntity> legacyMemory;
+    private static long lastFeedbackTime;
     private final PredictionDatabase db;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Function<String, List<String>> categoryProvider;
+    private static final List<String> EXPENSE = Arrays.asList("Food", "Transport", "Education", "Health", "Shopping", "Rent", "Other");
+    private static final List<String> INCOME = Arrays.asList("Salary", "Gift", "Allowance", "Bonus", "Other Income");
 
     public IncrementalPredictionService(Context context) {
-        this.db = PredictionDatabase.getDatabase(context);
+        this(context, type -> "INCOME".equals(type) ? INCOME : EXPENSE);
     }
-
-    public TransactionFeatures extractFeatures(PredictionTransaction tx) {
-        if (tx == null) return null;
-        if ("TRANSFER".equalsIgnoreCase(tx.type)) return null;
-
-        String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
-        String txType = normalizeType(tx.type);
-
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(tx.timestamp);
-        int hour      = cal.get(Calendar.HOUR_OF_DAY);
-        int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-        boolean weekend = (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY);
-        int timeBucket = TransactionFeatures.timeBucketFor(hour);
-
-        // Load merchant stats filtered by transaction type (separate income/expense pipelines)
-        List<MerchantCategoryStatsEntity> merchantStats =
-            db.merchantCategoryStatsDao().getStatsForMerchantByType(merchantKey, txType);
-
-        Map<String, Double> merchantProbs = categoryProbabilitiesFromStats(merchantStats);
-        int merchantTotal = merchantStats.stream().mapToInt(e -> e.count).sum();
-        int merchantCatCount = merchantStats.size();
-
-        // Load global stats filtered by transaction type
-        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAllByType(txType);
-        Map<String, Double> globalProbs = globalProbabilities(globalStats);
-
-        return new TransactionFeatures(
-            tx.amount,
-            Math.log1p(tx.amount),
-            hour,
-            dayOfWeek,
-            weekend,
-            timeBucket,
-            merchantKey,
-            "",
-            tx.type,
-            tx.type,
-            merchantTotal,
-            merchantCatCount,
-            merchantProbs,
-            new HashMap<>(),
-            globalProbs
-        );
+    public IncrementalPredictionService(Context context, Function<String, List<String>> categoryProvider) {
+        this(PredictionDatabase.getDatabase(context), categoryProvider);
     }
-
+    IncrementalPredictionService(PredictionDatabase database, Function<String, List<String>> categoryProvider) {
+        this.db = database;
+        this.categoryProvider = categoryProvider;
+    }
+    private void load() {
+        if (model != null && modelDatabase == db) return;
+        IncrementalCategoryModel loaded = new IncrementalCategoryModel();
+        long latestTime = 0;
+        for (CategoryFeedbackEntity feedback : db.categoryFeedbackDao().getAll()) {
+            loaded.put(feedback);
+            latestTime = Math.max(latestTime, feedback.updatedAt);
+        }
+        legacyMemory = new HashMap<>();
+        for (MerchantCategoryStatsEntity row : db.merchantCategoryStatsDao().getAll()) {
+            String key = row.transactionType + "|" + row.merchantKey;
+            MerchantCategoryStatsEntity previous = legacyMemory.get(key);
+            if (row.count > 0 && (previous == null || row.lastSeenMs > previous.lastSeenMs)) legacyMemory.put(key, row);
+        }
+        modelDatabase = db;
+        model = loaded;
+        lastFeedbackTime = latestTime;
+    }
     public IncrementalPredictionResult predict(PredictionTransaction tx) {
         if (tx == null) return null;
-
-        if ("TRANSFER".equalsIgnoreCase(tx.type)) {
-            return new IncrementalPredictionResult(
-                "Transfer", 1.0,
-                IncrementalPredictionResult.Source.TRANSFER_RULE,
-                Collections.emptyMap(), false);
-        }
-
-        String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
-        String txType = normalizeType(tx.type);
-        PredictionLogger.log(TAG + ": predicting for merchant='" + merchantKey + "' type=" + txType);
-
-        // Use type-filtered merchant stats (separate income/expense pipelines)
-        List<MerchantCategoryStatsEntity> merchantStats =
-            db.merchantCategoryStatsDao().getStatsForMerchantByType(merchantKey, txType);
-
-        int merchantTotal = merchantStats.stream().mapToInt(e -> e.count).sum();
-        Map<String, Double> merchantProbs = categoryProbabilitiesFromStats(merchantStats);
-
-        if (merchantTotal >= MERCHANT_MIN_SAMPLES && !merchantProbs.isEmpty()) {
-            Map.Entry<String, Double> best = argMax(merchantProbs);
-            if (best != null && best.getValue() >= MERCHANT_HIGH_CONFIDENCE) {
-                PredictionLogger.log(TAG + ": merchant fast-path → " + best.getKey() + " (" + best.getValue() + ")");
-                return new IncrementalPredictionResult(
-                    best.getKey(), best.getValue(),
-                    IncrementalPredictionResult.Source.MERCHANT_HISTORY,
-                    merchantProbs,
-                    best.getValue() < CONFIRM_THRESHOLD);
+        // Read application categories outside LOCK to avoid lock inversion with category mutations.
+        List<String> allowed = categoryProvider.apply(CategoryText.type(tx.type));
+        synchronized (LOCK) {
+            load();
+            IncrementalPredictionResult result = model.predict(tx, allowed);
+            // Keep existing v4 merchant corrections usable without treating them as token training.
+            if (result.getSource() != IncrementalPredictionResult.Source.MERCHANT_HISTORY
+                    && !"TRANSFER".equals(CategoryText.type(tx.type))) {
+                String key = com.example.prediction.util.MerchantNormalizer.normalize(tx.merchantName);
+                if (!CategoryText.merchant(tx).isEmpty()) {
+                    MerchantCategoryStatsEntity latest = legacyMemory.get(CategoryText.type(tx.type) + "|" + key);
+                    if (latest != null && allowed.contains(latest.category)) return new IncrementalPredictionResult(latest.category, .85,
+                            IncrementalPredictionResult.Source.MERCHANT_HISTORY,
+                            Collections.singletonMap(latest.category, .85), false);
+                }
             }
+            return result;
         }
-
-        // Rule 3: weighted ensemble (merchant + global prior) — type-filtered
-        List<GlobalCategoryStatsEntity> globalStats = db.globalCategoryStatsDao().getAllByType(txType);
-        Map<String, Double> globalProbs = globalProbabilities(globalStats);
-
-        Map<String, Double> ensemble = ensembleScore(merchantProbs, globalProbs);
-
-        if (ensemble.isEmpty()) {
-            // Completely cold start: no data at all
-            String defaultCat = "INCOME".equalsIgnoreCase(txType) ? "Other Income" : "Other";
-            PredictionLogger.log(TAG + ": cold start (" + txType + "), returning default=" + defaultCat);
-            return new IncrementalPredictionResult(
-                defaultCat, 0.0,
-                IncrementalPredictionResult.Source.GLOBAL_PRIOR,
-                Collections.emptyMap(), true);
-        }
-
-        Map.Entry<String, Double> top = argMax(ensemble);
-        boolean needsConfirm = (top == null || top.getValue() < CONFIRM_THRESHOLD);
-
-        PredictionLogger.log(TAG + ": ensemble (" + txType + ") → " + (top != null ? top.getKey() : "null")
-            + " conf=" + (top != null ? top.getValue() : 0));
-
-        return new IncrementalPredictionResult(
-            top != null ? top.getKey() : "Other",
-            top != null ? top.getValue() : 0.0,
-            IncrementalPredictionResult.Source.ENSEMBLE,
-            ensemble,
-            needsConfirm);
     }
-
+    /** Stable transaction ID makes repeat saves idempotent and corrections replaceable. */
+    public void learn(String transactionId, PredictionTransaction tx, String category) {
+        if (transactionId == null || transactionId.isBlank() || tx == null) return;
+        String type = CategoryText.type(tx.type);
+        List<String> allowed = categoryProvider.apply(type);
+        String resolved = category == null ? null : ColdStartCategories.resolve(category, allowed);
+        synchronized (LOCK) {
+            load();
+            if (resolved == null || "TRANSFER".equals(type) || "Uncategorized".equalsIgnoreCase(resolved)) {
+                db.categoryFeedbackDao().delete(transactionId);
+                model.remove(transactionId);
+                return;
+            }
+            CategoryFeedbackEntity feedback = new CategoryFeedbackEntity();
+            feedback.id = transactionId;
+            feedback.type = type;
+            feedback.category = resolved;
+            feedback.merchant = CategoryText.merchant(tx);
+            feedback.tokens = CategoryText.features(tx);
+            feedback.updatedAt = Math.max(System.currentTimeMillis(), lastFeedbackTime + 1);
+            db.categoryFeedbackDao().put(feedback); // Persist first; failed writes cannot change memory.
+            lastFeedbackTime = feedback.updatedAt;
+            model.put(feedback);
+        }
+    }
+    /** Compatibility entry point; app corrections should always supply their database ID. */
     public void learn(PredictionTransaction tx, String category) {
-        if (tx == null || category == null || category.trim().isEmpty()) return;
-        if ("Transfer".equalsIgnoreCase(category)) return;
-
-        executor.execute(() -> {
-            String merchantKey = MerchantNormalizer.normalize(tx.merchantName);
-            String txType = normalizeType(tx.type);
-            String compositeId = merchantKey + "|" + txType + "|" + category;
-            long now = System.currentTimeMillis();
-
-            // 1. Update merchant_category_stats (type-scoped)
-            MerchantCategoryStatsEntity existing = db.merchantCategoryStatsDao().getById(compositeId);
-            if (existing == null) {
-                db.merchantCategoryStatsDao().insert(
-                    new MerchantCategoryStatsEntity(merchantKey, category, txType, 1, now));
-            } else {
-                existing.count++;
-                existing.lastSeenMs = now;
-                db.merchantCategoryStatsDao().update(existing);
-            }
-
-            // 2. Update global_category_stats (type-scoped)
-            String globalId = txType + "|" + category;
-            GlobalCategoryStatsEntity global = db.globalCategoryStatsDao().getById(globalId);
-            if (global == null) {
-                db.globalCategoryStatsDao().insert(new GlobalCategoryStatsEntity(category, txType, 1));
-            } else {
-                global.count++;
-                db.globalCategoryStatsDao().update(global);
-            }
-
-            PredictionLogger.log(TAG + ": learned merchant='" + merchantKey + "' (" + txType + ") → " + category);
-        });
+        if (tx != null) learn("legacy-call:" + tx.timestamp + ":" + tx.amount + ":" +
+                CategoryText.type(tx.type) + ":" + CategoryText.merchant(tx), tx, category);
     }
-
     public void learnAsync(PredictionTransaction tx, String category) {
-        executor.execute(() -> learn(tx, category));
+        EXECUTOR.execute(() -> learn(tx, category));
     }
-
+    public void renameCategory(String type, String oldName, String newName) {
+        synchronized (LOCK) {
+            load();
+            db.runInTransaction(() -> {
+                for (CategoryFeedbackEntity feedback : db.categoryFeedbackDao().getAll()) {
+                    if (feedback.type.equals(type) && feedback.category.equals(oldName)) {
+                        if (newName == null) db.categoryFeedbackDao().delete(feedback.id);
+                        else { feedback.category = newName; db.categoryFeedbackDao().put(feedback); }
+                    }
+                }
+                // Legacy rows cannot be updated in place because their primary key includes the name.
+                List<MerchantCategoryStatsEntity> legacy = db.merchantCategoryStatsDao().getAll();
+                db.merchantCategoryStatsDao().deleteAll();
+                for (MerchantCategoryStatsEntity row : legacy) {
+                    if (row.transactionType.equals(type) && row.category.equals(oldName)) {
+                        if (newName == null) continue;
+                        row.category = newName;
+                        row.id = row.merchantKey + "|" + type + "|" + newName;
+                    }
+                    db.merchantCategoryStatsDao().insert(row);
+                }
+            });
+            model = null;
+            load();
+        }
+    }
     public void resetAllData() {
-        db.merchantCategoryStatsDao().deleteAll();
-        db.globalCategoryStatsDao().deleteAll();
-        db.prototypeDao().deleteAll();
-        db.merchantStatsDao().deleteAll();
-        PredictionLogger.log(TAG + ": all model data cleared");
-    }
-
-    private Map<String, Double> categoryProbabilitiesFromStats(List<MerchantCategoryStatsEntity> stats) {
-        Map<String, Double> probs = new HashMap<>();
-        if (stats == null || stats.isEmpty()) return probs;
-
-        double total = stats.stream().mapToInt(e -> e.count).sum() + LAPLACE_ALPHA * stats.size();
-        for (MerchantCategoryStatsEntity e : stats) {
-            probs.put(e.category, (e.count + LAPLACE_ALPHA) / total);
+        synchronized (LOCK) {
+            db.runInTransaction(() -> {
+                db.categoryFeedbackDao().deleteAll();
+                db.merchantCategoryStatsDao().deleteAll();
+                db.globalCategoryStatsDao().deleteAll();
+                db.prototypeDao().deleteAll();
+                db.merchantStatsDao().deleteAll();
+            });
+            model = new IncrementalCategoryModel();
+            modelDatabase = db;
+            legacyMemory = new HashMap<>();
+            lastFeedbackTime = 0;
         }
-        return probs;
-    }
-
-    private Map<String, Double> globalProbabilities(List<GlobalCategoryStatsEntity> stats) {
-        Map<String, Double> probs = new HashMap<>();
-        if (stats == null || stats.isEmpty()) return probs;
-
-        double total = stats.stream().mapToInt(e -> e.count).sum() + LAPLACE_ALPHA * stats.size();
-        for (GlobalCategoryStatsEntity e : stats) {
-            probs.put(e.category, (e.count + LAPLACE_ALPHA) / total);
-        }
-        return probs;
-    }
-
-    private Map<String, Double> ensembleScore(
-            Map<String, Double> merchantProbs, Map<String, Double> globalProbs) {
-
-        Map<String, Double> result = new HashMap<>();
-        for (String cat : merchantProbs.keySet()) result.put(cat, 0.0);
-        for (String cat : globalProbs.keySet())   result.put(cat, 0.0);
-
-        for (String cat : result.keySet()) {
-            double m = merchantProbs.getOrDefault(cat, 0.0);
-            double g = globalProbs.getOrDefault(cat, 0.0);
-            double w_m = merchantProbs.isEmpty() ? 0.0 : W_MERCHANT;
-            double w_g = merchantProbs.isEmpty() ? 1.0 : W_GLOBAL;
-            result.put(cat, w_m * m + w_g * g);
-        }
-        return result;
-    }
-
-    private static <K> Map.Entry<K, Double> argMax(Map<K, Double> map) {
-        return map.entrySet().stream()
-            .max(Map.Entry.comparingByValue())
-            .orElse(null);
-    }
-
-    /** Normalizes transaction type to upper-case INCOME or EXPENSE. */
-    private static String normalizeType(String type) {
-        if (type == null) return "EXPENSE";
-        String upper = type.trim().toUpperCase();
-        return "INCOME".equals(upper) ? "INCOME" : "EXPENSE";
     }
 }

@@ -42,6 +42,11 @@ public class CategoryDetailFragment extends Fragment {
     private FragmentCategoryDetailBinding binding;
     private DashboardViewModel dashboardViewModel;
     private TransactionViewModel transactionViewModel;
+    private boolean matchesCategory(Transaction t) {
+        if (categoryName.startsWith("__transfer__:")) return "TRANSFER".equals(t.getType()) &&
+                (categoryName.endsWith("Incoming transfer") == com.example.spendtracker.util.TransferDirection.isIncoming(t));
+        return categoryName.equalsIgnoreCase(t.getCategory());
+    }
     private String categoryName;
     private String sourceTypeFilter; // non-null when filtering by sourceType
     private GroupedTransactionAdapter adapter;
@@ -72,7 +77,7 @@ public class CategoryDetailFragment extends Fragment {
             }
         }
 
-        binding.tvCategoryTitle.setText(categoryName);
+        binding.tvCategoryTitle.setText(categoryName.replace("__transfer__:", ""));
         binding.btnBack.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
 
         // Month Navigation buttons
@@ -136,7 +141,7 @@ public class CategoryDetailFragment extends Fragment {
                 boolean isTransfer = isTransferTransaction(t);
                 boolean matches = (sourceTypeFilter != null)
                     ? (sourceTypeFilter.equalsIgnoreCase(t.getSourceType()) && !isTransfer)
-                    : categoryName.equalsIgnoreCase(t.getCategory());
+                    : matchesCategory(t);
                 if (matches) {
                     filtered.add(t);
                     total += t.getAmount();
@@ -155,7 +160,7 @@ public class CategoryDetailFragment extends Fragment {
                 boolean isTransfer = isTransferTransaction(t);
                 boolean matches = (sourceTypeFilter != null)
                         ? (sourceTypeFilter.equalsIgnoreCase(t.getSourceType()) && !isTransfer)
-                        : categoryName.equalsIgnoreCase(t.getCategory());
+                        : matchesCategory(t);
                 if (matches) categoryTxns.add(t);
             }
             updateTrend(categoryTxns);
@@ -170,7 +175,7 @@ public class CategoryDetailFragment extends Fragment {
                     boolean isTransfer = isTransferTransaction(t);
                     boolean matches = (sourceTypeFilter != null)
                         ? (sourceTypeFilter.equalsIgnoreCase(t.getSourceType()) && !isTransfer)
-                        : categoryName.equalsIgnoreCase(t.getCategory());
+                        : matchesCategory(t);
                     if (matches) total += t.getAmount();
                 }
                 binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));

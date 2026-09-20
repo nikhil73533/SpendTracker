@@ -239,9 +239,14 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 if (current != null) toggleSelection(current);
             });
             tvCategory.setText(transaction.getCategory());
+            int weight = transaction.getConfidenceScore() < com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL;
+            for (TextView label : new TextView[]{tvCategory, tvReceiver, tvDescription, tvIncomeAmount, tvExpenseAmount}) label.setTypeface(null, weight);
+            View share = itemView.findViewById(R.id.share_receipt);
+            share.setVisibility(isSelecting() ? View.GONE : View.VISIBLE);
+            share.setOnClickListener(v -> com.example.spendtracker.util.TransactionReceipt.share(v.getContext(), transaction));
             
             // Requirement 12: Mask PII (Receiver, Description)
-            tvReceiver.setText(formatter.maskPII("INCOME".equals(transaction.getType()) ? transaction.getSender() : transaction.getReceiverName()));
+            tvReceiver.setText(formatter.maskPII(com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? transaction.getSender() : transaction.getReceiverName()));
             tvDescription.setText(formatter.maskPII(transaction.getDescription()));
             
             tvSource.setText(transaction.getSource());
@@ -258,7 +263,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 // Transfer: shown in gray, not counted as income or expense
                 tvIncomeAmount.setText("");
                 tvExpenseAmount.setTextColor(0xFF9E9E9E); // gray
-                tvExpenseAmount.setText("↔ " + formatter.formatAmount(transaction.getAmount()));
+                tvExpenseAmount.setText((com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "↓ " : "↑ ") + formatter.formatAmount(transaction.getAmount()));
             } else {
                 tvIncomeAmount.setText("");
                 tvExpenseAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_red_light));
@@ -273,7 +278,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                     return;
                 }
                 android.widget.PopupMenu popup = new android.widget.PopupMenu(v.getContext(), v);
-                java.util.List<String> categories = listener.getCategoriesByType(transaction.getType());
+                java.util.List<String> categories = listener.getCategoriesByType("TRANSFER".equals(transaction.getType()) ? (com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "INCOME" : "EXPENSE") : transaction.getType());
                 for (String cat : categories) {
                     popup.getMenu().add(cat);
                 }
@@ -355,7 +360,9 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             } else {
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();
-                return Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
+                return Double.compare(oldT.getConfidenceScore(), newT.getConfidenceScore()) == 0 &&
+                       Objects.equals(oldT.getDirection(), newT.getDirection()) &&
+                       Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
                        oldT.getDate() == newT.getDate() &&
                        Objects.equals(oldT.getTimestampPrecision(), newT.getTimestampPrecision()) &&
                        Objects.equals(oldT.getSender(), newT.getSender()) &&

@@ -4,10 +4,20 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
-import com.example.spendtracker.util.StorageHelper;
+import com.example.spendtracker.di.MainDatabase;
+import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
+import com.example.spendtracker.util.BackupArchive;
+import com.example.spendtracker.util.DriveBackupClient;
+import dagger.hilt.EntryPoint;
+import dagger.hilt.InstallIn;
+import dagger.hilt.android.EntryPointAccessors;
+import dagger.hilt.components.SingletonComponent;
 import java.io.File;
 
 public class BackupWorker extends Worker {
+
+    @EntryPoint @InstallIn(SingletonComponent.class)
+    public interface Dependencies { @MainDatabase SpendTrackerDatabase database(); }
 
     public BackupWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
@@ -18,13 +28,9 @@ public class BackupWorker extends Worker {
     public Result doWork() {
         try {
             Context context = getApplicationContext();
-            File dbDir = context.getDatabasePath("spend_tracker_db").getParentFile();
-            File dbFile = context.getDatabasePath("spend_tracker_db");
-            File walFile = new File(dbDir, "spend_tracker_db-wal");
-            File shmFile = new File(dbDir, "spend_tracker_db-shm");
-            
-            File backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
-            StorageHelper.zipFiles(new File[]{dbFile, walFile, shmFile}, backupZip);
+            SpendTrackerDatabase database = EntryPointAccessors.fromApplication(context, Dependencies.class).database();
+            File backupZip = BackupArchive.create(context, database);
+            if (DriveBackupClient.isConnected(context)) DriveBackupClient.upload(context, backupZip);
 
             long now = System.currentTimeMillis();
             context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE)
@@ -33,7 +39,7 @@ public class BackupWorker extends Worker {
             return Result.success();
         } catch (Exception e) {
             e.printStackTrace();
-            return Result.failure();
+            return getRunAttemptCount() < 3 ? Result.retry() : Result.failure();
         }
     }
 }

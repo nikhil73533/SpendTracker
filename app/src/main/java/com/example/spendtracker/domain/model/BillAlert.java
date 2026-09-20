@@ -12,8 +12,10 @@ public class BillAlert {
     private final long lastSeen;
     private final double amount;
     private final boolean isResolved;
+    private final long dueEpochDay;
+    private final int dueMinuteOfDay;
 
-    public BillAlert(int id, String sender, String template, String lastMessage, int occurrenceCount, long lastSeen, double amount, boolean isResolved) {
+    public BillAlert(int id, String sender, String template, String lastMessage, int occurrenceCount, long lastSeen, double amount, boolean isResolved, long dueEpochDay, int dueMinuteOfDay) {
         this.id = id;
         this.sender = sender;
         this.template = template;
@@ -22,6 +24,8 @@ public class BillAlert {
         this.lastSeen = lastSeen;
         this.amount = amount;
         this.isResolved = isResolved;
+        this.dueEpochDay = dueEpochDay;
+        this.dueMinuteOfDay = dueMinuteOfDay;
     }
 
     public int getId() { return id; }
@@ -32,4 +36,6 @@ public class BillAlert {
     public long getLastSeen() { return lastSeen; }
     public double getAmount() { return amount; }
     public boolean isResolved() { return isResolved; }
+    public long getDueEpochDay() { return dueEpochDay; }
+    public int getDueMinuteOfDay() { return dueMinuteOfDay; }
 }

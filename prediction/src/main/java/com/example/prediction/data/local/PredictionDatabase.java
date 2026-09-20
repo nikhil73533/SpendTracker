@@ -20,13 +20,21 @@ import com.example.prediction.util.Converters;
         PrototypeEntity.class,
         MerchantStatsEntity.class,
         MerchantCategoryStatsEntity.class,
-        GlobalCategoryStatsEntity.class
+        GlobalCategoryStatsEntity.class,
+        com.example.prediction.data.local.entity.CategoryFeedbackEntity.class
     },
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters({Converters.class})
 public abstract class PredictionDatabase extends RoomDatabase {
+    public abstract com.example.prediction.data.local.dao.CategoryFeedbackDao categoryFeedbackDao();
+    public static final androidx.room.migration.Migration MIGRATION_4_5 =
+            new androidx.room.migration.Migration(4, 5) {
+        @Override public void migrate(androidx.sqlite.db.SupportSQLiteDatabase database) {
+            database.execSQL("CREATE TABLE IF NOT EXISTS category_feedback (id TEXT NOT NULL PRIMARY KEY, merchant TEXT NOT NULL, tokens TEXT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, updatedAt INTEGER NOT NULL)");
+        }
+    };
     public abstract PrototypeDao prototypeDao();
     public abstract MerchantStatsDao merchantStatsDao();
     public abstract MerchantCategoryStatsDao merchantCategoryStatsDao();
@@ -40,7 +48,8 @@ public abstract class PredictionDatabase extends RoomDatabase {
                 if (INSTANCE == null) {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                                     PredictionDatabase.class, "prediction_database")
-                            .fallbackToDestructiveMigration()
+                            .addMigrations(MIGRATION_4_5)
+                            .fallbackToDestructiveMigrationFrom(1, 2, 3)
                             .build();
                 }
             }

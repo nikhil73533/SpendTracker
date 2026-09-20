@@ -5,6 +5,22 @@ import static org.junit.Assert.*;
 
 public class CounterpartyExtractorTest {
     private final CounterpartyExtractor parser = new CounterpartyExtractor();
+    @Test public void recoversPrintedHeadingWithCorroboratedOcrChannelError() {
+        CounterpartyExtractor.Result result = parser.extract(
+                "Ambe Pujan UPVAmbe Pujan/person0 @ybl/Paid via C/YES BANK");
+        assertEquals("Ambe Pujan", result.name);
+        assertEquals("person0@ybl", result.handle);
+        assertEquals("STATEMENT_NAME", result.source);
+        result = parser.extract("DEVRAJ KAH UP/DEVRAJ KAH/perso n3 @y bl/Paid via C/YES BANK");
+        assertEquals("DEVRAJ KAH", result.name);
+        assertEquals("person3@ybl", result.handle);
+        assertEquals("", parser.extract("OTHER NAME UPVAmbe Pujan/person0@ybl/Paid via C/YES BANK").name);
+    }
+    @Test public void extractsPrintedHeadingsAndAchCounterparties() {
+        assertEquals("RUCHI KANU", parser.extract("RUCHI KANU UPI/person@ybl/Paid via C/State Bank").name);
+        assertEquals("JIO FINANCIAL SERV", parser.extract("NACH trxn ACH/JIO FINANCIAL SERV/261092782").name);
+        assertEquals("ANITA", parser.extract("Online payment UPI/DR/123456789012/ANITA/YESB").name);
+    }
     @Test public void recognizesBankNarrationFamilies() {
         String[][] fixtures = {
             {"UPI/123456789012/UPI/RAVI KUMAR/State Bank Of India", "RAVI KUMAR"},

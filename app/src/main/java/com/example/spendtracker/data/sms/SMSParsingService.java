@@ -467,7 +467,8 @@ public class SMSParsingService {
         transaction.setReferenceNumber(parsed.getReferenceId());
         // Daily renders the payer for income; keep receiverName for legacy prediction consumers.
         if ("INCOME".equals(type)) transaction.setSender(merchant);
-        transaction.setDirection("EXPENSE".equals(type) ? "DEBIT" : "INCOME".equals(type) ? "CREDIT" : "UNKNOWN");
+        transaction.setDirection("TRANSFER".equals(type) ? typeExtractor.extractDirection(parsed.getRawMessage())
+                : "INCOME".equals(type) ? "CREDIT" : "DEBIT");
         transaction.setTimestampPrecision(parsed.getTimestampPrecision());
         return transaction;
     }

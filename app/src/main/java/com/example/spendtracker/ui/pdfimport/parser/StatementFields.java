@@ -70,6 +70,7 @@ public final class StatementFields {
             if (cells.length <= dateColumn) continue;
             if (line.toUpperCase(Locale.ENGLISH).matches(".*(?:OPENING BALANCE|CLOSING BALANCE|BROUGHT FORWARD|CARRIED FORWARD|B/F|C/F).*")) continue;
             String date = cells[dateColumn].trim();
+            if (cells.length == 1) date = date.replaceFirst("^\\d{1,4}[.)]?\\s+(?=\\d{1,4}[/.-])", "");
             if (date(date) != null || date.matches(
                     "(?i)^(?:\\d{1,4}\\s*[/.-].*[/.-].*|\\d{1,2}\\s+[A-Z]{3,9}\\s+\\d{2,4}.*)")) count++;
         }

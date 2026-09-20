@@ -32,6 +32,17 @@ public class BillAlertEntity {
     /** Whether the user has resolved/dismissed this alert. */
     public boolean isResolved;
 
+    /** Local calendar date, independent of time zone; zero means review required. */
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    public long dueEpochDay;
+    /** Local minute after midnight; -1 means the message did not supply a time. */
+    @androidx.room.ColumnInfo(defaultValue = "-1")
+    public int dueMinuteOfDay = -1;
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    public long createdAt;
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    public long lastNotifiedAt;
+
     public BillAlertEntity() {}
 
     public BillAlertEntity(String sender, String template, String lastMessage, int occurrenceCount, long lastSeen, double amount) {

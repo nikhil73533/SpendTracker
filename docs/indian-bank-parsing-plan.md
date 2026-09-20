@@ -1,5 +1,7 @@
 # Indian bank SMS and statement parsing: implementation and evaluation plan
 
+2026-09-18 category prediction update: see [native prediction review, implementation and benchmark](category-prediction-update.md). The current first-use category target is 60%; the 76.3% synthetic development result does not satisfy the real-data measurement work below. SMS detection/field-extraction targets are unchanged.
+
 Updated 2026-09-17. Scope: incoming bank SMS classification/extraction and PDF counterparty names. This supplements `bank-statement-extraction.md`; historical `.artifacts` plans address older UI/backup/transfer work, not a measured SMS accuracy benchmark.
 
 ## Current state and audit

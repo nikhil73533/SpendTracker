@@ -30,7 +30,7 @@ public class BudgetNotificationHelper {
      * @param transactionDao Transaction DAO to calculate category totals
      * @param transaction The inserted or updated transaction
      */
-    public static void checkBudgetAndNotify(Context context, CategoryDao categoryDao, TransactionDao transactionDao, Transaction transaction) {
+    public static synchronized void checkBudgetAndNotify(Context context, CategoryDao categoryDao, TransactionDao transactionDao, Transaction transaction) {
         if (context == null || categoryDao == null || transactionDao == null || transaction == null) {
             return;
         }
@@ -41,7 +41,7 @@ public class BudgetNotificationHelper {
         }
 
         try {
-            CategoryEntity category = categoryDao.getCategoryByNameSync(transaction.getCategory());
+            CategoryEntity category = categoryDao.getCategoryByNameAndTypeSync(transaction.getCategory(), "EXPENSE");
             if (category == null || !category.notificationsEnabled) {
                 Log.d(TAG, "Category not found or notifications disabled for: " + transaction.getCategory());
                 return;
@@ -76,14 +76,15 @@ public class BudgetNotificationHelper {
 
                 int baseNotificationId = (int) (System.currentTimeMillis() % 100000);
 
-                if (weeklyExceeded) {
-                    fireWarning(context, nm, baseNotificationId + 1, category.name, "Weekly", weeklyTotal, category.weeklyBudget);
+                long now = System.currentTimeMillis();
+                if (weeklyExceeded && now >= weeklyRange[0] && now <= weeklyRange[1]) {
+                    fireWarning(context, category.id, weeklyRange[0], category.name, "Weekly", weeklyTotal, category.weeklyBudget);
                 }
-                if (monthlyExceeded) {
-                    fireWarning(context, nm, baseNotificationId + 2, category.name, "Monthly", monthlyTotal, category.monthlyBudget);
+                if (monthlyExceeded && now >= monthlyRange[0] && now <= monthlyRange[1]) {
+                    fireWarning(context, category.id, monthlyRange[0], category.name, "Monthly", monthlyTotal, category.monthlyBudget);
                 }
-                if (annualExceeded) {
-                    fireWarning(context, nm, baseNotificationId + 3, category.name, "Annually", annualTotal, category.annuallyBudget);
+                if (annualExceeded && now >= annualRange[0] && now <= annualRange[1]) {
+                    fireWarning(context, category.id, annualRange[0], category.name, "Annually", annualTotal, category.annuallyBudget);
                 }
             }
         } catch (Exception e) {
@@ -91,24 +92,16 @@ public class BudgetNotificationHelper {
         }
     }
 
-    private static void fireWarning(Context context, NotificationManager nm, int notificationId, String categoryName, String period, double actual, double limit) {
+    private static void fireWarning(Context context, int categoryId, long periodStart, String categoryName, String period, double actual, double limit) {
+        String key = categoryId + ":" + period + ":" + limit;
+        android.content.SharedPreferences prefs = context.getSharedPreferences("budget_deliveries", Context.MODE_PRIVATE);
+        if (prefs.getLong(key, Long.MIN_VALUE) == periodStart) return;
         String title = String.format(Locale.getDefault(), "⚠️ %s Budget Exceeded: %s", period, categoryName);
         String body = String.format(Locale.getDefault(), "Your %s spending in %s reached ₹%.0f, exceeding your set budget of ₹%.0f.",
                 period.toLowerCase(), categoryName, actual, limit);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true);
-
-        try {
-            nm.notify(notificationId, builder.build());
-        } catch (SecurityException e) {
-            Log.w(TAG, "Notification permission missing: " + e.getMessage());
-        }
+        if (AppNotifications.post(context, CHANNEL_ID, key.hashCode(), title, body))
+            prefs.edit().putLong(key, periodStart).apply();
     }
 
     private static void createNotificationChannel(Context context) {

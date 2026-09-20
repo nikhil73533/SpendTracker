@@ -55,6 +55,12 @@ public interface TransactionGroupDao {
     @Query("SELECT categoryName FROM transaction_group_categories WHERE groupId = :groupId")
     List<String> getGroupCategoriesSync(int groupId);
 
+    @Query("INSERT OR IGNORE INTO transaction_group_categories (groupId, categoryName) SELECT groupId, :newName FROM transaction_group_categories WHERE LOWER(categoryName) = LOWER(:oldName)")
+    void copyCategoryLinks(String oldName, String newName);
+
+    @Query("DELETE FROM transaction_group_categories WHERE LOWER(categoryName) = LOWER(:name)")
+    void removeCategoryLinks(String name);
+
     // Transaction association
     @Query("UPDATE transactions SET transactionGroupId = :groupId WHERE date BETWEEN :startDate AND :endDate AND category IN (SELECT categoryName FROM transaction_group_categories WHERE groupId = :groupId) AND status = 'ACTIVE'")
     void associateTransactionsWithGroup(int groupId, long startDate, long endDate);

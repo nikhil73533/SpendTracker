@@ -31,8 +31,8 @@ public class Transaction {
     private String timestampPrecision;
     /** Identifies the user-approved PDF import batch that created this transaction. */
     private String importBatchId;
-    /** Transient: ML prediction confidence score (0.0–1.0), not persisted to DB */
-    private double confidenceScore;
+    /** Persisted ML prediction confidence; 1.0 for user-confirmed categories. */
+    private double confidenceScore = 1.0;
 
     public Transaction() {
         this.status = "ACTIVE";

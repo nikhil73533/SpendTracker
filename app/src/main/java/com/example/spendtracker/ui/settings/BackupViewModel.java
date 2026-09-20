@@ -10,7 +10,10 @@ import androidx.lifecycle.ViewModel;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
-import com.example.spendtracker.util.StorageHelper;
+import com.example.spendtracker.di.MainDatabase;
+import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
+import com.example.spendtracker.util.BackupArchive;
+import com.example.spendtracker.util.DriveBackupClient;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
@@ -20,6 +23,8 @@ import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.tasks.Task;
 import dagger.hilt.android.lifecycle.HiltViewModel;
 import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
@@ -32,13 +37,17 @@ public class BackupViewModel extends ViewModel {
     private final MutableLiveData<String> driveAccountEmail = new MutableLiveData<>("");
     private final MutableLiveData<String> driveStatus = new MutableLiveData<>("");
     private final SharedPreferences prefs;
+    private final SpendTrackerDatabase database;
+    private final ExecutorService backupExecutor = Executors.newSingleThreadExecutor();
+    private final MutableLiveData<String> backupStatus = new MutableLiveData<>("");
 
     /** Scope for Google Drive appdata folder access only (minimal permissions). */
-    private static final String DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+    private static final String DRIVE_APPDATA_SCOPE = DriveBackupClient.APPDATA_SCOPE;
 
     @Inject
-    public BackupViewModel(Application context) {
+    public BackupViewModel(Application context, @MainDatabase SpendTrackerDatabase database) {
         this.context = context;
+        this.database = database;
         prefs = context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE);
         loadPrefs();
     }
@@ -67,6 +76,7 @@ public class BackupViewModel extends ViewModel {
     public LiveData<Boolean> getIsAutoBackupEnabled() { return isAutoBackupEnabled; }
     public LiveData<String> getDriveAccountEmail() { return driveAccountEmail; }
     public LiveData<String> getDriveStatus() { return driveStatus; }
+    public LiveData<String> getBackupStatus() { return backupStatus; }
 
     public void setAutoBackupEnabled(boolean enabled) {
         prefs.edit().putBoolean("auto_backup_enabled", enabled).apply();
@@ -81,37 +91,31 @@ public class BackupViewModel extends ViewModel {
     }
 
     public void backupNow() {
-        // Simplified Backup logic
-        try {
-            File dbDir = context.getDatabasePath("spend_tracker_db").getParentFile();
-            File dbFile = context.getDatabasePath("spend_tracker_db");
-            File walFile = new File(dbDir, "spend_tracker_db-wal");
-            File shmFile = new File(dbDir, "spend_tracker_db-shm");
-            
-            File backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
-            StorageHelper.zipFiles(new File[]{dbFile, walFile, shmFile}, backupZip);
-
-            long now = System.currentTimeMillis();
-            prefs.edit().putLong("last_backup_time", now).apply();
-            lastBackupTime.postValue(now);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        backupStatus.setValue("Creating encrypted backup…");
+        backupExecutor.execute(() -> {
+            try {
+                File archive = BackupArchive.create(context, database);
+                if (DriveBackupClient.isConnected(context)) {
+                    DriveBackupClient.upload(context, archive);
+                    backupStatus.postValue("Backup saved locally and in your private Google Drive app data");
+                } else {
+                    backupStatus.postValue("Backup saved locally. Connect Google Drive to add cloud copies.");
+                }
+                long now = System.currentTimeMillis();
+                prefs.edit().putLong("last_backup_time", now).apply();
+                lastBackupTime.postValue(now);
+            } catch (Exception e) {
+                android.util.Log.e("BackupViewModel", "Backup failed", e);
+                backupStatus.postValue("Backup failed. " + (e.getMessage() == null ? "Try again." : e.getMessage()));
+            }
+        });
     }
 
     public boolean restoreNow() {
         // Safe restore: copy to cache and let DatabaseModule handle it on next start
-        File backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
-        if (backupZip.exists()) {
-            try {
-                File cacheZip = new File(context.getCacheDir(), "backup.zip");
-                StorageHelper.copyFile(backupZip, cacheZip);
-                return true;
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        return false;
+        File backupZip = BackupArchive.latest(context);
+        if (backupZip == null) backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
+        return BackupArchive.stageRestore(context, backupZip);
     }
 
     // ── Google Drive Authentication ──────────────────────────────────────────

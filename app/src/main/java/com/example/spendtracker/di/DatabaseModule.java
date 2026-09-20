@@ -58,7 +58,7 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -75,7 +75,7 @@ public class DatabaseModule {
 
         return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -402,6 +402,31 @@ public class DatabaseModule {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_status_date_type_category ON transactions (status, date, type, category)");
             // SQLite unique indexes allow multiple NULLs, preserving existing manual rows.
             database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_transactions_sourceTransactionId ON transactions (sourceTransactionId)");
+        }
+    };
+
+    static final Migration MIGRATION_14_15 = new Migration(14, 15) {
+        @Override public void migrate(@androidx.annotation.NonNull androidx.sqlite.db.SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE transactions ADD COLUMN confidenceScore REAL NOT NULL DEFAULT 1.0");
+            db.execSQL("UPDATE transactions SET direction = CASE WHEN type = 'INCOME' THEN 'CREDIT' ELSE 'DEBIT' END WHERE direction = 'UNKNOWN' AND type IN ('INCOME', 'EXPENSE')");
+        }
+    };
+
+    /** Preserves an extracted bill deadline time independently of the calendar date. */
+    static final Migration MIGRATION_15_16 = new Migration(15, 16) {
+        @Override public void migrate(@androidx.annotation.NonNull androidx.sqlite.db.SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE bill_alerts ADD COLUMN dueMinuteOfDay INTEGER NOT NULL DEFAULT -1");
+        }
+    };
+
+    static final Migration MIGRATION_13_14 = new Migration(13, 14) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE bill_alerts ADD COLUMN dueEpochDay INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE bill_alerts ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE bill_alerts ADD COLUMN lastNotifiedAt INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("UPDATE bill_alerts SET createdAt = lastSeen");
+            // Old rows were unfiltered SMS patterns, not verified bills. Retain as history.
+            database.execSQL("UPDATE bill_alerts SET isResolved = 1");
         }
     };
 

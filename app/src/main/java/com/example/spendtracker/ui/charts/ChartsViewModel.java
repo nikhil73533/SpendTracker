@@ -74,6 +74,20 @@ public class ChartsViewModel extends ViewModel {
         currentMonthStart.setValue(cal.getTimeInMillis());
     }
 
+    public LiveData<java.util.Map<String, Double>> getTransferBreakdown() {
+        return Transformations.switchMap(currentMonthStart, start -> Transformations.switchMap(granularity, g ->
+                Transformations.map(repository.getTransactionsInRange(start, calculateEndTime(start, g)), transactions -> {
+                    java.util.Map<String, Double> totals = new java.util.LinkedHashMap<>();
+                    double incoming = 0, outgoing = 0;
+                    for (com.example.spendtracker.domain.model.Transaction t : transactions) {
+                        if (!"TRANSFER".equals(t.getType()) && !"Transfer".equalsIgnoreCase(t.getCategory())) continue;
+                        if (com.example.spendtracker.util.TransferDirection.isIncoming(t)) incoming += t.getAmount(); else outgoing += t.getAmount();
+                    }
+                    totals.put("Incoming transfer", incoming); totals.put("Outgoing transfer", outgoing);
+                    return totals;
+                })));
+    }
+
     public LiveData<Summary> getChartData() {
         return Transformations.switchMap(currentMonthStart, start -> 
             Transformations.switchMap(granularity, g -> 

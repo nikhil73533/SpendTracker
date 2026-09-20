@@ -92,6 +92,12 @@ final class StatementTableLayout {
                 }
                 if (best != null) {
                     Column candidate = best;
+                    // Stacked "Withdrawal / Amount (INR)" is one column, not two.
+                    if (candidate.role.equals("AMOUNT") && columns.stream().anyMatch(c ->
+                            isMoneyColumn(c.role) && Math.abs(c.center - candidate.center) < first.height() * 3)) {
+                        i = bestEnd;
+                        continue;
+                    }
                     boolean duplicate = columns.stream().anyMatch(c -> (c.role.equals(candidate.role)
                             || (c.role.equals("VALUE_DATE") && candidate.role.equals("DATE")))
                             && Math.abs(c.center - candidate.center) < first.height() * 3);
@@ -122,19 +128,20 @@ final class StatementTableLayout {
 
     private static String role(String value) {
         String text = value.toUpperCase(Locale.ENGLISH).replaceAll("[^A-Z/ ]", "").replaceAll("\\s+", " ").trim();
+        text = text.replaceFirst(" (?:INR|RS|RUPEES)$", "");
         if (text.matches("(TXN|TRAN|TRANS|TRANSACTION|POST|POSTING)? ?(DATE|DT)")) return "DATE";
         if (text.matches("VALUE(?: (DATE|DT))?")) return "VALUE_DATE";
-        if (text.matches("DESCRIPTION(/NARRATION)?|NARRATION|PARTICULARS|(TRANSACTION )?DETAILS|PAYMENT TYPE AND DETAILS")) return "NARRATION";
-        if (text.matches("REF(ERENCE)?( NO)?|REF/CHEQUE( NO)?|CHEQUE(/REFERENCE)?( NO)?|CHQ(/REF)?( NO)?")) return "REFERENCE";
+        if (text.matches("(TRANSACTION |TXN )?(DESCRIPTION(/NARRATION)?|NARRATION|PARTICULARS|DETAILS|REMARKS)|PAYMENT TYPE AND DETAILS")) return "NARRATION";
+        if (text.matches("REF(ERENCE)?( NO| NUMBER)?|REF/CHEQUE( NO| NUMBER)?|CHEQUE(/REFERENCE)?( NO| NUMBER)?|CHQ(/REF)?( NO| NUMBER)?")) return "REFERENCE";
         if (text.equals("DEBIT/CREDIT")) return "AMOUNT";
         if (text.matches("DR/CR|CR/DR")) return "TYPE";
-        if (text.matches("(?:DEBIT|DEBITS|WITHDRAWAL(S)?|WITHDRAWN|WDL|PAID OUT|EXPENSE)(?: (?:AMT|AMOUNT|DR))?")) return "DEBIT";
-        if (text.matches("(?:CREDIT|CREDITS|DEPOSIT(S)?|PAID IN|INCOME)(?: (?:AMT|AMOUNT|CR))?")) return "CREDIT";
+        if (text.matches("(?:DEBIT|DEBITS|WITHDRAWAL(S)?|WITHDRAWN|WDL|PAID OUT|EXPENSE|DR)(?: (?:AMT|AMOUNT|DR))?")) return "DEBIT";
+        if (text.matches("(?:CREDIT|CREDITS|DEPOSIT(S)?|PAID IN|INCOME|CR)(?: (?:AMT|AMOUNT|CR))?")) return "CREDIT";
         if (text.matches("(CLOSING |RUNNING )?BALANCE")) return "BALANCE";
         if (text.matches("(TRANSACTION |TXN )?AMOUNT")) return "AMOUNT";
         if (text.matches("(TRANSACTION |TXN )?TYPE")) return "TYPE";
         if (text.equals("TIME")) return "TIME";
-        if (text.matches("MODE|INIT( BR)?|BRANCH|S NO|SR NO")) return "OTHER";
+        if (text.matches("MODE|INIT( BR)?|BRANCH|S ?NO|SR ?NO|SERIAL( NO| NUMBER)?")) return "OTHER";
         return null;
     }
 
@@ -154,7 +161,7 @@ final class StatementTableLayout {
                 i = repeated.end - 1;
                 continue;
             }
-            if (text.matches("^(TOTAL|SUMMARY|CLOSING BALANCE|BALANCE CARRIED|REWARD POINTS|ACCOUNT RELATED|THIS IS|PLEASE|PAGE|CALL US)\\b.*")) {
+            if (text.matches("^(TOTAL|SUMMARY|CLOSING BALANCE|BALANCE CARRIED|REWARD POINTS|ACCOUNT RELATED|THIS IS|PLEASE|PAGE|CALL US|SINCERELY|LEGENDS|END OF STATEMENT)\\b.*")) {
                 appendDatedRows(output, section, columns);
                 section.clear();
                 if (!text.startsWith("PAGE")) break;
@@ -166,6 +173,7 @@ final class StatementTableLayout {
     }
 
     private static void appendDatedRows(StringBuilder output, List<VisualRow> rows, List<Column> columns) {
+        double[] boundaries = columnBoundaries(rows, columns);
         int dateColumn = 0, narrationColumn = -1;
         for (int i = 0; i < columns.size(); i++) {
             if (columns.get(i).role.equals("DATE")) dateColumn = i;
@@ -174,7 +182,7 @@ final class StatementTableLayout {
         List<Integer> anchors = new ArrayList<>();
         List<String[]> cellRows = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
-            String[] values = cells(rows.get(i), columns);
+            String[] values = cells(rows.get(i), columns, boundaries);
             cellRows.add(values);
             String date = values[dateColumn];
             if (StatementFields.date(date) != null || date.matches(
@@ -215,13 +223,49 @@ final class StatementTableLayout {
         }
     }
 
-    private static String[] cells(VisualRow row, List<Column> columns) {
+    /** Centered headings do not describe the edges of a wide, left-aligned narration cell.
+     * Learn those edges from body words and the actual amount columns before assigning cells. */
+    private static double[] columnBoundaries(List<VisualRow> rows, List<Column> columns) {
+        double[] boundaries = new double[Math.max(0, columns.size() - 1)];
+        for (int i = 0; i < boundaries.length; i++)
+            boundaries[i] = (columns.get(i).center + columns.get(i + 1).center) / 2;
+        for (int i = 0; i < columns.size(); i++) {
+            if (!columns.get(i).role.equals("NARRATION")) continue;
+            double left = i > 0 ? boundaries[i - 1] : Double.NEGATIVE_INFINITY;
+            double right = i < boundaries.length ? boundaries[i] : Double.POSITIVE_INFINITY;
+            double firstAmountLeft = Double.POSITIVE_INFINITY;
+            for (VisualRow row : rows) for (OcrLine word : row.words) {
+                String value = word.getText().trim();
+                if (i > 0 && word.getLeft() > columns.get(i - 1).center
+                        && word.getLeft() < columns.get(i).center
+                        && value.matches("[\\p{L}][\\p{L} .&'-]*")
+                        && !value.matches("(?i)INR|RS|CR|DR|AM|PM|NIL|NA"))
+                    left = Math.min(left, word.getLeft() - 1);
+                if (i + 1 < columns.size() && isMoneyColumn(columns.get(i + 1).role)
+                        && word.centerX() > right
+                        && (i + 1 == boundaries.length || word.centerX() <= boundaries[i + 1])
+                        && value.matches(".*[.,].*") && StatementFields.amount(value) != null)
+                    firstAmountLeft = Math.min(firstAmountLeft, word.getLeft());
+            }
+            if (i > 0) boundaries[i - 1] = left;
+            // Leave a small margin for a detached currency sign or a minus sign.
+            if (i < boundaries.length && Double.isFinite(firstAmountLeft))
+                boundaries[i] = Math.max(right, firstAmountLeft - 4);
+        }
+        return boundaries;
+    }
+
+    private static boolean isMoneyColumn(String role) {
+        return role.equals("DEBIT") || role.equals("CREDIT") || role.equals("AMOUNT") || role.equals("BALANCE");
+    }
+
+    private static String[] cells(VisualRow row, List<Column> columns, double[] boundaries) {
         String[] cells = new String[columns.size()];
         java.util.Arrays.fill(cells, "");
         for (OcrLine word : row.words) {
             int column = 0;
             while (column + 1 < columns.size()
-                    && word.centerX() > (columns.get(column).center + columns.get(column + 1).center) / 2) column++;
+                    && word.centerX() > boundaries[column]) column++;
             cells[column] += (cells[column].isEmpty() ? "" : " ") + word.getText().trim();
         }
         return cells;

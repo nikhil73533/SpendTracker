@@ -1,0 +1,78 @@
+# Synthetic development benchmark; not a held-out customer dataset. Unknown payees have hidden labels and count as misses when the model abstains.
+# type|merchant|description|expected category
+EXPENSE|ZOMATO LIMITED|UPI purchase|Food
+EXPENSE|SWIGGY BANGALORE|Order payment|Food
+EXPENSE|Annapurna Restaurant|Dinner|Food
+EXPENSE|Udupi Cafe|Breakfast|Food
+EXPENSE|Sharma Dhaba|Lunch|Food
+EXPENSE|Malabar Biryani|UPI debit|Food
+EXPENSE|Town Bakery|Bread|Food
+EXPENSE|Office Canteen|Lunch|Food
+EXPENSE|Dominos Pune|Card spend|Food
+EXPENSE|Tiffin Express|Monthly plan|Food
+EXPENSE|BIGBASKET|Purchase|Food
+EXPENSE|DMART RETAIL|Household groceries|Food
+EXPENSE|Gupta Kirana|Weekly supplies|Food
+EXPENSE|Mother Dairy|Milk|Food
+EXPENSE|Fresh Vegetables|Purchase|Food
+EXPENSE|Blinkit Gurgaon|Delivery|Food
+EXPENSE|Uber India|Ride|Transport
+EXPENSE|RAPIDO|Ride|Transport
+EXPENSE|IRCTC|Ticket booking|Transport
+EXPENSE|Delhi Metro|Card topup|Transport
+EXPENSE|HPCL Petrol Pump|Fuel|Transport
+EXPENSE|FASTAG|Toll plaza|Transport
+EXPENSE|City Parking|Car parking|Transport
+EXPENSE|Redbus|Journey booking|Transport
+EXPENSE|Indigo|Flight ticket|Transport
+EXPENSE|Kumar Taxi|Airport ride|Transport
+EXPENSE|Apollo Pharmacy|Purchase|Health
+EXPENSE|City Hospital|Consultation|Health
+EXPENSE|Smile Dental|Treatment|Health
+EXPENSE|Rainbow Diagnostics|Blood test|Health
+EXPENSE|Netmeds|Online order|Health
+EXPENSE|Shanti Clinic|Appointment|Health
+EXPENSE|DAV School|Term fees|Education
+EXPENSE|National University|Semester fee|Education
+EXPENSE|Bright Coaching|Course|Education
+EXPENSE|Coursera|Course payment|Education
+EXPENSE|Udemy|Learning subscription|Education
+EXPENSE|Flipkart|Online purchase|Shopping
+EXPENSE|Myntra Designs|Order|Shopping
+EXPENSE|Croma Retail|Card purchase|Shopping
+EXPENSE|Decathlon|Sports goods|Shopping
+EXPENSE|Patel Garments|Clothes|Shopping
+EXPENSE|Urban Furniture|Desk|Shopping
+EXPENSE|Rajesh Kumar|House rent September|Rent
+EXPENSE|Asha Devi|PG accommodation|Rent
+EXPENSE|Airtel|Recharge|Other
+EXPENSE|BESCOM|Electricity bill|Other
+EXPENSE|Indane|Gas bill|Other
+EXPENSE|Netflix|Subscription|Other
+EXPENSE|BookMyShow|Cinema|Other
+EXPENSE|LIC|Insurance premium|Other
+EXPENSE|HDFC|Annual fee|Other
+INCOME|ACME TECHNOLOGIES|Salary credit September|Salary
+INCOME|INFOTECH PVT LTD|Payroll|Salary
+INCOME|Ravi Exports|Monthly wages|Salary
+INCOME|ACME TECHNOLOGIES|Annual bonus|Bonus
+INCOME|Sales Company|Performance incentive|Bonus
+INCOME|University Office|Research stipend|Allowance
+INCOME|Treasury|Pension|Allowance
+INCOME|Father|Monthly allowance|Allowance
+INCOME|Meera|Birthday gift|Gift
+INCOME|Amazon|Refund received|Other Inc
+INCOME|HDFC BANK|Interest credited|Other Inc
+INCOME|Mutual Fund|Dividend payout|Other Inc
+EXPENSE|Rakesh Kumar|UPI debit|Food
+EXPENSE|Sneha Rao|NEFT transfer|Rent
+EXPENSE|Shree Enterprises|Payment received by merchant|Shopping
+EXPENSE|ABC|Card purchase|Health
+EXPENSE|9876543210@ybl|UPI payment|Food
+EXPENSE||POS purchase ref 123456|Shopping
+INCOME|XYZ PRIVATE LIMITED|NEFT credit|Salary
+INCOME|Priya|IMPS received|Gift
+INCOME|Vikas|UPI credit|Allowance
+EXPENSE|Green Leaf|UPI debit|Food
+EXPENSE|Blue Star|Payment|Shopping
+EXPENSE|Kiran|UPI payment|Transport

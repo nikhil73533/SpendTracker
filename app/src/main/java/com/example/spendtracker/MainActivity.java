@@ -75,7 +75,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkPermissions() {
-        String[] permissions = {Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS};
+        String[] permissions = android.os.Build.VERSION.SDK_INT >= 33
+                ? new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS, Manifest.permission.POST_NOTIFICATIONS}
+                : new String[]{Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS};
         boolean allGranted = true;
         for (String p : permissions) {
             if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
@@ -84,6 +86,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (!allGranted) {
+            if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this,
+                    Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                getSharedPreferences("bill_ui", MODE_PRIVATE).edit().putBoolean("permission_requested", true).apply();
             ActivityCompat.requestPermissions(this, permissions, SMS_PERMISSION_CODE);
         }
     }
@@ -91,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        com.example.spendtracker.data.sms.BillReminderWorker.checkNow(this);
         if (requestCode == SMS_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission granted

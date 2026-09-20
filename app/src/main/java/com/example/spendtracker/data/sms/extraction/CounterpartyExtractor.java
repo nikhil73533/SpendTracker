@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** Token roles for bank narrations. A payment handle is not promoted to a personal name. */
 public final class CounterpartyExtractor {
-    private static final Pattern CHANNEL = Pattern.compile("(?i)\\b(UPI|MMT/IMPS|IMPS|NEFT|RTGS|VPS|IPS|POS|ECOM|INF)[/*-]");
+    private static final Pattern CHANNEL = Pattern.compile("(?i)\\b(UPI|MMT/IMPS|IMPS|NEFT|RTGS|VPS|IPS|POS|ECOM|INF|NACH|ACH)[/*-]");
     private static final Pattern HANDLE = Pattern.compile("(?i)[\\p{L}\\p{N}._%+-]+@[\\p{L}\\p{N}.-]+");
     private static final Pattern SKIP = Pattern.compile(
             "(?i)(?:UPI|DR|CR|MMT|IMPS|NEFT|RTGS|VPS|IPS|POS|ECOM|INF|MB|P2A|P2M|P2P|"
@@ -30,8 +30,32 @@ public final class CounterpartyExtractor {
 
     public Result extract(String narration) {
         String text = narration == null ? "" : narration.replaceAll("\\s+", " ").trim();
+        // A small-font I/ can merge into V or lose I. Repair only when the printed heading is
+        // repeated verbatim after that marker and the payload contains a UPI handle.
+        if (text.contains("@")) {
+            text = text.replaceFirst("(?i)^([\\p{L} .&'-]{2,100}?)\\s+UP(?:V|[Il1|]?\\s*/)(?=\\1\\s*/)", "$1 UPI/");
+            // Spaces inside a slash-delimited handle are OCR word breaks, not name spaces.
+            Matcher chunks = Pattern.compile("/([^/]*@[^/]*)(?=/|$)").matcher(text);
+            StringBuffer normalized = new StringBuffer();
+            while (chunks.find()) {
+                String compact = chunks.group(1).replaceAll("\\s+", "");
+                chunks.appendReplacement(normalized, Matcher.quoteReplacement(
+                        HANDLE.matcher(compact).matches() ? "/" + compact : chunks.group()));
+            }
+            chunks.appendTail(normalized);
+            text = normalized.toString();
+        }
         Matcher channel = CHANNEL.matcher(text);
         if (channel.find()) {
+            // Statements often print a display name above the machine narration. Keep that
+            // explicit name even when the UPI payload contains only a handle or opaque ID.
+            String heading = clean(text.substring(0, channel.start()));
+            if (isName(heading) && heading.matches("[\\p{L} .&'-]+")
+                    && !heading.matches("(?i).*\\b(?:UPI|NACH|ACH|TRXN?|TXN|TRANSFER|PAYMENT|DEBIT|CREDIT|PAID)\\b.*")
+                    && !BANK.matcher(heading).matches()) {
+                Matcher vpa = HANDLE.matcher(text.substring(channel.end()));
+                return new Result(heading, vpa.find() ? vpa.group() : "", .95, "STATEMENT_NAME");
+            }
             String tail = text.substring(channel.end());
             String delimiter = text.charAt(channel.end() - 1) == '*' ? "\\*" :
                     text.charAt(channel.end() - 1) == '/' ? "/" : "-";

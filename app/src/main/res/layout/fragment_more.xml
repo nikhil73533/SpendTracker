@@ -36,6 +36,21 @@
                 android:textSize="12sp" />
         </RelativeLayout>
 
+        <LinearLayout android:id="@+id/card_profile" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical"
+            android:padding="16dp" android:layout_marginBottom="16dp" android:background="@color/dark_surface"
+            android:clickable="true" android:focusable="true" android:contentDescription="Edit profile">
+            <TextView android:id="@+id/profile_initials" android:layout_width="56dp" android:layout_height="56dp"
+                android:background="@drawable/bg_profile_circle" android:gravity="center" android:textSize="22sp"
+                android:textStyle="bold" android:textColor="@color/white" />
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:orientation="vertical" android:layout_marginStart="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Profile"
+                    android:textColor="@color/white" android:textStyle="bold" android:textSize="18sp" />
+                <TextView android:id="@+id/profile_summary" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary" android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
         <!-- Ad Placeholder -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -134,24 +149,6 @@
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/label_advanced_analytics" />
-            </LinearLayout>
-
-            <!-- Item 5b: Analytics -->
-            <LinearLayout
-                android:id="@+id/card_analytics"
-                style="@style/SettingsWidgetItemStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1">
-
-                <ImageView
-                    style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="@string/label_analytics"
-                    android:src="@android:drawable/ic_menu_sort_by_size" />
-
-                <TextView
-                    style="@style/SettingsWidgetLabelStyle"
-                    android:text="@string/label_analytics" />
             </LinearLayout>
 
             <!-- Item 6: Backup -->

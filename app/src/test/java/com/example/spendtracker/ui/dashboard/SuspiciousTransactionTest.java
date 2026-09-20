@@ -57,15 +57,16 @@ public class SuspiciousTransactionTest {
 
         transactionsLive.setValue(Arrays.asList(t1, t2, t3, t4));
         
-        // Use default threshold (0.6)
-        viewModel.getSuspiciousTransactions().observeForever(list -> {
-            assertEquals(2, list.size());
-        });
-        
-        // Change threshold to 0.45
+        androidx.lifecycle.LiveData<List<Transaction>> flagged = viewModel.getSuspiciousTransactions();
+        androidx.lifecycle.Observer<List<Transaction>> observer = ignored -> {};
+        flagged.observeForever(observer);
+        assertEquals(2, flagged.getValue().size());
         viewModel.setSuspiciousThreshold(0.45);
-        viewModel.getSuspiciousTransactions().observeForever(list -> {
-            assertEquals(1, list.size()); // Only t3 should match
-        });
+        assertEquals(1, flagged.getValue().size());
+        t3.setConfidenceScore(1.0);
+        Transaction unknown = new Transaction(); unknown.setConfidenceScore(0);
+        transactionsLive.setValue(Arrays.asList(t1, t2, t3, t4, unknown));
+        assertEquals(Arrays.asList(unknown), flagged.getValue());
+        flagged.removeObserver(observer);
     }
 }

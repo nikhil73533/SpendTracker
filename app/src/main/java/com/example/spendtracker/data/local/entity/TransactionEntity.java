@@ -17,6 +17,8 @@ public class TransactionEntity {
     @PrimaryKey(autoGenerate = true)
     public int id;
     public double amount;
+    @ColumnInfo(defaultValue = "1.0")
+    public double confidenceScore = 1.0;
     public String category = "";
     @ColumnInfo(defaultValue = "")
     public String categoryEmoji = "";

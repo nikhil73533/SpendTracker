@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="70dp"
+    android:layout_height="84dp"
     android:background="@color/dark_surface"
     android:gravity="top|center_horizontal"
     android:orientation="vertical"
@@ -50,5 +50,18 @@
         android:visibility="gone"
         tools:visibility="visible"
         tools:text="1000" />
+
+    <TextView
+        android:id="@+id/tv_bill_reminder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textColor="#FFB74D"
+        android:textSize="9sp"
+        android:visibility="gone"
+        tools:text="• Electricity bill"
+        tools:visibility="visible" />
 
 </LinearLayout>

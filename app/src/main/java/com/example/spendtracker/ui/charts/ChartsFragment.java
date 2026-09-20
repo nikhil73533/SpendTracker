@@ -48,6 +48,8 @@ public class ChartsFragment extends Fragment {
     private CategoryStatsAdapter sourceStatsAdapter;
     private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMM yyyy", Locale.getDefault());
     private boolean showingExpenses = true;
+    private boolean showingTransfers = false;
+    private Map<String, Double> transferBreakdown = new java.util.LinkedHashMap<>();
 
     @Nullable
     @Override
@@ -73,24 +75,14 @@ public class ChartsFragment extends Fragment {
         swipeLayout.setOnSwipeListener(new SwipeableCoordinatorLayout.OnSwipeListener() {
             @Override
             public void onSwipeLeft() {
-                // Swipe left → switch to Expense tab (index 1) if currently on Income tab (index 0)
-                if (!showingExpenses) {
-                    TabLayout.Tab tab = binding.tabChartType.getTabAt(1);
-                    if (tab != null) {
-                        tab.select();
-                    }
-                }
+                int next = Math.min(2, binding.tabChartType.getSelectedTabPosition() + 1);
+                binding.tabChartType.getTabAt(next).select();
             }
 
             @Override
             public void onSwipeRight() {
-                // Swipe right → switch to Income tab (index 0) if currently on Expense tab (index 1)
-                if (showingExpenses) {
-                    TabLayout.Tab tab = binding.tabChartType.getTabAt(0);
-                    if (tab != null) {
-                        tab.select();
-                    }
-                }
+                int previous = Math.max(0, binding.tabChartType.getSelectedTabPosition() - 1);
+                binding.tabChartType.getTabAt(previous).select();
             }
         });
     }
@@ -106,6 +98,7 @@ public class ChartsFragment extends Fragment {
         binding.tabChartType.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
+                showingTransfers = tab.getPosition() == 2;
                 showingExpenses = tab.getPosition() == 1;
                 if (showingExpenses) {
                     binding.tabChartType.setSelectedTabIndicatorColor(requireContext().getColor(R.color.expense_red));
@@ -116,7 +109,8 @@ public class ChartsFragment extends Fragment {
                 binding.nestedScrollView.setAlpha(0.65f);
                 binding.nestedScrollView.animate().alpha(1.0f).setDuration(220).start();
 
-                viewModel.setTransactionType(showingExpenses ? "EXPENSE" : "INCOME");
+                viewModel.setTransactionType(showingTransfers ? "TRANSFER" : showingExpenses ? "EXPENSE" : "INCOME");
+                if (showingTransfers) renderTransfers();
                 updateSectionVisibility();
             }
 
@@ -186,7 +180,7 @@ public class ChartsFragment extends Fragment {
 
     private void navigateToCategoryDetail(String category) {
         Bundle args = new Bundle();
-        args.putString("categoryName", category);
+        args.putString("categoryName", showingTransfers ? "__transfer__:" + category : category);
         try {
             Navigation.findNavController(requireView()).navigate(R.id.action_chartsFragment_to_categoryDetailFragment, args);
         } catch (Exception e) {
@@ -205,7 +199,25 @@ public class ChartsFragment extends Fragment {
         }
     }
 
+    private void renderTransfers() {
+        if (binding == null || statsAdapter == null) return;
+        double total = 0; for (double value : transferBreakdown.values()) total += value;
+        int[] colors = {Color.rgb(66, 165, 245), Color.rgb(255, 167, 38)};
+        TabLayout.Tab transferTab = binding.tabChartType.getTabAt(2);
+        if (transferTab != null) transferTab.setText("Transfers " + viewModel.formatAmount(total));
+        setupPieChart(binding.pieChartMain, transferBreakdown, total, colors);
+        binding.pieChartMain.setCenterText(isPrivacyActive()
+                ? "Transfers\n***" : "Transfers\n" + viewModel.formatAmount(total));
+        binding.pieChartMain.setCenterTextColor(Color.WHITE);
+        binding.pieChartMain.setCenterTextSize(13f);
+        updateStatsList(transferBreakdown, total, colors);
+    }
+
     private void observeViewModel() {
+        viewModel.getTransferBreakdown().observe(getViewLifecycleOwner(), totals -> {
+            transferBreakdown = totals;
+            if (showingTransfers) renderTransfers();
+        });
         viewModel.getCurrentMonthStart().observe(getViewLifecycleOwner(), start -> {
             updateHeaderLabel();
         });
@@ -243,6 +255,7 @@ public class ChartsFragment extends Fragment {
         updateSectionVisibility();
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            if (showingTransfers) renderTransfers();
             // Re-render all charts with current data (formatters handle masking)
             Summary summary = viewModel.getChartData().getValue();
             if (summary != null) {
@@ -307,6 +320,7 @@ public class ChartsFragment extends Fragment {
 
     private void updateUIWithData(Summary summary) {
         if (summary == null) return;
+        if (showingTransfers) { renderTransfers(); return; }
         
         Map<String, Double> breakdown = showingExpenses ? summary.getExpenseBreakdown() : summary.getIncomeBreakdown();
         double total = showingExpenses ? summary.getTotalExpense() : summary.getTotalIncome();
@@ -320,6 +334,9 @@ public class ChartsFragment extends Fragment {
         if (incomeTab != null) incomeTab.setText("Income " + viewModel.formatAmount(summary.getTotalIncome()));
 
         setupPieChart(binding.pieChartMain, breakdown, total, colors);
+        binding.pieChartMain.setCenterText(isPrivacyActive() ? "***" : viewModel.formatAmount(total));
+        binding.pieChartMain.setCenterTextColor(Color.WHITE);
+        binding.pieChartMain.setCenterTextSize(15f);
         updateStatsList(breakdown, total, colors);
     }
 
@@ -433,7 +450,7 @@ public class ChartsFragment extends Fragment {
 
         if (entries.isEmpty()) {
             chart.clear();
-            chart.setNoDataText("No data for " + (showingExpenses ? "expenses" : "income"));
+            chart.setNoDataText("No data for " + (showingTransfers ? "transfers" : showingExpenses ? "expenses" : "income"));
             chart.invalidate();
             return;
         }

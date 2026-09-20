@@ -68,16 +68,16 @@ public interface TransactionDao {
     @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getIncomeCategoryAverages(long start, long end);
 
-    @Query("SELECT date as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (date / 86400000) ORDER BY date ASC")
+    @Query("SELECT date as timestamp, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (date / 86400000) ORDER BY date ASC")
     LiveData<List<TimeSum>> getDailyTotals(long start, long end, String type);
 
-    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%W', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
+    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%W', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
     LiveData<List<TimeSum>> getWeeklyTotals(long start, long end, String type);
 
-    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
+    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
     LiveData<List<TimeSum>> getMonthlyTotals(long start, long end, String type);
 
-    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
+    @Query("SELECT MIN(date) as timestamp, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y', date / 1000, 'unixepoch', 'localtime') ORDER BY date ASC")
     LiveData<List<TimeSum>> getAnnuallyTotals(long start, long end, String type);
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE LOWER(category) = LOWER(:category) AND status = 'ACTIVE' AND type = 'EXPENSE' AND date BETWEEN :start AND :end")
@@ -86,13 +86,13 @@ public interface TransactionDao {
     @Query("SELECT (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense, SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as totalIncome, SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END) as unreadCount FROM transactions WHERE status = 'ACTIVE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' GROUP BY (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) ORDER BY lastTransactionDate DESC")
     LiveData<List<AccountSummary>> getUniqueAccounts();
 
-    @Query("SELECT (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END) as category, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END)")
+    @Query("SELECT (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END) as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END)")
     LiveData<List<CategorySum>> getWeekdayWeekendTotals(long start, long end, String type);
 
-    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY bankName")
+    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY bankName")
     LiveData<List<CategorySum>> getBankTotals(long start, long end, String type);
 
-    @Query("SELECT sourceType as category, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY sourceType")
+    @Query("SELECT sourceType as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY sourceType")
     LiveData<List<CategorySum>> getSourceTypeTotals(long start, long end, String type);
 
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND sourceType = 'Credit Card' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
@@ -101,13 +101,13 @@ public interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND sourceType = 'Account' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
     LiveData<Double> getAccountExpense(long start, long end);
 
-    @Query("SELECT (COALESCE(SUM(CASE WHEN (type = 'INCOME' AND LOWER(category) LIKE '%transfer%') OR (type = 'TRANSFER' AND sender IS NOT NULL AND sender != '' AND (toAccount IS NULL OR toAccount = '')) THEN amount ELSE 0 END), 0.0) - COALESCE(SUM(CASE WHEN (type = 'EXPENSE' AND LOWER(category) LIKE '%transfer%') OR (type = 'TRANSFER' AND ((toAccount IS NOT NULL AND toAccount != '') OR (sender IS NULL OR sender = ''))) THEN amount ELSE 0 END), 0.0)) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(CASE WHEN (direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME')) THEN amount ELSE -amount END), 0.0) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')")
     LiveData<Double> getTransferTotal(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND ((type = 'EXPENSE' AND LOWER(category) LIKE '%transfer%') OR (type = 'TRANSFER' AND ((toAccount IS NOT NULL AND toAccount != '') OR (sender IS NULL OR sender = ''))))")
+    @Query("SELECT SUM(amount) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%') AND NOT (direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME'))")
     LiveData<Double> getTransferOutgoing(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND ((type = 'INCOME' AND LOWER(category) LIKE '%transfer%') OR (type = 'TRANSFER' AND sender IS NOT NULL AND sender != '' AND (toAccount IS NULL OR toAccount = '')))")
+    @Query("SELECT SUM(amount) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%') AND (direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME'))")
     LiveData<Double> getTransferIncoming(long start, long end);
 
     @Query("UPDATE transactions SET isRead = 1 WHERE (receiverName = :accountName OR sender = :accountName)")
@@ -118,6 +118,9 @@ public interface TransactionDao {
 
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
     void renameCategory(String oldName, String newName);
+
+    @Query("UPDATE transactions SET category = :newName WHERE LOWER(category) = LOWER(:oldName) AND type = :type")
+    void renameCategoryForType(String oldName, String newName, String type);
 
     @Query("SELECT DISTINCT name FROM (SELECT sender AS name FROM transactions WHERE sender IS NOT NULL AND sender != '' AND status = 'ACTIVE' UNION SELECT receiverName AS name FROM transactions WHERE receiverName IS NOT NULL AND receiverName != '' AND status = 'ACTIVE') ORDER BY name ASC")
     LiveData<List<String>> getUniqueContacts();
@@ -208,10 +211,10 @@ public interface TransactionDao {
     List<CategorySum> getExpenseCategoryCountsSync(long start, long end);
 
     // Monthly totals/counts (sync, for trend analysis)
-    @Query("SELECT strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') as category, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') ORDER BY category ASC")
+    @Query("SELECT strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') ORDER BY category ASC")
     List<CategorySum> getMonthlyTotalsSync(long start, long end, String type);
 
-    @Query("SELECT strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') as category, COUNT(*) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') ORDER BY category ASC")
+    @Query("SELECT strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') as category, COUNT(*) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY strftime('%Y-%m', date/1000, 'unixepoch', 'localtime') ORDER BY category ASC")
     List<CategorySum> getMonthlyCountsSync(long start, long end, String type);
 
     // Merchant analytics
@@ -222,7 +225,7 @@ public interface TransactionDao {
     List<CategorySum> getTopMerchantsByFrequencySync(long start, long end, int limit);
 
     // Bank/Account analytics (sync)
-    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE type = :type AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND bankName IS NOT NULL AND bankName != '' AND date BETWEEN :start AND :end GROUP BY bankName")
+    @Query("SELECT bankName as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND bankName IS NOT NULL AND bankName != '' AND date BETWEEN :start AND :end GROUP BY bankName")
     List<CategorySum> getBankTotalsSync(long start, long end, String type);
 
     // Active non-transfer transactions in range (sync, for time-based analytics)

@@ -78,7 +78,6 @@ public class BackupFragment extends Fragment {
 
         binding.btnBackupNow.setOnClickListener(v -> {
             viewModel.backupNow();
-            Toast.makeText(requireContext(), R.string.msg_backup_success, Toast.LENGTH_SHORT).show();
         });
 
         binding.btnRestore.setOnClickListener(v -> {
@@ -118,6 +117,9 @@ public class BackupFragment extends Fragment {
             if (status != null && !status.isEmpty()) {
                 Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show();
             }
+        });
+        viewModel.getBackupStatus().observe(getViewLifecycleOwner(), status -> {
+            if (status != null && !status.isEmpty()) Toast.makeText(requireContext(), status, Toast.LENGTH_LONG).show();
         });
     }
 

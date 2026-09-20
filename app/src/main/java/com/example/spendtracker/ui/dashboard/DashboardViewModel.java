@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.SecurityRepository;
+import com.example.spendtracker.domain.repository.BillAlertRepository;
+import com.example.spendtracker.domain.model.BillAlert;
 import com.example.spendtracker.domain.repository.TransactionRepository;
 import com.example.prediction.domain.service.IncrementalPredictionService;
 import dagger.hilt.android.lifecycle.HiltViewModel;
@@ -30,6 +32,7 @@ public class DashboardViewModel extends ViewModel {
 
     private final TransactionRepository repository;
     private final SecurityRepository securityRepository;
+    private final BillAlertRepository billAlertRepository;
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
     private final MutableLiveData<FilterType> currentFilter = new MutableLiveData<>(FilterType.DAILY);
     private final MutableLiveData<Integer> selectedTab = new MutableLiveData<>(0);
@@ -55,12 +58,24 @@ public class DashboardViewModel extends ViewModel {
     }
 
     @Inject
-    public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository, @ApplicationContext Context context) {
+    public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository,
+                              BillAlertRepository billAlertRepository, @ApplicationContext Context context) {
         this.repository = repository;
         this.securityRepository = securityRepository;
-        this.predictionService = new IncrementalPredictionService(context);
+        this.billAlertRepository = billAlertRepository;
+        this.predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
         calendarViewMonthStart = getStartOfMonth(System.currentTimeMillis());
         setFilter(FilterType.DAILY);
+    }
+
+    /** Kept for existing JVM tests that exercise transaction-only dashboard behaviour. */
+    public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository,
+                              @ApplicationContext Context context) {
+        this(repository, securityRepository, new com.example.spendtracker.domain.repository.BillAlertRepository() {
+            @Override public LiveData<List<BillAlert>> getActiveAlerts() { return new MutableLiveData<>(new ArrayList<>()); }
+            @Override public LiveData<List<BillAlert>> getAllAlerts() { return new MutableLiveData<>(new ArrayList<>()); }
+            @Override public void resolveAlert(int id) { }
+        }, context);
     }
 
     public enum FilterType { DAILY, MONTHLY, TOTAL, CALENDAR, TRANSACTION_GROUP }
@@ -158,6 +173,8 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<DateRange> getDateRange() { return dateRange; }
+
+    public LiveData<List<Transaction>> getAllTransactions() { return repository.getTransactions(); }
 
     public LiveData<List<Transaction>> getTransactions() {
         return Transformations.switchMap(dateRange, range -> {
@@ -331,8 +348,21 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<List<CalendarAdapter.CalendarDay>> getCalendarDays() {
-        return Transformations.switchMap(dateRange, range ->
-            Transformations.map(repository.getTransactionsInRange(range.start, range.end), transactions -> {
+        return Transformations.switchMap(dateRange, range -> {
+            MediatorLiveData<List<CalendarAdapter.CalendarDay>> result = new MediatorLiveData<>();
+            LiveData<List<Transaction>> transactionsSource = repository.getTransactionsInRange(range.start, range.end);
+            LiveData<List<BillAlert>> remindersSource = billAlertRepository.getActiveAlerts();
+            final List<Transaction>[] transactions = new List[]{new ArrayList<>()};
+            final List<BillAlert>[] reminders = new List[]{new ArrayList<>()};
+            Runnable rebuild = () -> result.setValue(buildCalendarDays(range, transactions[0], reminders[0]));
+            result.addSource(transactionsSource, value -> { transactions[0] = value == null ? new ArrayList<>() : value; rebuild.run(); });
+            result.addSource(remindersSource, value -> { reminders[0] = value == null ? new ArrayList<>() : value; rebuild.run(); });
+            return result;
+        });
+    }
+
+    private List<CalendarAdapter.CalendarDay> buildCalendarDays(DateRange range, List<Transaction> transactions,
+                                                                  List<BillAlert> reminders) {
                 List<CalendarAdapter.CalendarDay> days = new ArrayList<>();
                 Calendar cal = Calendar.getInstance();
                 cal.setTimeInMillis(range.start);
@@ -363,11 +393,20 @@ public class DashboardViewModel extends ViewModel {
                             }
                         }
                     }
-                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, dTransfer, true, start));
+                    int billCount = 0;
+                    String billLabel = "";
+                    if (reminders != null) {
+                        long day = java.time.Instant.ofEpochMilli(start).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay();
+                        for (BillAlert reminder : reminders) {
+                            if (reminder != null && !reminder.isResolved() && reminder.getDueEpochDay() == day) {
+                                billCount++;
+                                if (billLabel.isEmpty()) billLabel = reminder.getSender();
+                            }
+                        }
+                    }
+                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, dTransfer, true, start, billCount, billLabel));
                 }
                 return days;
-            })
-        );
     }
 
     private long getStartOfDay(long timestamp) {
@@ -393,10 +432,10 @@ public class DashboardViewModel extends ViewModel {
     public void updateTransactionCategory(Transaction transaction, String newCategory) {
         executor.execute(() -> {
             String updatedType = transaction.getType();
-            if ("Transfer".equalsIgnoreCase(newCategory) || (newCategory != null && newCategory.toLowerCase().contains("transfer"))) {
+            if ("Transfer".equalsIgnoreCase(newCategory)) {
                 updatedType = "TRANSFER";
             } else if ("TRANSFER".equals(transaction.getType())) {
-                updatedType = "EXPENSE";
+                updatedType = com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "INCOME" : "EXPENSE";
             }
 
             // Create a new Transaction instance to ensure DiffUtil detects the change
@@ -418,20 +457,15 @@ public class DashboardViewModel extends ViewModel {
                 transaction.getToAccount(),
                 transaction.getFees()
             );
-            repository.updateTransaction(updated);
-
-            // Incremental learning: user correction teaches the model
-            if (!"TRANSFER".equalsIgnoreCase(updatedType)) {
-                com.example.prediction.domain.model.PredictionTransaction pt =
-                    new com.example.prediction.domain.model.PredictionTransaction(
-                        transaction.getReceiverName(),
-                        transaction.getUpiId(),
-                        transaction.getAmount(),
-                        transaction.getType(),
-                        transaction.getDate()
-                    );
-                predictionService.learn(pt, newCategory);
-            }
+            updated.setSourceTransactionId(transaction.getSourceTransactionId());
+            updated.setReferenceNumber(transaction.getReferenceNumber());
+            updated.setDirection("UNKNOWN".equals(transaction.getDirection())
+                    ? ("INCOME".equals(transaction.getType()) ? "CREDIT" : "DEBIT") : transaction.getDirection());
+            updated.setTimestampPrecision(transaction.getTimestampPrecision());
+            updated.setImportBatchId(transaction.getImportBatchId());
+            updated.setStatus(transaction.getStatus());
+            updated.setDeletedAt(transaction.getDeletedAt());
+            repository.updateConfirmedTransaction(updated);
         });
     }
 
@@ -446,17 +480,31 @@ public class DashboardViewModel extends ViewModel {
 
             for (Transaction t : transactions) {
                 if ("PENDING".equals(t.getCategory()) || t.getCategory().isEmpty()) {
-                    com.example.prediction.domain.model.PredictionTransaction pt = 
-                        new com.example.prediction.domain.model.PredictionTransaction(
-                            t.getReceiverName(), t.getUpiId(), t.getAmount(), t.getType(), t.getDate());
-                    String predicted = predictionService.predict(pt).getCategory();
+                    com.example.prediction.domain.model.PredictionTransaction pt =
+                            com.example.spendtracker.util.CategoryPrediction.from(t);
+                    com.example.prediction.domain.model.IncrementalPredictionResult result = predictionService.predict(pt);
+                    if (result.needsUserConfirmation()) {
+                        t.setConfidenceScore(result.getConfidence());
+                        repository.updateTransaction(t);
+                        continue;
+                    }
+                    String predicted = result.getCategory();
                     if (!predicted.equals(t.getCategory())) {
                         // Create new instance for DiffUtil reliability
                         Transaction updated = new Transaction(
-                            t.getId(), t.getAmount(), predicted, t.getDescription(),
+                            t.getId(), t.getAmount(), predicted, t.getCategoryEmoji(), t.getDescription(),
                             t.getType(), t.getDate(), t.getSource(), t.getSender(),
-                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType()
+                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType(),
+                            t.getFromAccount(), t.getToAccount(), t.getFees()
                         );
+                        updated.setSourceTransactionId(t.getSourceTransactionId());
+                        updated.setReferenceNumber(t.getReferenceNumber());
+                        updated.setDirection(t.getDirection());
+                        updated.setTimestampPrecision(t.getTimestampPrecision());
+                        updated.setImportBatchId(t.getImportBatchId());
+                        updated.setStatus(t.getStatus());
+                        updated.setDeletedAt(t.getDeletedAt());
+                        updated.setConfidenceScore(result.getConfidence());
                         repository.updateTransaction(updated);
                     }
                 }
@@ -526,13 +574,25 @@ public class DashboardViewModel extends ViewModel {
     /** Updates only the transaction type and persists to DB. */
     public void updateTransactionType(Transaction transaction, String newType) {
         executor.execute(() -> {
-            String newCategory = "TRANSFER".equals(newType) ? "Transfer" : transaction.getCategory();
+            String newCategory = "TRANSFER".equals(newType) ? "Transfer" :
+                    "Transfer".equalsIgnoreCase(transaction.getCategory()) ? "Other" : transaction.getCategory();
             Transaction updated = new Transaction(
                 transaction.getId(), transaction.getAmount(), newCategory,
                 transaction.getDescription(), newType, transaction.getDate(),
                 transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
                 transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType()
             );
+            updated.setDirection("TRANSFER".equals(newType) ?
+                    (com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "CREDIT" : "DEBIT") :
+                    ("INCOME".equals(newType) ? "CREDIT" : "DEBIT"));
+            updated.setSourceTransactionId(transaction.getSourceTransactionId());
+            updated.setReferenceNumber(transaction.getReferenceNumber());
+            updated.setTimestampPrecision(transaction.getTimestampPrecision());
+            updated.setImportBatchId(transaction.getImportBatchId());
+            updated.setFromAccount(transaction.getFromAccount());
+            updated.setToAccount(transaction.getToAccount());
+            updated.setFees(transaction.getFees());
+            updated.setConfidenceScore(transaction.getConfidenceScore());
             repository.updateTransaction(updated);
         });
     }
@@ -540,7 +600,7 @@ public class DashboardViewModel extends ViewModel {
     // ── Suspicious Transaction Detection ────────────────────────────────────
 
     /** Configurable confidence threshold — transactions below this are flagged as suspicious. */
-    private final MutableLiveData<Double> suspiciousThreshold = new MutableLiveData<>(0.6);
+    private final MutableLiveData<Double> suspiciousThreshold = new MutableLiveData<>(com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD);
 
     public void setSuspiciousThreshold(double threshold) {
         suspiciousThreshold.setValue(threshold);
@@ -555,23 +615,19 @@ public class DashboardViewModel extends ViewModel {
      * below the configured threshold — i.e., the model was uncertain about its categorization.
      */
     public LiveData<List<Transaction>> getSuspiciousTransactions() {
-        return Transformations.switchMap(getTransactions(), transactions -> {
-            MutableLiveData<List<Transaction>> result = new MutableLiveData<>();
-            if (transactions == null) {
-                result.setValue(new ArrayList<>());
-                return result;
+        androidx.lifecycle.MediatorLiveData<List<Transaction>> result = new androidx.lifecycle.MediatorLiveData<>();
+        LiveData<List<Transaction>> all = repository.getTransactions();
+        Runnable refresh = () -> {
+            List<Transaction> flagged = new ArrayList<>();
+            double threshold = suspiciousThreshold.getValue() == null ? com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD : suspiciousThreshold.getValue();
+            if (all.getValue() != null) for (Transaction t : all.getValue()) {
+                if (t.getConfidenceScore() < threshold) flagged.add(t);
             }
-            Double threshold = suspiciousThreshold.getValue();
-            double thresh = threshold != null ? threshold : 0.6;
-            List<Transaction> suspicious = new ArrayList<>();
-            for (Transaction t : transactions) {
-                if (t.getConfidenceScore() < thresh && t.getConfidenceScore() > 0) {
-                    suspicious.add(t);
-                }
-            }
-            result.setValue(suspicious);
-            return result;
-        });
+            result.setValue(flagged);
+        };
+        result.addSource(all, ignored -> refresh.run());
+        result.addSource(suspiciousThreshold, ignored -> refresh.run());
+        return result;
     }
 
     /** Returns suspicious transactions grouped by date, using the same grouped structure as Daily view. */
