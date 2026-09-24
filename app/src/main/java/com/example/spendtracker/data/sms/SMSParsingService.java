@@ -443,6 +443,12 @@ public class SMSParsingService {
         }
         String merchant = parsed.getMerchant() != null ? parsed.getMerchant() : "";
         String type = parsed.getTransactionType() != null ? parsed.getTransactionType() : "EXPENSE";
+        // A bank alert identifies the other party, not the account holder. Keep the
+        // counterparty in the directionally correct field and leave the user's side blank
+        // unless a source explicitly supplied it.
+        String senderName = "INCOME".equals(type) ? merchant : "";
+        String receiverName = "EXPENSE".equals(type) ? merchant : "";
+        if ("TRANSFER".equals(type)) receiverName = merchant;
 
         // For transfers, set category to "Transfer"
         String category = "TRANSFER".equals(type) ? "Transfer" : "Other";
@@ -455,9 +461,9 @@ public class SMSParsingService {
                 type,
                 parsed.getEffectiveDate(),
                 source,
-                parsed.getSenderAddress(),
+                senderName,
                 upiId,
-                merchant,
+                receiverName,
                 bankName,
                 sourceType,
                 parsed.getFromAccount(),
@@ -465,8 +471,6 @@ public class SMSParsingService {
                 parsed.getFees()
         );
         transaction.setReferenceNumber(parsed.getReferenceId());
-        // Daily renders the payer for income; keep receiverName for legacy prediction consumers.
-        if ("INCOME".equals(type)) transaction.setSender(merchant);
         transaction.setDirection("TRANSFER".equals(type) ? typeExtractor.extractDirection(parsed.getRawMessage())
                 : "INCOME".equals(type) ? "CREDIT" : "DEBIT");
         transaction.setTimestampPrecision(parsed.getTimestampPrecision());

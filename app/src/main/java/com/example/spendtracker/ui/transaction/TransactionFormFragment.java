@@ -140,11 +140,15 @@ public class TransactionFormFragment extends Fragment {
 
             if ("INCOME".equals(selectedType)) {
                 binding.tilSender.setVisibility(View.VISIBLE);
-                binding.tilReceiver.setVisibility(View.GONE);
+                binding.tilReceiver.setVisibility(View.VISIBLE);
+                binding.tilSender.setHint("Sender");
+                binding.tilReceiver.setHint("Receiver / your name (optional)");
                 binding.tilCategory.setHint("Income Category");
             } else {
-                binding.tilSender.setVisibility(View.GONE);
+                binding.tilSender.setVisibility(View.VISIBLE);
                 binding.tilReceiver.setVisibility(View.VISIBLE);
+                binding.tilSender.setHint("Sender / your name (optional)");
+                binding.tilReceiver.setHint("Receiver / Payee");
                 binding.tilCategory.setHint("Category");
             }
 

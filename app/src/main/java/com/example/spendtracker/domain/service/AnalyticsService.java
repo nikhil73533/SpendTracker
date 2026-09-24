@@ -45,8 +45,10 @@ public class AnalyticsService {
         Double avgExpense = transactionDao.getAverageExpenseSync(start, end);
         double avgInc = avgIncome != null ? avgIncome : 0.0;
         double avgExp = avgExpense != null ? avgExpense : 0.0;
+        long duration = Math.max(1L, end - start);
+        int daysInPeriod = (int) Math.max(1L, (duration + 86_400_000L - 1L) / 86_400_000L);
         return new AnalyticsSummary(totalIncome, totalExpense, totalTransfer,
-                incomeCount, expenseCount, transferCount, avgExp, avgInc);
+                incomeCount, expenseCount, transferCount, avgExp, avgInc, daysInPeriod);
     }
 
     public TransactionVolume getTransactionVolume(long start, long end, String periodLabel) {

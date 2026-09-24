@@ -42,6 +42,12 @@ public final class UpiLimitWorker extends Worker {
                 new OneTimeWorkRequest.Builder(UpiLimitWorker.class).build());
     }
 
+    /** Removes previously scheduled tracking work after the feature has been disabled. */
+    public static void cancel(Context context) {
+        WorkManager.getInstance(context).cancelUniqueWork(PERIODIC);
+        WorkManager.getInstance(context).cancelUniqueWork(IMMEDIATE);
+    }
+
     @NonNull @Override public Result doWork() {
         try {
             Context context = getApplicationContext();

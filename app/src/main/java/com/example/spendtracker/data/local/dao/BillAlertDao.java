@@ -35,7 +35,7 @@ public interface BillAlertDao {
     @Query("SELECT * FROM bill_alerts WHERE id = :id")
     BillAlertEntity getById(int id);
 
-    @Query("SELECT * FROM bill_alerts WHERE sender = :sender AND template = :template AND dueEpochDay = :due LIMIT 1")
+    @Query("SELECT * FROM bill_alerts WHERE LOWER(sender) = LOWER(:sender) AND template = :template AND dueEpochDay = :due LIMIT 1")
     BillAlertEntity findBill(String sender, String template, long due);
 
     @Query("DELETE FROM bill_alerts WHERE id = :id")

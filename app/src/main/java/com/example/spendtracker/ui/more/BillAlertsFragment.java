@@ -115,18 +115,22 @@ public class BillAlertsFragment extends Fragment {
         executor.execute(() -> {
             String result;
             int count = 0;
-            long since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(90);
+            Set<String> scannedMessages = new HashSet<>();
             try (Cursor cursor = context.getContentResolver().query(Telephony.Sms.Inbox.CONTENT_URI,
-                    new String[]{"address", "body", "date"}, "date >= ?", new String[]{Long.toString(since)}, "date ASC")) {
+                    new String[]{"address", "body", "date"}, null, null, "date DESC LIMIT 10")) {
                 if (cursor != null) while (cursor.moveToNext()) {
+                    String sender = cursor.getString(0);
                     String body = cursor.getString(1);
                     long timestamp = cursor.getLong(2);
-                    if (new BillMessageParser().parse(body, timestamp, ZoneId.systemDefault()).isBill) {
-                        service.processMessage(cursor.getString(0), body, timestamp);
+                    String fingerprint = (sender == null ? "" : sender.trim().toLowerCase(Locale.ROOT))
+                            + '\u0000' + (body == null ? "" : body.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT));
+                    if (scannedMessages.add(fingerprint)
+                            && new BillMessageParser().parse(body, timestamp, ZoneId.systemDefault()).isBill) {
+                        service.processMessage(sender, body, timestamp);
                         count++;
                     }
                 }
-                result = count + " bill message(s) checked. Review extracted amounts and dates.";
+                result = count + " bill message(s) found in your last 10 messages. Review extracted amounts and dates.";
             } catch (Exception e) { result = "Could not scan SMS. Check SMS permission and try again."; }
             String message = result;
             handler.post(() -> {

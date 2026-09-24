@@ -83,6 +83,8 @@ public class PdfReportService {
     }
 
     public static class ReportPayload {
+        public String reportTitle = "SpendTracker Financial Analysis";
+        public String reportSubtitle = "Complete income, expense and transfer review";
         public String dateRangeLabel;
         public double totalIncome;
         public double totalExpense;
@@ -101,6 +103,22 @@ public class PdfReportService {
     /** Primary method called to generate the PDF report. */
     public static File generateReport(Context context, DashboardViewModel.TotalPageData data, List<Transaction> transactions, String dateRangeLabel) throws Exception {
         ReportPayload payload = buildPayload(data, transactions, dateRangeLabel);
+        return createPdfDocument(context, payload);
+    }
+
+    /** Generates the focused report shared from the Expense Accounts section. */
+    public static File generateExpenseAccountReport(Context context, List<Transaction> transactions,
+                                                    String dateRangeLabel) throws Exception {
+        List<Transaction> expenses = new ArrayList<>();
+        if (transactions != null) {
+            for (Transaction transaction : transactions) {
+                if (isExpense(transaction)) expenses.add(transaction);
+            }
+        }
+        if (expenses.isEmpty()) throw new IllegalArgumentException("No expense account transactions available");
+        ReportPayload payload = buildPayload(null, expenses, dateRangeLabel);
+        payload.reportTitle = "SpendTracker Expense Account Report";
+        payload.reportSubtitle = "Expense-only account activity";
         return createPdfDocument(context, payload);
     }
 
@@ -174,6 +192,15 @@ public class PdfReportService {
                 .putExtra(Intent.EXTRA_SUBJECT, subject)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.setClipData(ClipData.newRawUri(subject, uri));
+        context.startActivity(Intent.createChooser(intent, chooserTitle));
+    }
+
+    /** Opens an already-saved report for the user's chosen PDF viewer. */
+    public static void open(Context context, File file, String chooserTitle) {
+        Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", file);
+        Intent intent = new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/pdf")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         context.startActivity(Intent.createChooser(intent, chooserTitle));
     }
 
@@ -283,6 +310,11 @@ public class PdfReportService {
                 || transaction.getCategory().toLowerCase(Locale.ROOT).contains("transfer"));
     }
 
+    private static boolean isExpense(Transaction transaction) {
+        return transaction != null && !isTransfer(transaction)
+                && "EXPENSE".equalsIgnoreCase(transaction.getType());
+    }
+
     // ── Page & Drawing Engine ─────────────────────────────────────────────────
 
     private interface PageBuilder {
@@ -348,7 +380,7 @@ public class PdfReportService {
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-            canvas.drawText("SpendTracker Financial Report | " + payload.dateRangeLabel, marginLeft, 18, paint);
+            canvas.drawText(payload.reportTitle + " | " + payload.dateRangeLabel, marginLeft, 18, paint);
 
             y = 42;
         }
@@ -378,13 +410,13 @@ public class PdfReportService {
             paint.setColor(Color.WHITE);
             paint.setTextSize(18);
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-            canvas.drawText("SpendTracker Financial Analysis", marginLeft, 36, paint);
+            canvas.drawText(payload.reportTitle, marginLeft, 36, paint);
 
             // Subtitle
             paint.setColor(Color.parseColor("#94A3B8"));
             paint.setTextSize(10);
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
-            canvas.drawText("Period: " + payload.dateRangeLabel, marginLeft, 54, paint);
+            canvas.drawText(payload.reportSubtitle + " · " + payload.dateRangeLabel, marginLeft, 54, paint);
 
             String timestamp = "Generated: " + new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(new Date());
             float tsWidth = paint.measureText(timestamp);
@@ -539,7 +571,10 @@ public class PdfReportService {
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
             canvas.drawText("Financial Totals Comparison", x + 10, top + 16, paint);
 
-            double maxVal = Math.max(payload.totalIncome, Math.max(payload.totalExpense, payload.totalTransfers));
+            // Transfers are signed in the summary (incoming minus outgoing). A signed value
+            // produced an inverted Canvas bar for net outflows, so this chart shows movement.
+            double transferMovement = payload.transferIncoming + payload.transferOutgoing;
+            double maxVal = Math.max(payload.totalIncome, Math.max(payload.totalExpense, transferMovement));
             if (maxVal <= 0) maxVal = 1.0;
 
             float barWidth = 32;
@@ -552,8 +587,8 @@ public class PdfReportService {
             // Bar 2: Expenses
             drawSingleBar(x + 85, baseY, barWidth, maxBarHeight, payload.totalExpense, maxVal, "Expense", "#DC2626");
 
-            // Bar 3: Transfers
-            drawSingleBar(x + 145, baseY, barWidth, maxBarHeight, payload.totalTransfers, maxVal, "Transfer", "#7C3AED");
+            // Bar 3: Total incoming + outgoing transfer movement
+            drawSingleBar(x + 145, baseY, barWidth, maxBarHeight, transferMovement, maxVal, "Transfers", "#7C3AED");
         }
 
         private void drawSingleBar(float x, float baseY, float width, float maxHeight, double val, double maxVal, String label, String colorHex) {

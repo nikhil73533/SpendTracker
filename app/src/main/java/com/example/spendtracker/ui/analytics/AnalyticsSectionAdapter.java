@@ -77,9 +77,14 @@ public class AnalyticsSectionAdapter extends RecyclerView.Adapter<RecyclerView.V
     public static class CardItem implements SectionItem {
         public String title;
         public String value;
+        public Runnable action;
         public CardItem(String title, String value) {
+            this(title, value, null);
+        }
+        public CardItem(String title, String value, Runnable action) {
             this.title = title;
             this.value = value;
+            this.action = action;
         }
     }
 
@@ -110,6 +115,8 @@ public class AnalyticsSectionAdapter extends RecyclerView.Adapter<RecyclerView.V
             tvTitle.setText(item.title);
             tvValue.setText(item.value);
             tvValue.setTextColor(itemView.getContext().getResources().getColor(android.R.color.darker_gray));
+            itemView.setOnClickListener(item.action == null ? null : view -> item.action.run());
+            itemView.setClickable(item.action != null);
         }
     }
 }

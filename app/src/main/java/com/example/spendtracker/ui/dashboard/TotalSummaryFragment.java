@@ -53,8 +53,8 @@ public class TotalSummaryFragment extends Fragment {
 
         setupRecyclerView();
         binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
-        binding.btnShareReceipt.setOnClickListener(v -> requireReportAuthentication(this::shareTotalSummaryReport));
-        binding.btnDownloadPdf.setOnClickListener(v -> requireReportAuthentication(this::shareTotalSummaryReport));
+        binding.btnShareReceipt.setOnClickListener(v -> requireReportAuthentication(this::shareExpenseAccountReport));
+        binding.btnDownloadPdf.setOnClickListener(v -> requireReportAuthentication(this::downloadOverallReport));
         observeViewModel();
     }
 
@@ -161,9 +161,59 @@ public class TotalSummaryFragment extends Fragment {
         });
     }
 
-    /** Generates a PDF from the same active date range rendered by the Total tab. */
-    private void shareTotalSummaryReport() {
+    /** Shares only expense-account activity from the current Total tab date range. */
+    private void shareExpenseAccountReport() {
+        collectReportTransactions("No expense account transactions to share for selected period", (transactions, dateRangeLabel) ->
+                new Thread(() -> {
+                    try {
+                        File pdfFile = com.example.spendtracker.util.PdfReportService.generateExpenseAccountReport(
+                                requireContext(), transactions, dateRangeLabel);
+                        requireActivity().runOnUiThread(() -> {
+                            try {
+                                com.example.spendtracker.util.PdfReportService.share(
+                                        requireContext(), pdfFile, "Expense account report", "Share expense account report");
+                            } catch (RuntimeException error) {
+                                Toast.makeText(requireContext(), "No app available to share the report", Toast.LENGTH_LONG).show();
+                            }
+                        });
+                    } catch (Exception e) {
+                        android.util.Log.e("TotalSummary", "Unable to create expense account report", e);
+                        if (isAdded()) requireActivity().runOnUiThread(() ->
+                                Toast.makeText(requireContext(), "Could not create expense account report", Toast.LENGTH_LONG).show());
+                    }
+                }).start());
+    }
+
+    /** Saves an overall income, expense and transfer review for the current date range. */
+    private void downloadOverallReport() {
         DashboardViewModel.TotalPageData data = viewModel.getTotalPageData().getValue();
+        collectReportTransactions("No transactions to report for selected period", (transactions, dateRangeLabel) ->
+                new Thread(() -> {
+                    try {
+                        File pdfFile = com.example.spendtracker.util.PdfReportService.generateReport(
+                                requireContext(), data, transactions, dateRangeLabel);
+                        requireActivity().runOnUiThread(() -> {
+                            try {
+                                com.example.spendtracker.util.PdfReportService.open(
+                                        requireContext(), pdfFile, "Open overall review PDF");
+                                Toast.makeText(requireContext(), "Overall review PDF saved", Toast.LENGTH_SHORT).show();
+                            } catch (RuntimeException error) {
+                                Toast.makeText(requireContext(), "PDF saved, but no viewer is available", Toast.LENGTH_LONG).show();
+                            }
+                        });
+                    } catch (Exception e) {
+                        android.util.Log.e("TotalSummary", "Unable to create overall report", e);
+                        if (isAdded()) requireActivity().runOnUiThread(() ->
+                                Toast.makeText(requireContext(), "PDF export failed", Toast.LENGTH_LONG).show());
+                    }
+                }).start());
+    }
+
+    private interface ReportTransactionConsumer {
+        void accept(List<Transaction> transactions, String dateRangeLabel);
+    }
+
+    private void collectReportTransactions(String emptyMessage, ReportTransactionConsumer consumer) {
         DashboardViewModel.DateRange range = viewModel.getDateRange().getValue();
 
         String label = "All Time";
@@ -183,30 +233,10 @@ public class TotalSummaryFragment extends Fragment {
             public void onChanged(List<Transaction> transactions) {
                 txnsLive.removeObserver(this);
                 if (transactions == null || transactions.isEmpty()) {
-                    Toast.makeText(requireContext(), "No transactions to report for selected period", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), emptyMessage, Toast.LENGTH_SHORT).show();
                     return;
                 }
-
-                new Thread(() -> {
-                    try {
-                        File pdfFile = com.example.spendtracker.util.PdfReportService.generateReport(
-                                requireContext(), data, transactions, dateRangeLabel);
-
-                        requireActivity().runOnUiThread(() -> {
-                            try {
-                                com.example.spendtracker.util.PdfReportService.share(
-                                        requireContext(), pdfFile, "Total summary report", "Share total summary");
-                            } catch (RuntimeException error) {
-                                Toast.makeText(requireContext(), "No app available to share the report", Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        requireActivity().runOnUiThread(() ->
-                            Toast.makeText(requireContext(), "PDF Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show()
-                        );
-                    }
-                }).start();
+                consumer.accept(transactions, dateRangeLabel);
             }
         });
     }

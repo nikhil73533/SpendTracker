@@ -235,7 +235,6 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
             // Evaluate category budget range and trigger warning notifications if exceeded
             BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
-            com.example.spendtracker.util.UpiLimitWorker.checkNow(context);
 
             if (newId > 0 && transaction.getReceiverName() != null && !transaction.getReceiverName().trim().isEmpty()) {
                 // Check for duplicate transactions within 48 hours
@@ -357,7 +356,6 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
             // Evaluate category budget range and trigger warning notifications if exceeded
             BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
-            com.example.spendtracker.util.UpiLimitWorker.checkNow(context);
         });
     }
 

@@ -12,7 +12,7 @@
         android:padding="16dp">
 
 <com.google.android.material.button.MaterialButton android:id="@+id/btn_share_receipt"
-        android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Share total summary PDF" />
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Share expense accounts PDF" />
         <!-- Expense Account Summary Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
@@ -192,7 +192,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Download PDF Report"
+            android:text="Download overall review PDF"
             app:icon="@android:drawable/ic_menu_report_image"
             app:iconGravity="textStart"
             style="@style/Widget.Material3.Button.TonalButton" />

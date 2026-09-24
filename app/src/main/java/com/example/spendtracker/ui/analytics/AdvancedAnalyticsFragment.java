@@ -4,8 +4,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.text.InputType;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -23,7 +21,6 @@ import com.example.spendtracker.domain.model.analytics.BehaviorAnalytics;
 import com.example.spendtracker.domain.model.analytics.ForecastResult;
 import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
-import com.example.spendtracker.util.UpiUsage;
 import com.google.android.material.datepicker.MaterialDatePicker;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.data.BarData;
@@ -73,7 +70,6 @@ public class AdvancedAnalyticsFragment extends Fragment {
 
         setupChart();
         setupFilters();
-        binding.btnConfigureUpiLimits.setOnClickListener(v -> showUpiLimitEditor());
         observeViewModel();
     }
 
@@ -150,6 +146,8 @@ public class AdvancedAnalyticsFragment extends Fragment {
                 binding.tvTotalExpense.setText(formatAmount(summary.getTotalExpense()));
                 binding.tvNetBalance.setText(formatAmount(summary.getNetBalance()));
                 binding.tvTotalTransfer.setText(formatAmount(summary.getTotalTransfer()));
+                binding.tvAverageDailyTransactions.setText(String.format(Locale.getDefault(), "%.1f / day",
+                        summary.getAverageDailyTransactions()));
             }
         });
 
@@ -219,7 +217,6 @@ public class AdvancedAnalyticsFragment extends Fragment {
             currentRollingAverage = rollingAverage;
             renderInsightSections();
         });
-        viewModel.getUpiUsage().observe(getViewLifecycleOwner(), this::renderUpiUsage);
         viewModel.getDayNightAnalytics().observe(getViewLifecycleOwner(), value -> {
             currentDayNight = value;
             renderInsightSections();
@@ -236,65 +233,6 @@ public class AdvancedAnalyticsFragment extends Fragment {
             currentAnomalies = value == null ? new ArrayList<>() : new ArrayList<>(value);
             renderInsightSections();
         });
-    }
-
-    private void renderUpiUsage(UpiUsage usage) {
-        if (usage == null) return;
-        binding.tvUpiToday.setText(limitLabel("Today", usage.getDailyAmount(), usage.getDailyPaymentCount(),
-                usage.getDailyLimit(), usage.getDailyPercent()));
-        binding.tvUpiMonth.setText(limitLabel("This month", usage.getMonthlyAmount(), usage.getMonthlyPaymentCount(),
-                usage.getMonthlyLimit(), usage.getMonthlyPercent()));
-        binding.tvUpiPolicy.setText("Standard UPI: up to ₹1 lakh per payment. Daily and monthly limits are set by your bank or UPI app.");
-    }
-
-    private String limitLabel(String period, double amount, int count, double limit, int percent) {
-        String used = period + ": " + formatAmount(amount) + " across " + count + (count == 1 ? " payment" : " payments");
-        return limit > 0 ? used + " · " + percent + "% of " + formatAmount(limit) : used + " · tracking limit not set";
-    }
-
-    private void showUpiLimitEditor() {
-        UpiUsage usage = viewModel.getUpiUsage().getValue();
-        LinearLayout fields = new LinearLayout(requireContext());
-        fields.setOrientation(LinearLayout.VERTICAL);
-        int padding = (int) (20 * getResources().getDisplayMetrics().density);
-        fields.setPadding(padding, padding / 2, padding, 0);
-        android.widget.TextView note = new android.widget.TextView(requireContext());
-        note.setText("Enter the daily and monthly limits shown by your bank or UPI app. Leave a field blank to disable its alert.");
-        fields.addView(note);
-        EditText daily = limitField("Daily UPI limit (₹)", usage == null ? 0 : usage.getDailyLimit());
-        EditText monthly = limitField("Monthly UPI limit (₹)", usage == null ? 0 : usage.getMonthlyLimit());
-        fields.addView(daily);
-        fields.addView(monthly);
-        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("UPI tracking limits")
-                .setView(fields)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", (dialog, which) -> {
-                    Double dailyValue = readLimit(daily);
-                    Double monthlyValue = readLimit(monthly);
-                    if (dailyValue == null || monthlyValue == null) return;
-                    viewModel.saveUpiLimits(dailyValue, monthlyValue);
-                })
-                .show();
-    }
-
-    private EditText limitField(String hint, double value) {
-        EditText field = new EditText(requireContext());
-        field.setHint(hint);
-        field.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        if (value > 0) field.setText(String.format(Locale.US, "%.0f", value));
-        return field;
-    }
-
-    private Double readLimit(EditText field) {
-        String raw = field.getText().toString().trim();
-        if (raw.isEmpty()) return 0d;
-        try {
-            double value = Double.parseDouble(raw);
-            if (Double.isFinite(value) && value > 0) return value;
-        } catch (NumberFormatException ignored) { }
-        field.setError("Use a positive amount or leave blank");
-        return null;
     }
 
     private LineDataSet createLineSet(List<Entry> entries, String label, int color) {
@@ -376,7 +314,8 @@ public class AdvancedAnalyticsFragment extends Fragment {
         if (!currentAnomalies.isEmpty()) {
             items.add(new AnalyticsSectionAdapter.HeaderItem("Review Activity"));
             items.add(new AnalyticsSectionAdapter.CardItem("Unusual transactions", currentAnomalies.size()
-                    + " transaction" + (currentAnomalies.size() == 1 ? " needs" : "s need") + " review"));
+                    + " transaction" + (currentAnomalies.size() == 1 ? " needs" : "s need")
+                    + " review · Tap to view", this::showUnusualTransactions));
         }
         if (!currentInsights.isEmpty()) {
             items.add(new AnalyticsSectionAdapter.HeaderItem("Insights"));
@@ -385,6 +324,47 @@ public class AdvancedAnalyticsFragment extends Fragment {
             }
         }
         adapter.submitList(items);
+    }
+
+    /** Shows every anomaly for the selected period and lets the user open its transaction. */
+    private void showUnusualTransactions() {
+        if (currentAnomalies.isEmpty() || !isAdded()) return;
+        LinearLayout list = new LinearLayout(requireContext());
+        list.setOrientation(LinearLayout.VERTICAL);
+        int padding = (int) (20 * getResources().getDisplayMetrics().density);
+        list.setPadding(padding, padding / 2, padding, padding / 2);
+        final androidx.appcompat.app.AlertDialog[] dialog = new androidx.appcompat.app.AlertDialog[1];
+
+        for (AnomalyTransaction anomaly : currentAnomalies) {
+            android.widget.TextView row = new android.widget.TextView(requireContext());
+            String merchant = anomaly.getMerchantName() == null || anomaly.getMerchantName().trim().isEmpty()
+                    ? anomaly.getCategory() : anomaly.getMerchantName();
+            String date = new java.text.SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+                    .format(new java.util.Date(anomaly.getDate()));
+            row.setText(merchant + " · " + formatAmount(anomaly.getAmount()) + "\n"
+                    + anomaly.getCategory() + " · " + date + " · "
+                    + String.format(Locale.getDefault(), "%.1fx the usual amount", anomaly.getDeviationMultiple()));
+            row.setTextSize(15f);
+            row.setPadding(0, padding / 2, 0, padding / 2);
+            row.setBackgroundResource(android.R.drawable.list_selector_background);
+            row.setOnClickListener(v -> {
+                Bundle args = new Bundle();
+                args.putInt("transactionId", anomaly.getTransactionId());
+                if (dialog[0] != null) dialog[0].dismiss();
+                androidx.navigation.Navigation.findNavController(requireView())
+                        .navigate(com.example.spendtracker.R.id.transactionFormFragment, args);
+            });
+            list.addView(row);
+        }
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(requireContext());
+        scroll.addView(list);
+        dialog[0] = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Unusual transactions")
+                .setView(scroll)
+                .setPositiveButton("Close", null)
+                .create();
+        dialog[0].show();
     }
 
     private String formatAmount(double amount) {

@@ -18,10 +18,11 @@ public class AnalyticsSummary {
     private final double averageExpense;
     private final double averageIncome;
     private final double averageOverall;
+    private final double averageDailyTransactions;
 
     public AnalyticsSummary(double totalIncome, double totalExpense, double totalTransfer,
                             int incomeCount, int expenseCount, int transferCount,
-                            double averageExpense, double averageIncome) {
+                            double averageExpense, double averageIncome, int daysInPeriod) {
         this.totalIncome = totalIncome;
         this.totalExpense = totalExpense;
         this.totalTransfer = totalTransfer;
@@ -35,6 +36,7 @@ public class AnalyticsSummary {
         // Average overall excludes transfers to avoid distortion
         int nonTransferCount = incomeCount + expenseCount;
         this.averageOverall = nonTransferCount > 0 ? (totalIncome + totalExpense) / nonTransferCount : 0;
+        this.averageDailyTransactions = totalCount / (double) Math.max(daysInPeriod, 1);
     }
 
     public double getTotalIncome() { return totalIncome; }
@@ -48,6 +50,7 @@ public class AnalyticsSummary {
     public double getAverageExpense() { return averageExpense; }
     public double getAverageIncome() { return averageIncome; }
     public double getAverageOverall() { return averageOverall; }
+    public double getAverageDailyTransactions() { return averageDailyTransactions; }
 
     /** Returns true if there is enough data to display meaningful analytics. */
     public boolean hasData() { return totalCount > 0; }

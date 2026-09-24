@@ -19,14 +19,6 @@ import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.domain.model.analytics.FinancialInsight;
 import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
-import com.example.spendtracker.domain.repository.TransactionRepository;
-import com.example.spendtracker.domain.model.Transaction;
-import com.example.spendtracker.util.UpiLimitPreferences;
-import com.example.spendtracker.util.UpiLimitWorker;
-import com.example.spendtracker.util.UpiUsage;
-import com.example.spendtracker.util.UpiUsageTracker;
-import android.content.Context;
-import dagger.hilt.android.qualifiers.ApplicationContext;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.Calendar;
 import java.util.List;
@@ -45,8 +37,6 @@ import androidx.lifecycle.MediatorLiveData;
 public class AdvancedAnalyticsViewModel extends ViewModel {
 
     private final AnalyticsRepository analyticsRepository;
-    private final TransactionRepository transactionRepository;
-    private final Context context;
 
     // Date range filter – defaults to today (midnight to now)
     private final MutableLiveData<Long> startDate = new MutableLiveData<>();
@@ -79,15 +69,9 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
 
     private final LiveData<List<FinancialInsight>> financialInsights;
     private final LiveData<ForecastResult> spendingForecast;
-    private final MutableLiveData<Integer> upiSettingsVersion = new MutableLiveData<>(0);
-    private final LiveData<UpiUsage> upiUsage;
-
     @Inject
-    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository, TransactionRepository transactionRepository,
-                                      @ApplicationContext Context context) {
+    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository) {
         this.analyticsRepository = analyticsRepository;
-        this.transactionRepository = transactionRepository;
-        this.context = context;
         // Initialise default date range – start of the current month to now.
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.DAY_OF_MONTH, 1);
@@ -128,11 +112,6 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
 
         financialInsights = combineDates((s, e) -> analyticsRepository.generateInsights(s, e));
         spendingForecast = combineDates((s, e) -> analyticsRepository.getSpendingForecast(s, e));
-        upiUsage = Transformations.switchMap(upiSettingsVersion, ignored ->
-                Transformations.map(transactionRepository.getTransactions(), transactions ->
-                        UpiUsageTracker.calculate(transactions, System.currentTimeMillis(), java.time.ZoneId.systemDefault(),
-                                UpiLimitPreferences.dailyLimit(context), UpiLimitPreferences.monthlyLimit(context))));
-        
         // Rolling average only depends on the end date (or current date) - using a simple map for now
         rollingExpenseAverage = Transformations.switchMap(endDate, e -> analyticsRepository.getRollingExpenseAverage(3));
     }
@@ -225,16 +204,6 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
 
     public LiveData<List<FinancialInsight>> getFinancialInsights() { return financialInsights; }
     public LiveData<ForecastResult> getSpendingForecast() { return spendingForecast; }
-    public LiveData<UpiUsage> getUpiUsage() { return upiUsage; }
-
-    /** Saves the account-specific limits used for tracking. Zero disables an alert for that period. */
-    public void saveUpiLimits(double dailyLimit, double monthlyLimit) {
-        UpiLimitPreferences.save(context, dailyLimit, monthlyLimit);
-        Integer version = upiSettingsVersion.getValue();
-        upiSettingsVersion.setValue(version == null ? 1 : version + 1);
-        UpiLimitWorker.checkNow(context);
-    }
-
     // ---------------------------------------------------
     // Date range setters (called by UI when user selects a new period)
     // ---------------------------------------------------

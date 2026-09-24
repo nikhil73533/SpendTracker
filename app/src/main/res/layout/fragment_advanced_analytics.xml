@@ -108,7 +108,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:columnCount="2"
-                app:rowCount="2"
+                app:rowCount="3"
                 android:layout_marginBottom="24dp">
 
                 <!-- Income Card -->
@@ -261,62 +261,44 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-            </androidx.gridlayout.widget.GridLayout>
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:layout_marginTop="8dp"
+                    app:layout_column="0"
+                    app:layout_columnSpan="2"
+                    app:layout_columnWeight="1"
+                    app:layout_row="2"
+                    app:cardBackgroundColor="?attr/colorSurfaceVariant"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="0dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="UPI payment limit tracking"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvUpiPolicy"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Standard UPI: up to ₹1 lakh per payment. Daily and monthly limits depend on your bank or app."
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:textSize="12sp" />
+                        android:orientation="vertical"
+                        android:padding="16dp">
 
-                    <TextView
-                        android:id="@+id/tvUpiToday"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Today: ₹ 0 · no daily tracking limit"
-                        android:textStyle="bold" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Average Daily Transactions"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="12sp" />
 
-                    <TextView
-                        android:id="@+id/tvUpiMonth"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="This month: ₹ 0 · no monthly tracking limit" />
+                        <TextView
+                            android:id="@+id/tvAverageDailyTransactions"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="0.0 / day"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnConfigureUpiLimits"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="Set my bank/app limits" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            </androidx.gridlayout.widget.GridLayout>
 
             <!-- Transaction-frequency volume chart -->
             <TextView

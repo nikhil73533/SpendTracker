@@ -23,7 +23,13 @@ public final class AppNotifications {
         if (manager == null) return;
         manager.createNotificationChannel(new NotificationChannel(BILLS, "Bill reminders", NotificationManager.IMPORTANCE_HIGH));
         manager.createNotificationChannel(new NotificationChannel(BUDGETS, "Budget limit warnings", NotificationManager.IMPORTANCE_HIGH));
-        manager.createNotificationChannel(new NotificationChannel(UPI, "UPI limit warnings", NotificationManager.IMPORTANCE_HIGH));
+    }
+
+    /** Removes the legacy tracking channel from devices upgraded from older releases. */
+    public static void removeUpiChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager != null) manager.deleteNotificationChannel(UPI);
     }
 
     public static boolean enabled(Context context, String channel) {

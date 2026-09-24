@@ -12,6 +12,7 @@ import com.example.spendtracker.data.local.entity.CategoryEntity;
 import com.example.spendtracker.domain.model.Transaction;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Utility helper to evaluate category budget ranges (weekly, monthly, annually)
@@ -20,6 +21,9 @@ import java.util.Locale;
 public class BudgetNotificationHelper {
     private static final String TAG = "BudgetNotificationHelper";
     private static final String CHANNEL_ID = "budget_warning_channel";
+    /** A new notification id is required for each post; reusing an id only updates the old alert. */
+    private static final AtomicInteger NEXT_NOTIFICATION_ID = new AtomicInteger(
+            (int) (System.currentTimeMillis() & 0x7fffffff));
 
     /**
      * Checks if the given transaction causes any budget limit (weekly, monthly, or annual)
@@ -74,16 +78,13 @@ public class BudgetNotificationHelper {
                 NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null) return;
 
-                int baseNotificationId = (int) (System.currentTimeMillis() % 100000);
-
-                long now = System.currentTimeMillis();
-                if (weeklyExceeded && now >= weeklyRange[0] && now <= weeklyRange[1]) {
+                if (weeklyExceeded) {
                     fireWarning(context, category.id, weeklyRange[0], category.name, "Weekly", weeklyTotal, category.weeklyBudget);
                 }
-                if (monthlyExceeded && now >= monthlyRange[0] && now <= monthlyRange[1]) {
+                if (monthlyExceeded) {
                     fireWarning(context, category.id, monthlyRange[0], category.name, "Monthly", monthlyTotal, category.monthlyBudget);
                 }
-                if (annualExceeded && now >= annualRange[0] && now <= annualRange[1]) {
+                if (annualExceeded) {
                     fireWarning(context, category.id, annualRange[0], category.name, "Annually", annualTotal, category.annuallyBudget);
                 }
             }
@@ -93,15 +94,17 @@ public class BudgetNotificationHelper {
     }
 
     private static void fireWarning(Context context, int categoryId, long periodStart, String categoryName, String period, double actual, double limit) {
-        String key = categoryId + ":" + period + ":" + limit;
-        android.content.SharedPreferences prefs = context.getSharedPreferences("budget_deliveries", Context.MODE_PRIVATE);
-        if (prefs.getLong(key, Long.MIN_VALUE) == periodStart) return;
         String title = String.format(Locale.getDefault(), "⚠️ %s Budget Exceeded: %s", period, categoryName);
         String body = String.format(Locale.getDefault(), "Your %s spending in %s reached ₹%.0f, exceeding your set budget of ₹%.0f.",
                 period.toLowerCase(), categoryName, actual, limit);
+        // Notify on every subsequent transaction while the budget remains exceeded. The
+        // notification id must also be unique, otherwise Android replaces the prior alert.
+        AppNotifications.post(context, CHANNEL_ID, nextNotificationId(), title, body);
+    }
 
-        if (AppNotifications.post(context, CHANNEL_ID, key.hashCode(), title, body))
-            prefs.edit().putLong(key, periodStart).apply();
+    private static int nextNotificationId() {
+        int id = NEXT_NOTIFICATION_ID.updateAndGet(value -> value == Integer.MAX_VALUE ? 1 : value + 1);
+        return id <= 0 ? 1 : id;
     }
 
     private static void createNotificationChannel(Context context) {

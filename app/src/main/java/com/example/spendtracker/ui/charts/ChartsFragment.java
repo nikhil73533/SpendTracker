@@ -110,7 +110,10 @@ public class ChartsFragment extends Fragment {
                 binding.nestedScrollView.animate().alpha(1.0f).setDuration(220).start();
 
                 viewModel.setTransactionType(showingTransfers ? "TRANSFER" : showingExpenses ? "EXPENSE" : "INCOME");
+                Summary cached = viewModel.getChartData().getValue();
+                if (cached != null) updateTabTotals(cached);
                 if (showingTransfers) renderTransfers();
+                else if (cached != null) updateUIWithData(cached);
                 updateSectionVisibility();
             }
 
@@ -320,24 +323,26 @@ public class ChartsFragment extends Fragment {
 
     private void updateUIWithData(Summary summary) {
         if (summary == null) return;
+        updateTabTotals(summary);
         if (showingTransfers) { renderTransfers(); return; }
         
         Map<String, Double> breakdown = showingExpenses ? summary.getExpenseBreakdown() : summary.getIncomeBreakdown();
         double total = showingExpenses ? summary.getTotalExpense() : summary.getTotalIncome();
         int[] colors = showingExpenses ? ColorTemplate.COLORFUL_COLORS : ColorTemplate.JOYFUL_COLORS;
 
-        // Update Tab Text with Total (masked when privacy mode is on)
-        TabLayout.Tab expenseTab = binding.tabChartType.getTabAt(1);
-        if (expenseTab != null) expenseTab.setText("Expenses " + viewModel.formatAmount(summary.getTotalExpense()));
-        
-        TabLayout.Tab incomeTab = binding.tabChartType.getTabAt(0);
-        if (incomeTab != null) incomeTab.setText("Income " + viewModel.formatAmount(summary.getTotalIncome()));
-
         setupPieChart(binding.pieChartMain, breakdown, total, colors);
         binding.pieChartMain.setCenterText(isPrivacyActive() ? "***" : viewModel.formatAmount(total));
         binding.pieChartMain.setCenterTextColor(Color.WHITE);
         binding.pieChartMain.setCenterTextSize(15f);
         updateStatsList(breakdown, total, colors);
+    }
+
+    /** Refresh tab totals independently of the selected tab so first entry is never stale. */
+    private void updateTabTotals(Summary summary) {
+        TabLayout.Tab expenseTab = binding.tabChartType.getTabAt(1);
+        if (expenseTab != null) expenseTab.setText("Expenses " + viewModel.formatAmount(summary.getTotalExpense()));
+        TabLayout.Tab incomeTab = binding.tabChartType.getTabAt(0);
+        if (incomeTab != null) incomeTab.setText("Income " + viewModel.formatAmount(summary.getTotalIncome()));
     }
 
     private void updateStatsList(Map<String, Double> breakdown, double total, int[] baseColors) {
