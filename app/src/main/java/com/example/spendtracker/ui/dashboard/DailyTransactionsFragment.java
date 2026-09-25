@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
@@ -24,7 +25,11 @@ import com.example.spendtracker.ui.transaction.TransactionViewModel;
 import dagger.hilt.android.AndroidEntryPoint;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @AndroidEntryPoint
 public class DailyTransactionsFragment extends Fragment {
@@ -38,6 +43,7 @@ public class DailyTransactionsFragment extends Fragment {
     private OnBackPressedCallback selectionBack;
     private ItemTouchHelper swipeHelper;
     private ArrayList<Integer> restoredSelection;
+    private List<Transaction> activityTransactions = Collections.emptyList();
 
     @Nullable
     @Override
@@ -55,14 +61,22 @@ public class DailyTransactionsFragment extends Fragment {
 
         setupRecyclerView();
         selectionBack = new OnBackPressedCallback(false) {
-            @Override public void handleOnBackPressed() { adapter.clearSelection(); }
+            @Override public void handleOnBackPressed() {
+                if (binding != null && binding.dailyChartOverlay.getVisibility() == View.VISIBLE) {
+                    hideActivityChart();
+                } else {
+                    adapter.clearSelection();
+                }
+            }
         };
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), selectionBack);
         adapter.enableSelection(this::renderSelection);
         binding.btnCancelSelection.setOnClickListener(v -> adapter.clearSelection());
         binding.btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelected());
         binding.checkSelectAll.setOnClickListener(v -> adapter.selectAll(binding.checkSelectAll.isChecked()));
+        binding.btnCloseDailyChart.setOnClickListener(v -> hideActivityChart());
         setupSwipe();
+        setupActivityChartGesture();
         observeViewModel();
     }
 
@@ -73,7 +87,7 @@ public class DailyTransactionsFragment extends Fragment {
         binding.checkSelectAll.setChecked(adapter.getTransactionCount() > 0
                 && adapter.getSelectionCount() == adapter.getTransactionCount());
         binding.btnDeleteSelected.setEnabled(adapter.getSelectionCount() > 0);
-        if (selectionBack != null) selectionBack.setEnabled(adapter.isSelecting());
+        updateBackCallback();
     }
 
     private void confirmDeleteSelected() {
@@ -144,6 +158,111 @@ public class DailyTransactionsFragment extends Fragment {
         });
     }
 
+    /** A pull from the top of the activity stream opens the compact daily bar view. */
+    private void setupActivityChartGesture() {
+        binding.rvTransactions.addOnItemTouchListener(new RecyclerView.SimpleOnItemTouchListener() {
+            private float startY;
+            private boolean startedAtTop;
+
+            @Override public boolean onInterceptTouchEvent(@NonNull RecyclerView recycler, @NonNull MotionEvent event) {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    startY = event.getY();
+                    startedAtTop = !recycler.canScrollVertically(-1);
+                } else if (event.getActionMasked() == MotionEvent.ACTION_UP && startedAtTop
+                        && event.getY() - startY > 64 * recycler.getResources().getDisplayMetrics().density
+                        && !adapter.isSelecting()) {
+                    showActivityChart();
+                    startedAtTop = false;
+                } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    startedAtTop = false;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void showActivityChart() {
+        if (binding == null) return;
+        binding.dailyChartOverlay.setVisibility(View.VISIBLE);
+        renderActivityChart(activityTransactions);
+        updateBackCallback();
+    }
+
+    private void hideActivityChart() {
+        if (binding == null) return;
+        binding.dailyChartOverlay.setVisibility(View.GONE);
+        updateBackCallback();
+    }
+
+    private void updateBackCallback() {
+        if (selectionBack != null && binding != null) {
+            selectionBack.setEnabled(adapter.isSelecting()
+                    || binding.dailyChartOverlay.getVisibility() == View.VISIBLE);
+        }
+    }
+
+    private void renderActivityChart(List<Transaction> transactions) {
+        if (binding == null) return;
+        com.github.mikephil.charting.charts.BarChart chart = binding.dailyActivityChart;
+        if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
+            chart.clear();
+            chart.setNoDataText("Unlock Privacy Mode to view daily activity");
+            chart.invalidate();
+            return;
+        }
+        if (transactions == null || transactions.isEmpty()) {
+            chart.clear();
+            chart.setNoDataText(getString(R.string.daily_activity_empty));
+            chart.invalidate();
+            return;
+        }
+
+        Map<Long, Double> dailyTotals = new LinkedHashMap<>();
+        Calendar calendar = Calendar.getInstance();
+        for (Transaction transaction : transactions) {
+            calendar.setTimeInMillis(transaction.getDate());
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            long day = calendar.getTimeInMillis();
+            double current = dailyTotals.containsKey(day) ? dailyTotals.get(day) : 0d;
+            dailyTotals.put(day, current + Math.abs(transaction.getAmount()));
+        }
+
+        List<com.github.mikephil.charting.data.BarEntry> entries = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        java.text.SimpleDateFormat labelFormat = new java.text.SimpleDateFormat("dd", java.util.Locale.getDefault());
+        int index = 0;
+        for (Map.Entry<Long, Double> entry : dailyTotals.entrySet()) {
+            entries.add(new com.github.mikephil.charting.data.BarEntry(index++, entry.getValue().floatValue()));
+            labels.add(labelFormat.format(new java.util.Date(entry.getKey())));
+        }
+        com.github.mikephil.charting.data.BarDataSet dataSet =
+                new com.github.mikephil.charting.data.BarDataSet(entries, getString(R.string.daily_activity_title));
+        dataSet.setColor(Color.rgb(90, 175, 220));
+        dataSet.setDrawValues(false);
+        com.github.mikephil.charting.data.BarData data = new com.github.mikephil.charting.data.BarData(dataSet);
+        data.setBarWidth(0.58f);
+        chart.setData(data);
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
+        chart.setDrawGridBackground(false);
+        chart.setFitBars(true);
+        chart.setTouchEnabled(true);
+        chart.setScaleEnabled(false);
+        chart.getXAxis().setValueFormatter(new com.github.mikephil.charting.formatter.IndexAxisValueFormatter(labels));
+        chart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
+        chart.getXAxis().setDrawGridLines(false);
+        chart.getXAxis().setTextColor(Color.LTGRAY);
+        chart.getXAxis().setGranularity(1f);
+        chart.getAxisLeft().setTextColor(Color.LTGRAY);
+        chart.getAxisLeft().setGridColor(Color.argb(70, 255, 255, 255));
+        chart.getAxisRight().setEnabled(false);
+        chart.animateY(280);
+        chart.invalidate();
+    }
+
     private void setupRecyclerView() {
         adapter = new GroupedTransactionAdapter(new GroupedTransactionAdapter.OnTransactionClickListener() {
             @Override
@@ -207,6 +326,13 @@ public class DailyTransactionsFragment extends Fragment {
             }
         });
 
+        viewModel.getTransactions().observe(getViewLifecycleOwner(), transactions -> {
+            activityTransactions = transactions == null ? Collections.emptyList() : transactions;
+            if (binding != null && binding.dailyChartOverlay.getVisibility() == View.VISIBLE) {
+                renderActivityChart(activityTransactions);
+            }
+        });
+
         transactionViewModel.getDeletionResult().observe(getViewLifecycleOwner(), result -> {
             if (result == null) return;
             transactionViewModel.consumeDeletionResult();
@@ -224,6 +350,9 @@ public class DailyTransactionsFragment extends Fragment {
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
+            if (binding != null && binding.dailyChartOverlay.getVisibility() == View.VISIBLE) {
+                renderActivityChart(activityTransactions);
+            }
         });
 
         transactionViewModel.getIncomeCategories().observe(getViewLifecycleOwner(), list -> {

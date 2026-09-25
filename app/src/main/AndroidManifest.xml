@@ -10,6 +10,15 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
+    <!-- Lets Android expose installed web handlers to support and feedback links. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".SpendTrackerApp"
         android:allowBackup="false"

@@ -171,6 +171,16 @@
     <string name="suggest_feature">Suggest a Feature</string>
     <string name="online_service_unavailable">This online service is not configured yet. Your offline SpendTracker features are still available.</string>
     <string name="browser_unavailable">No browser is available to open this link.</string>
+    <string name="daily_activity_title">Daily activity</string>
+    <string name="daily_activity_subtitle">Total money moved on each day</string>
+    <string name="daily_activity_hint">Pull down to see your daily movement</string>
+    <string name="daily_activity_empty">No transactions in this period yet.</string>
+    <string name="daily_activity_close">Close daily activity chart</string>
+    <string name="daily_stream_title">Activity stream</string>
+    <string name="monthly_pulse_title">Yearly pulse</string>
+    <string name="monthly_pulse_subtitle">Open a month to see its weekly rhythm</string>
+    <string name="total_overview_title">Financial overview</string>
+    <string name="total_overview_subtitle">A clear view of your money across every account</string>
     <string name="internet_required">Internet connection is required for this feature. Your offline SpendTracker features are still available.</string>
     <string name="rate_spendtracker">Rate SpendTracker</string>
     <string name="share_spendtracker">Share SpendTracker</string>

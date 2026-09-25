@@ -1,201 +1,235 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/dark_background"
+    android:clipToPadding="false">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="12dp">
 
-<com.google.android.material.button.MaterialButton android:id="@+id/btn_share_receipt"
-        android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Share expense accounts PDF" />
-        <!-- Expense Account Summary Card -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
+            app:cardBackgroundColor="#203342"
+            app:cardCornerRadius="26dp"
+            app:strokeColor="#3C657A"
+            app:strokeWidth="1dp">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/total_overview_title"
+                    android:textAllCaps="true"
+                    android:textColor="#A7D8F2"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:text="@string/total_overview_subtitle"
+                    android:textColor="@color/text_primary"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
 
                 <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginTop="16dp">
+
                     <ImageView
                         android:id="@+id/iv_account_icon"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
+                        android:contentDescription="Accounts"
                         android:src="@android:drawable/ic_menu_agenda"
-                        app:tint="@color/text_primary" />
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_toEndOf="@id/iv_account_icon"
-                        android:layout_marginStart="12dp"
-                        android:text="Expense Accounts"
-                        android:textColor="@color/text_primary"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        app:tint="#A7D8F2" />
+
                     <TextView
                         android:id="@+id/tv_total_range_label"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_alignParentEnd="true"
-                        android:textColor="@color/text_secondary"
-                        tools:text="01.08.26 ~ 31.08.26" />
-                </RelativeLayout>
+                        android:textColor="#A7D8F2"
+                        android:textSize="12sp" />
 
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="vs. Last Month" android:textColor="@color/text_secondary" />
-                    <TextView android:id="@+id/tv_compared_percent" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="@color/text_primary" tools:text="0%" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Expenses (Account / UPI / Cash)" android:textColor="@color/text_secondary" />
-                    <TextView android:id="@+id/tv_account_expenses" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="@color/text_primary" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Expenses (Credit Card)" android:textColor="@color/text_secondary" />
-                    <TextView android:id="@+id/tv_card_expenses" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="@color/text_primary" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer Incoming" android:textColor="#9E9E9E" />
-                    <TextView android:id="@+id/tv_transfer_incoming" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#4CAF50" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer Outgoing" android:textColor="#9E9E9E" />
-                    <TextView android:id="@+id/tv_transfer_outgoing" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#FF5252" tools:text="₹ 0" />
-                </RelativeLayout>
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfer (Total)" android:textColor="#9E9E9E" />
-                    <TextView android:id="@+id/tv_total_transfers" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#9E9E9E" tools:text="₹ 0" />
-                </RelativeLayout>
-
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- Income Account Section -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <RelativeLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp">
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_menu_add"
-                        app:tint="#4CAF50" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="36dp"
-                        android:text="Income"
+                        android:layout_marginStart="10dp"
+                        android:layout_toEndOf="@id/iv_account_icon"
+                        android:text="Account movement"
                         android:textColor="@color/text_primary"
-                        android:textSize="18sp"
                         android:textStyle="bold" />
                 </RelativeLayout>
 
-                <RelativeLayout
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingVertical="8dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Total Income" android:textColor="@color/text_secondary" />
-                    <TextView android:id="@+id/tv_total_income" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentEnd="true" android:textColor="#4CAF50" tools:text="₹ 0" />
-                </RelativeLayout>
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Change from last month"
+                        android:textColor="#B8C8D3" />
+
+                    <TextView
+                        android:id="@+id/tv_compared_percent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="#A7D8F2"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-        <!-- Bank-level transaction info -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="#1E1E1E"
-            app:cardCornerRadius="8dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1B252E"
+            app:cardCornerRadius="22dp">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="18dp">
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:text="Bank-level Transaction View"
+                    android:text="Money out"
                     android:textColor="@color/text_primary"
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Account / UPI / cash" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_account_expenses" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#FF9B9B" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Credit cards" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_card_expenses" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#FF9B9B" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1B252E"
+            app:cardCornerRadius="22dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Cash flow" android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="horizontal">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Income" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_total_income" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#77D8BA" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfers in" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_transfer_incoming" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#77D8BA" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="horizontal">
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Transfers out" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_transfer_outgoing" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#FFB199" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="All transfers" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                        <TextView android:id="@+id/tv_total_transfers" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="#A7D8F2" android:textSize="17sp" android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1B252E"
+            app:cardCornerRadius="22dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="By account" android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold" />
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rv_bank_totals"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    tools:listitem="@layout/item_bank_total" />
+                    android:layout_marginTop="8dp"
+                    android:nestedScrollingEnabled="false" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_export_excel"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:text="Export data to Excel"
             app:icon="@android:drawable/ic_menu_save"
-            app:iconGravity="textStart"
-            style="@style/Widget.Material3.Button.TonalButton" />
+            app:iconGravity="textStart" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_download_pdf"
+            android:id="@+id/btn_share_receipt"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:text="Share expense accounts PDF"
+            app:icon="@android:drawable/ic_menu_share"
+            app:iconGravity="textStart" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_download_pdf"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="12dp"
             android:text="Download overall review PDF"
             app:icon="@android:drawable/ic_menu_report_image"
-            app:iconGravity="textStart"
-            style="@style/Widget.Material3.Button.TonalButton" />
-
+            app:iconGravity="textStart" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

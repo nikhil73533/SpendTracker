@@ -1,82 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@color/dark_surface">
+    android:layout_marginTop="8dp"
+    app:cardBackgroundColor="#1B1F2A"
+    app:cardCornerRadius="20dp"
+    app:strokeColor="#303A4D"
+    app:strokeWidth="1dp">
 
     <LinearLayout
-        android:id="@+id/layout_month_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center_vertical">
+        android:orientation="vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:id="@+id/layout_month_row"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-            <TextView
-                android:id="@+id/tv_month_name"
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_month_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:textSize="19sp"
+                    android:textStyle="bold"
+                    tools:text="Jul" />
+
+                <TextView
+                    android:id="@+id/tv_month_range"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="#9AA8BD"
+                    android:textSize="12sp"
+                    tools:text="01 Jul – 31 Jul" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                tools:text="Jul" />
+                android:gravity="end"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tv_month_range"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                tools:text="7.1 ~ 7.31" />
+                <TextView
+                    android:id="@+id/tv_month_income"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#77D8BA"
+                    android:textSize="15sp"
+                    tools:text="₹ 50,000" />
+
+                <TextView
+                    android:id="@+id/tv_month_expense"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textColor="#FF9B9B"
+                    android:textSize="15sp"
+                    tools:text="₹ 26,295" />
+
+                <TextView
+                    android:id="@+id/tv_month_total"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#C6C7FF"
+                    android:textSize="12sp"
+                    tools:text="₹ 23,705 left" />
+            </LinearLayout>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tv_month_income"
-            android:layout_width="wrap_content"
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_weeks"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="24dp"
-            android:textColor="@color/income_blue"
-            android:textSize="16sp"
-            tools:text="₹ 0.00" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="end"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_month_expense"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/expense_red"
-                android:textSize="16sp"
-                tools:text="₹ 26,295.00" />
-
-            <TextView
-                android:id="@+id/tv_month_total"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                tools:text="-₹ 26,295.00" />
-        </LinearLayout>
+            android:paddingBottom="8dp"
+            android:visibility="gone"
+            tools:listitem="@layout/item_weekly_summary"
+            tools:visibility="visible" />
     </LinearLayout>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_weeks"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        tools:visibility="visible"
-        tools:listitem="@layout/item_weekly_summary" />
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>
