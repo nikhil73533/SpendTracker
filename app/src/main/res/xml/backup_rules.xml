@@ -6,8 +6,10 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Defense in depth for versions where platform backup is re-enabled. Financial
+         data leaves the device only through the user's explicit backup flow. -->
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+    <exclude domain="file" path="." />
 </full-backup-content>

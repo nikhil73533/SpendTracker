@@ -210,7 +210,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
     class TransactionViewHolder extends RecyclerView.ViewHolder {
         private final android.widget.ImageView ivIcon;
         private final android.widget.CheckBox selectionBox;
-        private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime, tvGroupTag, tvPredictionStatus;
+        private final TextView tvCategory, tvReceiver, tvDescription, tvSource, tvIncomeAmount, tvExpenseAmount, tvTime, tvGroupTag;
         private final DataFormatter formatter;
 
         public TransactionViewHolder(@NonNull View itemView, DataFormatter formatter) {
@@ -226,7 +226,6 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvExpenseAmount = itemView.findViewById(R.id.tv_expense_amount);
             tvTime = itemView.findViewById(R.id.tv_time);
             tvGroupTag = itemView.findViewById(R.id.tv_group_tag);
-            tvPredictionStatus = itemView.findViewById(R.id.tv_prediction_status);
         }
 
         public void bind(TransactionItem item, OnTransactionClickListener listener) {
@@ -242,8 +241,6 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvCategory.setText(transaction.getCategory());
             int weight = transaction.getConfidenceScore() < com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL;
             for (TextView label : new TextView[]{tvCategory, tvReceiver, tvDescription, tvIncomeAmount, tvExpenseAmount}) label.setTypeface(null, weight);
-            tvPredictionStatus.setText(predictionStatus(transaction));
-            tvPredictionStatus.setTextColor(itemView.getContext().getColor(R.color.audit_green));
             View share = itemView.findViewById(R.id.share_receipt);
             share.setVisibility(isSelecting() ? View.GONE : View.VISIBLE);
             share.setOnClickListener(v -> com.example.spendtracker.util.TransactionReceipt.share(v.getContext(), transaction));
@@ -340,13 +337,6 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             }
         }
 
-        private String predictionStatus(Transaction transaction) {
-            double confidence = Math.max(0d, Math.min(1d, transaction.getConfidenceScore()));
-            if (confidence >= 1d) {
-                return "Category confirmed · 100% confidence";
-            }
-            return String.format(Locale.getDefault(), "Prediction pending review · %.0f%% confidence", confidence * 100d);
-        }
     }
 
     static class DiffCallback extends DiffUtil.ItemCallback<ListItem> {

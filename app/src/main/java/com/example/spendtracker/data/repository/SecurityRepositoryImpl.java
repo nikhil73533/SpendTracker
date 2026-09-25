@@ -41,7 +41,9 @@ public class SecurityRepositoryImpl implements SecurityRepository {
             privacyMode.setValue(true);
             
         } catch (GeneralSecurityException | IOException e) {
-            e.printStackTrace();
+            // Do not silently replace encrypted storage with insecure preferences.
+            // getDatabasePassphrase() fails closed when the Android Keystore is unavailable.
+            sharedPreferences = null;
         }
     }
  
@@ -57,7 +59,9 @@ public class SecurityRepositoryImpl implements SecurityRepository {
 
     @Override
     public byte[] getDatabasePassphrase() {
-        if (sharedPreferences == null) return "default_passphrase_1234567890123456".getBytes();
+        if (sharedPreferences == null) {
+            throw new IllegalStateException("Secure storage is unavailable");
+        }
         
         String savedPass = sharedPreferences.getString(KEY_DB_PASSPHRASE, null);
         if (savedPass == null) {

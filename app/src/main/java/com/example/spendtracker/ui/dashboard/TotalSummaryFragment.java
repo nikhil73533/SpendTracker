@@ -20,6 +20,7 @@ import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.ui.transaction.TransactionViewModel;
 import com.example.spendtracker.data.local.dao.TransactionDao;
 import dagger.hilt.android.AndroidEntryPoint;
+import javax.inject.Inject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
@@ -32,6 +33,9 @@ import org.dhatim.fastexcel.Worksheet;
 
 @AndroidEntryPoint
 public class TotalSummaryFragment extends Fragment {
+
+    @Inject
+    com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
     private FragmentDashboardTotalBinding binding;
     private DashboardViewModel viewModel;
@@ -52,9 +56,11 @@ public class TotalSummaryFragment extends Fragment {
         transactionViewModel = new ViewModelProvider(requireParentFragment()).get(TransactionViewModel.class);
 
         setupRecyclerView();
-        binding.btnExportExcel.setOnClickListener(v -> exportToExcel());
-        binding.btnShareReceipt.setOnClickListener(v -> requireReportAuthentication(this::shareExpenseAccountReport));
-        binding.btnDownloadPdf.setOnClickListener(v -> requireReportAuthentication(this::downloadOverallReport));
+        binding.btnExportExcel.setOnClickListener(v -> requireFeature(com.example.spendtracker.billing.PremiumFeature.EXCEL_EXPORT, this::exportToExcel));
+        binding.btnShareReceipt.setOnClickListener(v -> requireFeature(com.example.spendtracker.billing.PremiumFeature.ADVANCED_REPORTS,
+                () -> requireReportAuthentication(this::shareExpenseAccountReport)));
+        binding.btnDownloadPdf.setOnClickListener(v -> requireFeature(com.example.spendtracker.billing.PremiumFeature.ADVANCED_REPORTS,
+                () -> requireReportAuthentication(this::downloadOverallReport)));
         observeViewModel();
     }
 
@@ -115,7 +121,11 @@ public class TotalSummaryFragment extends Fragment {
                 transactionViewModel.getTransactions().removeObserver(this);
 
                 try {
-                    File file = new File(requireContext().getExternalFilesDir(null), "SpendTracker_Export.xlsx");
+                    File exportDirectory = requireContext().getExternalFilesDir("exports");
+                    if (exportDirectory == null || (!exportDirectory.exists() && !exportDirectory.mkdirs())) {
+                        throw new java.io.IOException("Export storage is unavailable");
+                    }
+                    File file = new File(exportDirectory, "SpendTracker_Export.xlsx");
                     FileOutputStream out = new FileOutputStream(file);
 
                     try (Workbook workbook = new Workbook(out, "SpendTracker", "1.0")) {
@@ -151,6 +161,7 @@ public class TotalSummaryFragment extends Fragment {
                     Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
                     intent.putExtra(Intent.EXTRA_STREAM, uri);
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    intent.setClipData(android.content.ClipData.newRawUri("SpendTracker export", uri));
                     startActivity(Intent.createChooser(intent, "Share Excel File"));
 
                 } catch (Exception e) {
@@ -163,12 +174,14 @@ public class TotalSummaryFragment extends Fragment {
 
     /** Shares only expense-account activity from the current Total tab date range. */
     private void shareExpenseAccountReport() {
+        android.content.Context context = requireContext().getApplicationContext();
         collectReportTransactions("No expense account transactions to share for selected period", (transactions, dateRangeLabel) ->
                 new Thread(() -> {
                     try {
                         File pdfFile = com.example.spendtracker.util.PdfReportService.generateExpenseAccountReport(
-                                requireContext(), transactions, dateRangeLabel);
-                        requireActivity().runOnUiThread(() -> {
+                                context, transactions, dateRangeLabel);
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            if (!isAdded() || binding == null) return;
                             try {
                                 com.example.spendtracker.util.PdfReportService.share(
                                         requireContext(), pdfFile, "Expense account report", "Share expense account report");
@@ -176,10 +189,17 @@ public class TotalSummaryFragment extends Fragment {
                                 Toast.makeText(requireContext(), "No app available to share the report", Toast.LENGTH_LONG).show();
                             }
                         });
+                    } catch (IllegalArgumentException e) {
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            if (isAdded() && binding != null) Toast.makeText(requireContext(),
+                                    "No expense account transactions to share for selected period", Toast.LENGTH_LONG).show();
+                        });
                     } catch (Exception e) {
                         android.util.Log.e("TotalSummary", "Unable to create expense account report", e);
-                        if (isAdded()) requireActivity().runOnUiThread(() ->
-                                Toast.makeText(requireContext(), "Could not create expense account report", Toast.LENGTH_LONG).show());
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            if (isAdded() && binding != null) Toast.makeText(requireContext(),
+                                    "Could not create expense account report", Toast.LENGTH_LONG).show();
+                        });
                     }
                 }).start());
     }
@@ -255,6 +275,12 @@ public class TotalSummaryFragment extends Fragment {
             @Override public void onError(String error) {
                 if (isAdded()) Toast.makeText(requireContext(), "Authentication required to create a report", Toast.LENGTH_SHORT).show();
             }
+        });
+    }
+
+    private void requireFeature(com.example.spendtracker.billing.PremiumFeature feature, Runnable allowed) {
+        featureGate.require(feature, allowed, () -> {
+            if (isAdded()) androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.paywallFragment);
         });
     }
 

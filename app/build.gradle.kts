@@ -5,7 +5,11 @@ plugins {
 
 android {
     namespace = "com.example.spendtracker"
-    compileSdk = 34
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
         applicationId = "com.example.spendtracker"
@@ -19,7 +23,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -33,6 +37,7 @@ android {
         }
     }
     buildFeatures {
+        buildConfig = true
         viewBinding = true
     }
 }
@@ -75,6 +80,8 @@ dependencies {
 
     // Google Sign-In (for Drive backup)
     implementation(libs.google.play.services.auth)
+    implementation(libs.google.play.billing)
+    implementation(libs.google.play.review)
     implementation(project(":prediction"))
 
     // PDF Bulk Ingestion

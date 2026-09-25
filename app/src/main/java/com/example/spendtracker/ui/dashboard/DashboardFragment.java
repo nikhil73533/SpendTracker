@@ -96,6 +96,10 @@ public class DashboardFragment extends Fragment {
 
                 // FAB is only relevant on the Daily tab; hide on all other tabs to prevent overlap
                 binding.fabContainer.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
+                binding.btnPrevDate.setContentDescription(getString(position == 2
+                        ? R.string.previous_year : R.string.previous_month));
+                binding.btnNextDate.setContentDescription(getString(position == 2
+                        ? R.string.next_year : R.string.next_month));
 
                 switch (position) {
                     case 0:
@@ -106,7 +110,7 @@ public class DashboardFragment extends Fragment {
                         }
                         break;
                     case 1: viewModel.setFilter(DashboardViewModel.FilterType.CALENDAR); break;
-                    case 2:
+                    case 2: viewModel.setFilter(DashboardViewModel.FilterType.YEARLY); break;
                     case 3: viewModel.setFilter(DashboardViewModel.FilterType.MONTHLY); break;
                     case 4: viewModel.setFilter(DashboardViewModel.FilterType.TRANSACTION_GROUP); break;
                 }
@@ -147,8 +151,7 @@ public class DashboardFragment extends Fragment {
             }
         });
 
-        // Long press for privacy mode
-        binding.fabAddTransaction.setOnLongClickListener(v -> {
+        binding.fabRevealAmounts.setOnClickListener(v -> {
             com.example.spendtracker.util.BiometricHelper.authenticate(requireActivity(), new com.example.spendtracker.util.BiometricHelper.BiometricCallback() {
                 @Override
                 public void onSuccess() {
@@ -160,11 +163,16 @@ public class DashboardFragment extends Fragment {
 
                 @Override
                 public void onError(String error) {
-                    android.widget.Toast.makeText(requireContext(), "Auth: " + error, android.widget.Toast.LENGTH_SHORT).show();
+                    if (isAdded()) android.widget.Toast.makeText(requireContext(), "Auth: " + error, android.widget.Toast.LENGTH_SHORT).show();
                 }
             });
-            return true;
         });
+    }
+
+    /** Return from any dashboard page using the pager's smooth slide animation. */
+    public void showDaily() {
+        if (binding == null) return;
+        binding.viewPager.setCurrentItem(0, true);
     }
 
     /**
@@ -197,6 +205,7 @@ public class DashboardFragment extends Fragment {
         });
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            binding.fabRevealAmounts.setVisibility(Boolean.TRUE.equals(enabled) ? View.VISIBLE : View.GONE);
             // Re-fetch summary from the LiveData to guarantee we always show the latest data.
             Summary summary = viewModel.getSummary().getValue();
             if (summary != null) {

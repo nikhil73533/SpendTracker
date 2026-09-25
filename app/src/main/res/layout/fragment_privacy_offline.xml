@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/dark_background">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <com.google.android.material.appbar.MaterialToolbar android:id="@+id/privacy_toolbar"
+            android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" android:background="@color/dark_surface"
+            app:navigationIcon="@android:drawable/ic_menu_revert" app:title="@string/title_privacy_offline" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/privacy_intro"
+                android:textColor="@color/text_secondary" android:textSize="16sp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="28dp"
+                android:text="@string/privacy_on_device" android:textColor="@color/audit_green" android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
+                android:text="@string/privacy_local_items" android:textColor="@color/white" android:textSize="16sp" android:lineSpacingExtra="8dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="28dp"
+                android:text="@string/privacy_online" android:textColor="@color/audit_green" android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
+                android:text="@string/privacy_online_items" android:textColor="@color/white" android:textSize="16sp" android:lineSpacingExtra="8dp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp"
+                android:text="@string/privacy_note" android:textColor="@color/text_secondary" android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

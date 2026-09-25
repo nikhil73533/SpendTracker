@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Populate with the real Play Console IDs when they are available. Blank values
+         deliberately disable product querying instead of attempting a fake purchase. -->
+    <string name="billing_product_monthly"></string>
+    <string name="billing_product_yearly"></string>
+    <string name="billing_product_lifetime"></string>
+</resources>

@@ -34,6 +34,23 @@ public class PdfReportRenderIntegrationTest {
     }
 
     @Test
+    public void expenseAccountReportOmitsOtherReportSections() throws Exception {
+        File report = PdfReportService.generateExpenseAccountReport(context, Arrays.asList(
+                transaction(1, 250, "Food", "EXPENSE", "Account Merchant", "Account"),
+                transaction(2, 900, "Shopping", "EXPENSE", "Card Merchant", "Credit Card"),
+                transaction(3, 7000, "Salary", "INCOME", "Employer", "Account")), "Account-only QA");
+        assertPdfText(report, "Expense Account Report", "Total Expense Accounts", "Account Merchant");
+        try (PDDocument pdf = PDDocument.load(report)) {
+            String text = new PDFTextStripper().getText(pdf);
+            assertFalse(text.contains("Card Merchant"));
+            assertFalse(text.contains("Total Income"));
+            assertFalse(text.contains("Net Savings"));
+            assertFalse(text.contains("Transfer Movement"));
+        }
+        renderPage(report, "qa-account-only-preview.png", 0);
+    }
+
+    @Test
     public void redesignedReceiptAndSummaryReportsRender() throws Exception {
         Transaction income = transaction(1, 5000, "Salary", "INCOME", "Employer", "Account");
         income.setSender("Example Employer");

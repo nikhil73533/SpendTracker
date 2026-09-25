@@ -13,7 +13,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="PDF Bulk Ingestion"
+            app:title="Statement Bulk Ingestion"
             app:navigationIcon="@android:drawable/ic_menu_revert"
             style="@style/Widget.MaterialComponents.Toolbar.Primary" />
     </com.google.android.material.appbar.AppBarLayout>
@@ -49,7 +49,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Import one or multiple PDF bank statements (HDFC, ICICI, SBI, Axis, etc.). Transactions are automatically extracted, categorized, and deduplicated offline on your device."
+                android:text="Import PDF bank statements or statement images (JPG, PNG, WEBP, HEIC). Password-protected PDFs can be unlocked for this import. Transactions are extracted, categorized, and deduplicated offline on your device."
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp"
                 android:gravity="center"
@@ -59,7 +59,7 @@
                 android:id="@+id/btn_select_pdf"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Select Bank Statement PDFs"
+                android:text="Select statement PDFs or images"
                 app:icon="@android:drawable/ic_menu_agenda" />
 
             <!-- Progress Section -->
@@ -75,7 +75,7 @@
                     android:id="@+id/tv_progress_status"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Processing PDF statements..."
+                    android:text="Processing statements..."
                     android:textColor="@color/white"
                     android:layout_marginBottom="4dp" />
 

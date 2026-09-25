@@ -83,6 +83,7 @@ public class PdfReportService {
     }
 
     public static class ReportPayload {
+        public boolean expenseAccountsOnly;
         public String reportTitle = "SpendTracker Financial Analysis";
         public String reportSubtitle = "Complete income, expense and transfer review";
         public String dateRangeLabel;
@@ -109,17 +110,23 @@ public class PdfReportService {
     /** Generates the focused report shared from the Expense Accounts section. */
     public static File generateExpenseAccountReport(Context context, List<Transaction> transactions,
                                                     String dateRangeLabel) throws Exception {
+        return createPdfDocument(context, buildExpenseAccountPayload(transactions, dateRangeLabel));
+    }
+
+    public static ReportPayload buildExpenseAccountPayload(List<Transaction> transactions, String dateRangeLabel) {
         List<Transaction> expenses = new ArrayList<>();
         if (transactions != null) {
             for (Transaction transaction : transactions) {
-                if (isExpense(transaction)) expenses.add(transaction);
+                if (isExpense(transaction) && "Account".equalsIgnoreCase(transaction.getSourceType())
+                        && "ACTIVE".equalsIgnoreCase(transaction.getStatus())) expenses.add(transaction);
             }
         }
         if (expenses.isEmpty()) throw new IllegalArgumentException("No expense account transactions available");
         ReportPayload payload = buildPayload(null, expenses, dateRangeLabel);
+        payload.expenseAccountsOnly = true;
         payload.reportTitle = "SpendTracker Expense Account Report";
         payload.reportSubtitle = "Expense-only account activity";
-        return createPdfDocument(context, payload);
+        return payload;
     }
 
     public static File createPdfDocument(Context context, ReportPayload payload) throws Exception {
@@ -136,25 +143,27 @@ public class PdfReportService {
         pageBuilder.drawBannerHeader();
 
         // 2. Executive Financial Summary Section
-        pageBuilder.drawSectionTitle("1. Executive Financial Summary");
+        pageBuilder.drawSectionTitle(payload.expenseAccountsOnly ? "1. Expense Accounts Summary" : "1. Executive Financial Summary");
         pageBuilder.drawExecutiveSummaryGrid();
 
         // 3. Financial Charts Section
-        pageBuilder.drawSectionTitle("2. Financial Analysis & Charts");
-        pageBuilder.drawCharts();
+        if (!payload.expenseAccountsOnly) {
+            pageBuilder.drawSectionTitle("2. Financial Analysis & Charts");
+            pageBuilder.drawCharts();
+        }
 
         // 4. Grouped Analysis Section
-        pageBuilder.drawSectionTitle("3. Grouped Category & Account Breakdown");
+        pageBuilder.drawSectionTitle(payload.expenseAccountsOnly ? "2. Expense Category & Account Breakdown" : "3. Grouped Category & Account Breakdown");
         pageBuilder.drawGroupedTables();
 
         // 5. Detailed Transactions Section
-        pageBuilder.drawSectionTitle("4. Detailed Transaction Records");
+        pageBuilder.drawSectionTitle(payload.expenseAccountsOnly ? "3. Expense Account Transactions" : "4. Detailed Transaction Records");
         pageBuilder.drawTransactionsTable();
 
         // Finish current page & save
         pageBuilder.finishDocument();
 
-        File file = reportFile(context, "SpendTracker_Report.pdf");
+        File file = reportFile(context, payload.expenseAccountsOnly ? "SpendTracker_Expense_Accounts.pdf" : "SpendTracker_Report.pdf");
 
         try (FileOutputStream fos = new FileOutputStream(file)) {
             document.writeTo(fos);
@@ -307,7 +316,7 @@ public class PdfReportService {
 
     private static boolean isTransfer(Transaction transaction) {
         return transaction != null && ("TRANSFER".equalsIgnoreCase(transaction.getType())
-                || transaction.getCategory().toLowerCase(Locale.ROOT).contains("transfer"));
+                || (transaction.getCategory() != null && transaction.getCategory().toLowerCase(Locale.ROOT).contains("transfer")));
     }
 
     private static boolean isExpense(Transaction transaction) {
@@ -441,6 +450,13 @@ public class PdfReportService {
 
         @Override
         public void drawExecutiveSummaryGrid() {
+            if (payload.expenseAccountsOnly) {
+                ensureSpace(72);
+                drawCard(marginLeft, y, usableWidth, 48, "Total Expense Accounts",
+                        formatCurrency(payload.accountExpenses), "#DC2626", "#FEF2F2");
+                y += 64;
+                return;
+            }
             ensureSpace(120);
 
             float cardGap = 8;

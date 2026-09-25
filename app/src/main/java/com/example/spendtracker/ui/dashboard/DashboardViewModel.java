@@ -78,11 +78,15 @@ public class DashboardViewModel extends ViewModel {
         }, context);
     }
 
-    public enum FilterType { DAILY, MONTHLY, TOTAL, CALENDAR, TRANSACTION_GROUP }
+    public enum FilterType { DAILY, MONTHLY, YEARLY, TOTAL, CALENDAR, TRANSACTION_GROUP }
 
     public void setFilter(FilterType type) {
+        FilterType previous = currentFilter.getValue();
         currentFilter.setValue(type);
-        if (type == FilterType.TRANSACTION_GROUP) return;
+        if (type == FilterType.TRANSACTION_GROUP) {
+            if (previous == FilterType.YEARLY) setMonthFilter(calendarViewMonthStart);
+            return;
+        }
 
         DateRange current = dateRange.getValue();
         long start;
@@ -92,7 +96,11 @@ public class DashboardViewModel extends ViewModel {
             start = calendarViewMonthStart;
         }
         
-        if (type == FilterType.DAILY || type == FilterType.MONTHLY || type == FilterType.TOTAL || type == FilterType.CALENDAR) {
+        if (type == FilterType.YEARLY) {
+            if (previous != FilterType.YEARLY) calendarViewMonthStart = start;
+            setYearFilter(calendarViewMonthStart);
+        } else if (type == FilterType.DAILY || type == FilterType.MONTHLY || type == FilterType.TOTAL || type == FilterType.CALENDAR) {
+            if (previous == FilterType.YEARLY) start = calendarViewMonthStart;
             setMonthFilter(start);
         }
     }
@@ -114,23 +122,28 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public void moveNext() {
-        DateRange current = dateRange.getValue();
-        if (current == null) return;
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(current.start);
-        
-        cal.add(Calendar.MONTH, 1);
-        setMonthFilter(cal.getTimeInMillis());
+        moveDate(1);
     }
 
     public void movePrev() {
+        moveDate(-1);
+    }
+
+    private void moveDate(int direction) {
         DateRange current = dateRange.getValue();
         if (current == null) return;
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(current.start);
         
-        cal.add(Calendar.MONTH, -1);
-        setMonthFilter(cal.getTimeInMillis());
+        if (currentFilter.getValue() == FilterType.YEARLY) {
+            cal.setTimeInMillis(calendarViewMonthStart);
+            cal.add(Calendar.YEAR, direction);
+            calendarViewMonthStart = cal.getTimeInMillis();
+            setYearFilter(calendarViewMonthStart);
+        } else {
+            cal.add(Calendar.MONTH, direction);
+            setMonthFilter(cal.getTimeInMillis());
+        }
     }
 
     public LiveData<Boolean> isPrivacyModeEnabled() {
@@ -154,6 +167,17 @@ public class DashboardViewModel extends ViewModel {
         cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
         long end = getStartOfDay(cal.getTimeInMillis()) + 86399999;
         dateRange.setValue(new DateRange(start, end, monthYearFormat.format(new Date(start))));
+    }
+
+    private void setYearFilter(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.DAY_OF_YEAR, 1);
+        long start = getStartOfDay(cal.getTimeInMillis());
+        cal.setTimeInMillis(start);
+        cal.add(Calendar.YEAR, 1);
+        dateRange.setValue(new DateRange(start, cal.getTimeInMillis() - 1,
+                new SimpleDateFormat("yyyy", Locale.getDefault()).format(new Date(start))));
     }
 
     public void setCalendarFilter(long timestamp, String label) {
@@ -272,12 +296,18 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<List<MonthlySummaryAdapter.MonthSummary>> getMonthlySummaries() {
-        return Transformations.map(repository.getTransactions(), transactions -> {
+        return Transformations.switchMap(dateRange, range -> Transformations.map(repository.getTransactions(), transactions -> {
             List<MonthlySummaryAdapter.MonthSummary> summaries = new ArrayList<>();
             if (transactions == null || transactions.isEmpty()) return summaries;
 
+            Calendar year = Calendar.getInstance();
+            year.setTimeInMillis(range.start);
+            int selectedYear = year.get(Calendar.YEAR);
+
             Map<Long, List<Transaction>> monthGroups = new LinkedHashMap<>();
             for (Transaction t : transactions) {
+                year.setTimeInMillis(t.getDate());
+                if (year.get(Calendar.YEAR) != selectedYear) continue;
                 long monthStart = getStartOfMonth(t.getDate());
                 if (!monthGroups.containsKey(monthStart)) monthGroups.put(monthStart, new ArrayList<>());
                 monthGroups.get(monthStart).add(t);
@@ -295,8 +325,9 @@ public class DashboardViewModel extends ViewModel {
                 List<MonthlySummaryAdapter.WeeklySummary> weeks = calculateWeeklySummaries(entry.getValue());
                 summaries.add(new MonthlySummaryAdapter.MonthSummary(entry.getKey(), income, expense, weeks));
             }
+            summaries.sort((a, b) -> Long.compare(b.monthTimestamp, a.monthTimestamp));
             return summaries;
-        });
+        }));
     }
 
     private List<MonthlySummaryAdapter.WeeklySummary> calculateWeeklySummaries(List<Transaction> monthTransactions) {

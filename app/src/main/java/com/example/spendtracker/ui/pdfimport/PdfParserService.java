@@ -26,6 +26,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -76,6 +77,23 @@ public class PdfParserService {
         }
     }
 
+    /** Signals the UI to request a password without treating the statement as malformed. */
+    public static class PasswordRequiredException extends Exception {
+        PasswordRequiredException() {
+            super("This PDF is password protected");
+        }
+    }
+
+    private static class PdfTextExtraction {
+        final List<String> pages;
+        final File decryptedCopy;
+
+        PdfTextExtraction(List<String> pages, File decryptedCopy) {
+            this.pages = pages;
+            this.decryptedCopy = decryptedCopy;
+        }
+    }
+
     /**
      * Stage 1 & 2: Extracts text from PDF and normalizes extracted table rows into a clean JSON Schema.
      *
@@ -84,34 +102,89 @@ public class PdfParserService {
      * @return JSONObject containing bank metadata and a JSONArray of normalized transaction row key-value pairs
      */
     public JSONObject parsePdfToJson(Context context, Uri uri) throws Exception {
+        return parsePdfToJson(context, uri, "");
+    }
+
+    /**
+     * Passwords are used only while this method is running. Encrypted files are unlocked in
+     * memory and, only when OCR is needed, in a temporary cache copy deleted before return.
+     */
+    public JSONObject parsePdfToJson(Context context, Uri uri, String password) throws Exception {
         Context appContext = context.getApplicationContext();
         init(appContext);
 
         String fileName = getFileName(appContext, uri);
         BankStatementParserFactory factory = new BankStatementParserFactory();
-        List<String> embeddedPages = extractEmbeddedTextFromPdf(appContext, uri);
-        String embeddedHeader = headerOf(String.join("\n", embeddedPages));
-        java.util.Map<Integer, String> ocrPages = java.util.Collections.emptyMap();
-        boolean ocrAttempted = false;
-        String ocrWarning = null;
-        for (String page : embeddedPages) {
-            if (!isUsableStatementText(page) || needsOcrRetry(page, factory.parse(embeddedHeader, page).rows)) {
-                ocrAttempted = true;
-                break;
+        PdfTextExtraction extraction = extractEmbeddedTextFromPdf(appContext, uri, password);
+        try {
+            List<String> embeddedPages = extraction.pages;
+            String embeddedHeader = headerOf(String.join("\n", embeddedPages));
+            java.util.Map<Integer, String> ocrPages = java.util.Collections.emptyMap();
+            boolean ocrAttempted = false;
+            String ocrWarning = null;
+            for (String page : embeddedPages) {
+                if (!isUsableStatementText(page) || needsOcrRetry(page, factory.parse(embeddedHeader, page).rows)) {
+                    ocrAttempted = true;
+                    break;
+                }
             }
-        }
-        if (ocrAttempted) {
-            try {
-                ocrPages = ocrEngine.recognizePdf(appContext, uri).getPageTexts();
-            } catch (Exception ocrError) {
-                Log.w(TAG, "OCR fallback failed", ocrError);
-                ocrWarning = "OCR could not read all pages. Check the preview against your statement.";
+            if (ocrAttempted) {
+                try {
+                    ocrPages = (extraction.decryptedCopy == null
+                            ? ocrEngine.recognizePdf(appContext, uri)
+                            : ocrEngine.recognizePdf(extraction.decryptedCopy)).getPageTexts();
+                } catch (Exception ocrError) {
+                    Log.w(TAG, "OCR fallback failed", ocrError);
+                    ocrWarning = "OCR could not read all pages. Check the preview against your statement.";
+                }
             }
+            JSONObject rootJson = parsePageTexts(embeddedPages, ocrPages, ocrAttempted);
+            rootJson.put("fileName", fileName);
+            if (ocrWarning != null) rootJson.put("warning", ocrWarning);
+            return rootJson;
+        } finally {
+            deleteTemporaryFile(extraction.decryptedCopy);
         }
-        JSONObject rootJson = parsePageTexts(embeddedPages, ocrPages, ocrAttempted);
-        rootJson.put("fileName", fileName);
-        if (ocrWarning != null) rootJson.put("warning", ocrWarning);
-        return rootJson;
+    }
+
+    /** Returns true only when a non-empty user password is necessary to open this PDF. */
+    public boolean requiresPassword(Context context, Uri uri) throws Exception {
+        init(context.getApplicationContext());
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IllegalStateException("Unable to open selected PDF");
+            try (PDDocument ignored = PDDocument.load(input, "")) {
+                return false;
+            }
+        } catch (Exception error) {
+            if (isPasswordError(error)) return true;
+            throw error;
+        }
+    }
+
+    /** Validates a supplied password before beginning the more expensive extraction work. */
+    public boolean isPasswordValid(Context context, Uri uri, String password) throws Exception {
+        init(context.getApplicationContext());
+        try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new IllegalStateException("Unable to open selected PDF");
+            try (PDDocument ignored = PDDocument.load(input, password == null ? "" : password)) {
+                return true;
+            }
+        } catch (Exception error) {
+            if (isPasswordError(error)) return false;
+            throw error;
+        }
+    }
+
+    /** Parses a statement screenshot/photo using the same positioned OCR and bank parsers. */
+    public JSONObject parseImageToJson(Context context, Uri uri) throws Exception {
+        Context appContext = context.getApplicationContext();
+        java.util.Map<Integer, String> imagePages = ocrEngine.recognizeImage(appContext, uri).getPageTexts();
+        JSONObject root = parsePageTexts(java.util.Collections.singletonList(""), imagePages, true);
+        root.put("fileName", getFileName(appContext, uri));
+        if (root.has("error")) {
+            root.put("error", "No readable text found in image. Use a sharp, full-statement screenshot.");
+        }
+        return root;
     }
 
     /** Choose one extraction per page; a scanned page cannot replace correct digital rows elsewhere. */
@@ -228,10 +301,14 @@ public class PdfParserService {
         return result;
     }
 
-    /**
-     * Primary entry point: Parses a single PDF file Uri into SpendTracker transactions using the 3-stage pipeline.
-     */
+    /** Backward-compatible PDF-only entry point. */
     public FileImportResult parsePdf(Context context, Uri uri, List<Transaction> existingTransactions) {
+        return parseStatement(context, uri, "", existingTransactions, true);
+    }
+
+    /** Parses one selected PDF or image statement. Password is never stored by this service. */
+    public FileImportResult parseStatement(Context context, Uri uri, String password,
+                                           List<Transaction> existingTransactions, boolean pdf) {
         Context appContext = context.getApplicationContext();
 
         IncrementalPredictionService predictionService = null;
@@ -242,25 +319,24 @@ public class PdfParserService {
         }
 
         try {
-            JSONObject rootJson = parsePdfToJson(appContext, uri);
+            JSONObject rootJson = pdf ? parsePdfToJson(appContext, uri, password) : parseImageToJson(appContext, uri);
             return parseJsonToTransactions(rootJson, existingTransactions, predictionService);
         } catch (Exception e) {
-            Log.e(TAG, "Error processing PDF file: " + uri, e);
+            Log.e(TAG, "Error processing statement file: " + uri, e);
             FileImportResult result = new FileImportResult(getFileName(appContext, uri));
-            result.error = "Error parsing PDF: " + (e.getMessage() != null ? e.getMessage() : e.toString());
+            result.error = "Error parsing " + (pdf ? "PDF" : "image") + ": "
+                    + (e.getMessage() != null ? e.getMessage() : e.toString());
             return result;
         }
     }
 
-    private List<String> extractEmbeddedTextFromPdf(Context context, Uri uri) throws Exception {
+    private PdfTextExtraction extractEmbeddedTextFromPdf(Context context, Uri uri, String password) throws Exception {
         List<String> pages = new ArrayList<>();
+        File decryptedCopy = null;
         try (InputStream is = context.getContentResolver().openInputStream(uri)) {
             if (is == null) throw new IllegalStateException("Unable to open selected PDF");
 
-            try (PDDocument document = PDDocument.load(is)) {
-                if (document.isEncrypted()) {
-                    throw new IllegalStateException("PDF is password protected or encrypted");
-                }
+            try (PDDocument document = loadPdf(is, password)) {
                 PositionedPdfTextStripper stripper = new PositionedPdfTextStripper();
                 stripper.getText(document);
                 java.util.Map<Integer, String> positioned = stripper.getDocument().getPageTexts();
@@ -268,10 +344,43 @@ public class PdfParserService {
                     String layout = positioned.getOrDefault(page, "");
                     pages.add(layout);
                 }
+                if (document.isEncrypted()) {
+                    try {
+                        decryptedCopy = File.createTempFile("statement-import-", ".pdf", context.getCacheDir());
+                        document.setAllSecurityToBeRemoved(true);
+                        document.save(decryptedCopy);
+                    } catch (Exception copyError) {
+                        deleteTemporaryFile(decryptedCopy);
+                        decryptedCopy = null;
+                        Log.w(TAG, "Could not prepare unlocked copy for encrypted-PDF OCR", copyError);
+                    }
+                }
             }
         }
 
-        return pages;
+        return new PdfTextExtraction(pages, decryptedCopy);
+    }
+
+    private PDDocument loadPdf(InputStream input, String password) throws Exception {
+        try {
+            return PDDocument.load(input, password == null ? "" : password);
+        } catch (Exception error) {
+            if (isPasswordError(error)) throw new PasswordRequiredException();
+            throw error;
+        }
+    }
+
+    private boolean isPasswordError(Exception error) {
+        String name = error.getClass().getName().toLowerCase(Locale.ROOT);
+        String message = error.getMessage() == null ? "" : error.getMessage().toLowerCase(Locale.ROOT);
+        return name.contains("password") || name.contains("encryption")
+                || message.contains("password") || message.contains("encrypted");
+    }
+
+    private void deleteTemporaryFile(File file) {
+        if (file != null && file.exists() && !file.delete()) {
+            Log.w(TAG, "Could not delete temporary decrypted statement");
+        }
     }
 
     static int validRowCount(List<RawTransactionRow> rows) {
@@ -528,5 +637,24 @@ public class PdfParserService {
             }
         }
         return result != null ? result : "Bank_Statement.pdf";
+    }
+
+    public boolean isPdf(Context context, Uri uri) {
+        String mime = context.getContentResolver().getType(uri);
+        if ("application/pdf".equalsIgnoreCase(mime)) return true;
+        return getFileName(context, uri).toLowerCase(Locale.ROOT).endsWith(".pdf");
+    }
+
+    public boolean isSupportedStatement(Context context, Uri uri) {
+        if (isPdf(context, uri)) return true;
+        String mime = context.getContentResolver().getType(uri);
+        if (mime != null && mime.toLowerCase(Locale.ROOT).startsWith("image/")) return true;
+        String name = getFileName(context, uri).toLowerCase(Locale.ROOT);
+        return name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png")
+                || name.endsWith(".webp") || name.endsWith(".heic") || name.endsWith(".heif");
+    }
+
+    public String fileName(Context context, Uri uri) {
+        return getFileName(context, uri);
     }
 }

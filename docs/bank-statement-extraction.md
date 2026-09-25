@@ -1,6 +1,8 @@
 # Bank statement extraction and deletion
 
-The import pipeline runs locally using PDFBox for embedded text and the bundled ML Kit Latin recognizer for scanned pages.
+The import pipeline runs locally using PDFBox for embedded text and the bundled ML Kit Latin recognizer for scanned pages and statement images (JPG, PNG, WEBP, HEIC, and HEIF).
+
+Password-protected PDFs pause the batch and ask for that statement's password. The password is used only to unlock the selected file for the current extraction; it is never saved. If OCR is needed, a decrypted cache copy is created only for rendering and is deleted before extraction returns.
 
 For the current SMS/name-parsing implementation checklist and measured-accuracy evaluation plan, see [Indian bank parsing plan](indian-bank-parsing-plan.md). The 2026-09-17 update replaces statement channel/reference-as-name fallbacks with token-role extraction and explicitly labels VPA-only and missing-name previews.
 

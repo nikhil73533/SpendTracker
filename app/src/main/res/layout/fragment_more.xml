@@ -262,6 +262,84 @@
                     android:text="Bulk Ingestion" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/card_privacy_offline"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/more_privacy_offline"
+                    android:src="@android:drawable/ic_lock_lock" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/more_privacy_offline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_report_problem"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/report_problem"
+                    android:src="@android:drawable/ic_dialog_alert" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/report_problem" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_suggest_feature"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/suggest_feature"
+                    android:src="@android:drawable/ic_input_add" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/suggest_feature" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_online_help"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/help_online"
+                    android:src="@android:drawable/ic_menu_view" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/help_online" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_rate"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/rate_spendtracker"
+                    android:src="@android:drawable/btn_star_big_on" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/rate_spendtracker" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_premium"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/title_premium"
+                    android:src="@android:drawable/btn_star_big_on" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/title_premium" />
+            </LinearLayout>
+
         </GridLayout>
 
     </LinearLayout>

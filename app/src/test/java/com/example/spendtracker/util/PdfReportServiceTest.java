@@ -9,6 +9,31 @@ import java.util.List;
 import org.junit.Test;
 
 public class PdfReportServiceTest {
+    @Test public void accountReportExcludesCardsIncomeTransfersAndDeletedRows() {
+        List<Transaction> transactions = new ArrayList<>();
+        String[] types = {"EXPENSE", "EXPENSE", "INCOME", "TRANSFER", "EXPENSE", "EXPENSE"};
+        String[] sources = {"Account", "Credit Card", "Account", "Account", "Account", "Cash"};
+        for (int i = 0; i < types.length; i++) {
+            Transaction transaction = new Transaction(i + 1, 100, "Food", "Test", types[i], 1L,
+                    "Test Bank", "", "", "Test", "Test Bank", sources[i]);
+            if (i == 4) transaction.setStatus("DELETED");
+            transactions.add(transaction);
+        }
+        transactions.add(new Transaction(7, 300, "Self Transfer", "Test", "EXPENSE", 1L,
+                "Test Bank", "", "", "Savings", "Test Bank", "Account"));
+        PdfReportService.ReportPayload payload = PdfReportService.buildExpenseAccountPayload(transactions, "September");
+        assertTrue(payload.expenseAccountsOnly);
+        assertEquals(1, payload.transactions.size());
+        assertEquals(100, payload.accountExpenses, 0.001);
+        assertEquals(0, payload.totalIncome, 0.001);
+        assertEquals(0, payload.cardExpenses, 0.001);
+        assertEquals(0, payload.totalTransfers, 0.001);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void emptyAccountReportDoesNotCreateMisleadingPdf() {
+        PdfReportService.buildExpenseAccountPayload(java.util.Collections.emptyList(), "September");
+    }
 
     @Test
     public void testBuildPayload_calculatesTotalsAndSeparatesTransfers() {

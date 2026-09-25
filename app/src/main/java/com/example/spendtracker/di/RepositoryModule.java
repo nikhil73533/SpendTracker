@@ -12,6 +12,8 @@ import com.example.spendtracker.domain.repository.RepeatedAlertRepository;
 import com.example.spendtracker.data.repository.RepeatedAlertRepositoryImpl;
 import com.example.spendtracker.domain.repository.BillAlertRepository;
 import com.example.spendtracker.data.repository.BillAlertRepositoryImpl;
+import com.example.spendtracker.billing.LocalPurchaseVerifier;
+import com.example.spendtracker.billing.PurchaseVerifier;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
 import com.example.spendtracker.data.repository.AnalyticsRepositoryImpl;
 import dagger.Binds;
@@ -47,4 +49,8 @@ public abstract class RepositoryModule {
     @Binds
     @Singleton
     public abstract BillAlertRepository bindBillAlertRepository(BillAlertRepositoryImpl implementation);
+
+    @Binds
+    @Singleton
+    public abstract PurchaseVerifier bindPurchaseVerifier(LocalPurchaseVerifier implementation);
 }

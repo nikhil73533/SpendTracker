@@ -230,6 +230,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             
             long newId = transactionDao.insertTransaction(entity);
+            if (newId > 0) {
+                Transaction saved = mapToDomain(entity);
+                com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, null, saved, (int) newId);
+            }
             clonedTransactionDao.insertTransaction(entity); // Mirror to cloned database
             if (confirmed && newId > 0) learnConfirmed(transaction, (int) newId);
 
@@ -290,6 +294,8 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                 for (int i = 0; i < ids.size(); i++) {
                     if (ids.get(i) != null && ids.get(i) > 0) {
                         imported++;
+                        Transaction saved = mapToDomain(entities.get(i));
+                        com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, null, saved, ids.get(i).intValue());
                         insertedForClone.add(entities.get(i));
                     } else {
                         duplicates++;
@@ -335,7 +341,8 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     private void updateTransaction(Transaction transaction, boolean confirmed) {
         executorService.execute(() -> {
-            if (transactionDao.getTransactionByIdSync(transaction.getId()) == null) return;
+            TransactionEntity previous = transactionDao.getTransactionByIdSync(transaction.getId());
+            if (previous == null) return;
             if (confirmed) transaction.setConfidenceScore(1.0);
             TransactionEntity entity = mapToEntity(transaction);
             
@@ -351,6 +358,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             
             transactionDao.updateTransaction(entity);
+            com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, mapToDomain(previous), transaction);
             clonedTransactionDao.updateTransaction(entity); // Mirror to cloned database
             if (confirmed) learnConfirmed(transaction, transaction.getId());
 
@@ -374,6 +382,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         executorService.execute(() -> {
             long deletedAt = System.currentTimeMillis();
             transactionDao.softDeleteTransaction(transaction.getId(), deletedAt);
+            com.example.spendtracker.util.CategoryReviewNotifications.cancel(context, transaction.getId());
             clonedTransactionDao.softDeleteTransaction(transaction.getId(), deletedAt);
         });
     }
@@ -383,6 +392,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         executorService.execute(() -> {
             long deletedAt = System.currentTimeMillis();
             transactionDao.softDeleteTransaction(transactionId, deletedAt);
+            com.example.spendtracker.util.CategoryReviewNotifications.cancel(context, transactionId);
             clonedTransactionDao.softDeleteTransaction(transactionId, deletedAt);
         });
     }
@@ -396,6 +406,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             try {
                 long deletedAt = System.currentTimeMillis();
                 deleted = transactionDao.softDeleteTransactions(ids, deletedAt);
+                for (int id : ids) com.example.spendtracker.util.CategoryReviewNotifications.cancel(context, id);
                 clonedTransactionDao.softDeleteTransactions(ids, deletedAt);
             } catch (Exception e) {
                 android.util.Log.e("Transactions", "Batch deletion failed", e);
@@ -409,7 +420,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     @Override
     public void restoreTransaction(int transactionId) {
         executorService.execute(() -> {
+            Transaction previous = mapToDomain(transactionDao.getTransactionByIdSync(transactionId));
             transactionDao.restoreTransaction(transactionId);
+            com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, previous,
+                    mapToDomain(transactionDao.getTransactionByIdSync(transactionId)));
             clonedTransactionDao.restoreTransaction(transactionId);
         });
     }
@@ -438,7 +452,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         executorService.execute(() -> {
             List<TransactionEntity> clonedTransactions = clonedTransactionDao.getAllTransactionsSync();
             for (TransactionEntity entity : clonedTransactions) {
-                transactionDao.insertTransaction(entity);
+                Transaction previous = mapToDomain(transactionDao.getTransactionByIdSync(entity.id));
+                long restoredId = transactionDao.insertTransaction(entity);
+                if (restoredId > 0) com.example.spendtracker.util.CategoryReviewNotifications.onSaved(
+                        context, previous, mapToDomain(entity), (int) restoredId);
             }
         });
     }

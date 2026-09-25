@@ -102,6 +102,15 @@
         <action
             android:id="@+id/action_moreFragment_to_chartsFragment"
             app:destination="@id/chartsFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_helpFragment"
+            app:destination="@id/helpFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_privacyOfflineFragment"
+            app:destination="@id/privacyOfflineFragment" />
+        <action
+            android:id="@+id/action_moreFragment_to_paywallFragment"
+            app:destination="@id/paywallFragment" />
     </fragment>
 
     <fragment
@@ -163,7 +172,7 @@
     <fragment
         android:id="@+id/pdfIngestionFragment"
         android:name="com.example.spendtracker.ui.pdfimport.PdfIngestionFragment"
-        android:label="PDF Bulk Ingestion"
+        android:label="Statement Bulk Ingestion"
         tools:layout="@layout/fragment_pdf_ingestion" />
 
     <fragment
@@ -177,5 +186,23 @@
         android:name="com.example.spendtracker.ui.analytics.AdvancedAnalyticsFragment"
         android:label="Advanced Analytics"
         tools:layout="@layout/fragment_advanced_analytics" />
+
+    <fragment
+        android:id="@+id/helpFragment"
+        android:name="com.example.spendtracker.help.HelpFragment"
+        android:label="@string/title_help"
+        tools:layout="@layout/fragment_help" />
+
+    <fragment
+        android:id="@+id/privacyOfflineFragment"
+        android:name="com.example.spendtracker.privacy.PrivacyOfflineFragment"
+        android:label="@string/title_privacy_offline"
+        tools:layout="@layout/fragment_privacy_offline" />
+
+    <fragment
+        android:id="@+id/paywallFragment"
+        android:name="com.example.spendtracker.ui.premium.PaywallFragment"
+        android:label="@string/title_premium"
+        tools:layout="@layout/fragment_paywall" />
 
 </navigation>

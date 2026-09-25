@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.io.File;
 
 /** On-device OCR for scanned statement pages. Runs only from a background thread. */
 public class MlKitPdfOcrEngine implements OcrEngine {
@@ -32,37 +33,59 @@ public class MlKitPdfOcrEngine implements OcrEngine {
 
     @Override
     public OcrDocument recognizePdf(Context context, Uri uri) throws Exception {
-        List<OcrLine> allLines = new ArrayList<>();
-        TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         try (ParcelFileDescriptor descriptor = context.getContentResolver().openFileDescriptor(uri, "r")) {
             if (descriptor == null) throw new IllegalStateException("Unable to open selected PDF");
-            try (PdfRenderer renderer = new PdfRenderer(descriptor)) {
-                for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
-                    try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
-                        Bitmap original = renderPage(page);
-                        try {
-                            List<OcrLine> best = lines(pageIndex + 1, recognize(recognizer, original));
-                            String table = new OcrDocument(best).getText();
-                            List<RawTransactionRow> rows = new GenericStatementParser().parse(table);
-                            // Names alone can be plentiful. Retry when transaction fields are missing.
-                            if (StatementExtractionQuality.needsRetry(table, rows)) {
-                                Bitmap processed = preprocess(original);
-                                try {
-                                    List<OcrLine> retry = lines(pageIndex + 1, recognize(recognizer, processed));
-                                    String retryTable = new OcrDocument(retry).getText();
-                                    if (StatementExtractionQuality.prefer(retryTable,
-                                            new GenericStatementParser().parse(retryTable), table, rows)) best = retry;
-                                } catch (Exception retryError) {
-                                    // Keep the original recognition if an optional retry fails.
-                                    android.util.Log.w("StatementOCR", "Contrast retry failed", retryError);
-                                } finally {
-                                    processed.recycle();
-                                }
+            return recognizePdf(descriptor);
+        }
+    }
+
+    @Override
+    public OcrDocument recognizePdf(File file) throws Exception {
+        try (ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)) {
+            return recognizePdf(descriptor);
+        }
+    }
+
+    @Override
+    public OcrDocument recognizeImage(Context context, Uri uri) throws Exception {
+        TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        try {
+            InputImage image = InputImage.fromFilePath(context, uri);
+            return new OcrDocument(lines(1, recognize(recognizer, image)));
+        } finally {
+            recognizer.close();
+        }
+    }
+
+    private OcrDocument recognizePdf(ParcelFileDescriptor descriptor) throws Exception {
+        List<OcrLine> allLines = new ArrayList<>();
+        TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        try (PdfRenderer renderer = new PdfRenderer(descriptor)) {
+            for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
+                try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
+                    Bitmap original = renderPage(page);
+                    try {
+                        List<OcrLine> best = lines(pageIndex + 1, recognize(recognizer, InputImage.fromBitmap(original, 0)));
+                        String table = new OcrDocument(best).getText();
+                        List<RawTransactionRow> rows = new GenericStatementParser().parse(table);
+                        // Names alone can be plentiful. Retry when transaction fields are missing.
+                        if (StatementExtractionQuality.needsRetry(table, rows)) {
+                            Bitmap processed = preprocess(original);
+                            try {
+                                List<OcrLine> retry = lines(pageIndex + 1, recognize(recognizer, InputImage.fromBitmap(processed, 0)));
+                                String retryTable = new OcrDocument(retry).getText();
+                                if (StatementExtractionQuality.prefer(retryTable,
+                                        new GenericStatementParser().parse(retryTable), table, rows)) best = retry;
+                            } catch (Exception retryError) {
+                                // Keep the original recognition if an optional retry fails.
+                                android.util.Log.w("StatementOCR", "Contrast retry failed", retryError);
+                            } finally {
+                                processed.recycle();
                             }
-                            allLines.addAll(best);
-                        } finally {
-                            original.recycle();
                         }
+                        allLines.addAll(best);
+                    } finally {
+                        original.recycle();
                     }
                 }
             }
@@ -85,8 +108,8 @@ public class MlKitPdfOcrEngine implements OcrEngine {
         return bitmap;
     }
 
-    private Text recognize(TextRecognizer recognizer, Bitmap bitmap) throws Exception {
-        return Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0)), OCR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    private Text recognize(TextRecognizer recognizer, InputImage image) throws Exception {
+        return Tasks.await(recognizer.process(image), OCR_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     private List<OcrLine> lines(int pageNumber, Text text) {

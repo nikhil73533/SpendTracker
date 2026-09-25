@@ -19,6 +19,7 @@ import com.example.spendtracker.databinding.FragmentDashboardNotesBinding;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import dagger.hilt.android.AndroidEntryPoint;
+import javax.inject.Inject;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -26,6 +27,9 @@ import java.util.Locale;
 
 @AndroidEntryPoint
 public class TransactionGroupFragment extends Fragment {
+
+    @Inject
+    com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
     private FragmentDashboardNotesBinding binding;
     private TransactionGroupViewModel viewModel;
@@ -60,7 +64,9 @@ public class TransactionGroupFragment extends Fragment {
         binding.rvGroups.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.rvGroups.setAdapter(adapter);
 
-        binding.fabAddGroup.setOnClickListener(v -> showGroupForm(-1));
+        binding.fabAddGroup.setOnClickListener(v -> featureGate.require(
+                com.example.spendtracker.billing.PremiumFeature.TRANSACTION_GROUPS,
+                () -> showGroupForm(-1), this::openPaywall));
 
         viewModel.getAllGroups().observe(getViewLifecycleOwner(), groups -> {
             if (groups == null || groups.isEmpty()) {
@@ -77,6 +83,10 @@ public class TransactionGroupFragment extends Fragment {
     private void showGroupForm(int groupId) {
         TransactionGroupFormFragment form = TransactionGroupFormFragment.newInstance(groupId);
         form.show(getChildFragmentManager(), "group_form");
+    }
+
+    private void openPaywall() {
+        if (isAdded()) androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.paywallFragment);
     }
 
     @Override

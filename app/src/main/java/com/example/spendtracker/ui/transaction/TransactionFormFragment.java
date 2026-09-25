@@ -66,6 +66,9 @@ public class TransactionFormFragment extends Fragment {
         }
 
         setupUI();
+        if (getArguments() != null && getArguments().getBoolean("reviewCategory", false)) {
+            binding.tilCategory.setHelperText(getString(R.string.category_review_title));
+        }
         if (transactionId != -1) {
             loadTransaction();
         }

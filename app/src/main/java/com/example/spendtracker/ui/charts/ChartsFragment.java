@@ -95,6 +95,13 @@ public class ChartsFragment extends Fragment {
     }
 
     private void setupTabLayout() {
+        String[] labels = {"Income", "Expenses", "Transfers"};
+        for (int i = 0; i < labels.length; i++) {
+            TabLayout.Tab tab = binding.tabChartType.getTabAt(i);
+            tab.setCustomView(R.layout.item_chart_tab);
+            ((android.widget.TextView) tab.getCustomView().findViewById(R.id.chart_tab_label)).setText(labels[i]);
+            setTabAmount(i, 0);
+        }
         binding.tabChartType.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -206,8 +213,7 @@ public class ChartsFragment extends Fragment {
         if (binding == null || statsAdapter == null) return;
         double total = 0; for (double value : transferBreakdown.values()) total += value;
         int[] colors = {Color.rgb(66, 165, 245), Color.rgb(255, 167, 38)};
-        TabLayout.Tab transferTab = binding.tabChartType.getTabAt(2);
-        if (transferTab != null) transferTab.setText("Transfers " + viewModel.formatAmount(total));
+        setTabAmount(2, total);
         setupPieChart(binding.pieChartMain, transferBreakdown, total, colors);
         binding.pieChartMain.setCenterText(isPrivacyActive()
                 ? "Transfers\n***" : "Transfers\n" + viewModel.formatAmount(total));
@@ -218,7 +224,8 @@ public class ChartsFragment extends Fragment {
 
     private void observeViewModel() {
         viewModel.getTransferBreakdown().observe(getViewLifecycleOwner(), totals -> {
-            transferBreakdown = totals;
+            transferBreakdown = totals == null ? java.util.Collections.emptyMap() : totals;
+            updateTransferTabTotal();
             if (showingTransfers) renderTransfers();
         });
         viewModel.getCurrentMonthStart().observe(getViewLifecycleOwner(), start -> {
@@ -339,10 +346,25 @@ public class ChartsFragment extends Fragment {
 
     /** Refresh tab totals independently of the selected tab so first entry is never stale. */
     private void updateTabTotals(Summary summary) {
-        TabLayout.Tab expenseTab = binding.tabChartType.getTabAt(1);
-        if (expenseTab != null) expenseTab.setText("Expenses " + viewModel.formatAmount(summary.getTotalExpense()));
-        TabLayout.Tab incomeTab = binding.tabChartType.getTabAt(0);
-        if (incomeTab != null) incomeTab.setText("Income " + viewModel.formatAmount(summary.getTotalIncome()));
+        setTabAmount(0, summary.getTotalIncome());
+        setTabAmount(1, summary.getTotalExpense());
+        updateTransferTabTotal();
+    }
+
+    private void updateTransferTabTotal() {
+        double total = 0;
+        for (double value : transferBreakdown.values()) total += value;
+        setTabAmount(2, total);
+    }
+
+    private void setTabAmount(int position, double amount) {
+        TabLayout.Tab tab = binding.tabChartType.getTabAt(position);
+        if (tab != null && tab.getCustomView() != null) {
+            String formatted = viewModel.formatAmount(amount);
+            ((android.widget.TextView) tab.getCustomView().findViewById(R.id.chart_tab_amount))
+                    .setText(formatted);
+            tab.setContentDescription(tab.getText() + ", " + formatted);
+        }
     }
 
     private void updateStatsList(Map<String, Double> breakdown, double total, int[] baseColors) {

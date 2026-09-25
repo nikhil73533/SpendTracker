@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,6 +17,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import dagger.hilt.android.AndroidEntryPoint;
+import javax.inject.Inject;
 
 /** PDF import UI: extract first, let the user review, then commit an approved batch. */
 @AndroidEntryPoint
@@ -44,6 +47,10 @@ public class PdfIngestionFragment extends Fragment {
     private TextView tvProgressCounter;
     private ProgressBar progressBar;
     private TextView tvResultSummaryHeader;
+    private boolean passwordDialogShowing;
+
+    @Inject
+    com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
     private final ActivityResultLauncher<Intent> pdfPickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -66,7 +73,7 @@ public class PdfIngestionFragment extends Fragment {
                         // Some document providers intentionally do not grant persistent access.
                     }
                 }
-                if (!selectedUris.isEmpty()) viewModel.parsePdfs(requireContext(), selectedUris);
+                if (!selectedUris.isEmpty()) viewModel.parseStatements(requireContext(), selectedUris);
             });
 
     @Nullable @Override
@@ -97,7 +104,9 @@ public class PdfIngestionFragment extends Fragment {
 
         ((com.google.android.material.appbar.MaterialToolbar) view.findViewById(R.id.toolbar))
                 .setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
-        view.findViewById(R.id.btn_select_pdf).setOnClickListener(v -> selectPdfs());
+        view.findViewById(R.id.btn_select_pdf).setOnClickListener(v -> featureGate.require(
+                com.example.spendtracker.billing.PremiumFeature.PDF_IMPORT,
+                this::selectPdfs, this::openPaywall));
         view.findViewById(R.id.btn_done).setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         view.findViewById(R.id.btn_import_selected).setOnClickListener(v -> viewModel.importApproved(reviewAdapter.getSelectedTransactions()));
 
@@ -106,15 +115,22 @@ public class PdfIngestionFragment extends Fragment {
 
     private void selectPdfs() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("application/pdf");
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"
+        });
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        pdfPickerLauncher.launch(Intent.createChooser(intent, "Select Bank Statements"));
+        pdfPickerLauncher.launch(Intent.createChooser(intent, "Select bank statement PDFs or images"));
+    }
+
+    private void openPaywall() {
+        if (isAdded()) Navigation.findNavController(requireView()).navigate(R.id.paywallFragment);
     }
 
     private void renderState(PdfIngestionViewModel.UiState state) {
-        requireView().findViewById(R.id.btn_select_pdf).setEnabled(!state.isLoading);
+        requireView().findViewById(R.id.btn_select_pdf).setEnabled(!state.isLoading && state.passwordRequest == null);
         requireView().findViewById(R.id.btn_import_selected).setEnabled(!state.isLoading && !state.reviewTransactions.isEmpty());
         layoutProgress.setVisibility(state.isLoading ? View.VISIBLE : View.GONE);
         if (state.isLoading && state.completedFiles == 0) {
@@ -134,7 +150,7 @@ public class PdfIngestionFragment extends Fragment {
             resultAdapter.setResults(state.fileResults);
             int parsed = 0;
             for (PdfParserService.FileImportResult result : state.fileResults) parsed += result.successfullyParsed;
-            tvResultSummaryHeader.setText(state.fileResults.size() + " PDF file(s) processed • " + parsed
+            tvResultSummaryHeader.setText(state.fileResults.size() + " statement file(s) processed • " + parsed
                     + " candidate transaction(s) extracted • " + state.reviewTransactions.size() + " in preview");
         }
         reviewAdapter.submit(state.reviewTransactions);
@@ -149,5 +165,35 @@ public class PdfIngestionFragment extends Fragment {
             }
         }
         if (state.error != null) Toast.makeText(requireContext(), state.error, Toast.LENGTH_LONG).show();
+        if (state.passwordRequest != null) showPasswordDialog(state.passwordRequest);
+    }
+
+    private void showPasswordDialog(PdfIngestionViewModel.PasswordRequest request) {
+        if (!isAdded() || passwordDialogShowing) return;
+        passwordDialogShowing = true;
+        android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setHint("Statement password");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        input.setSingleLine(true);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        input.setPadding(padding, 0, padding, 0);
+
+        String message = request.invalidPassword
+                ? "That password could not unlock the PDF. Try again for \"" + request.fileName + "\"."
+                : "\"" + request.fileName + "\" is password protected. Enter its password to extract transactions.";
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle("Unlock bank statement")
+                .setMessage(message)
+                .setView(input)
+                .setNegativeButton("Skip file", (ignored, which) -> viewModel.skipPasswordProtectedFile(requireContext()))
+                .setPositiveButton("Unlock", (ignored, which) -> {
+                    String password = input.getText().toString();
+                    input.setText("");
+                    viewModel.submitPassword(requireContext(), password);
+                })
+                .create();
+        dialog.setOnCancelListener(ignored -> viewModel.skipPasswordProtectedFile(requireContext()));
+        dialog.setOnDismissListener(ignored -> passwordDialogShowing = false);
+        dialog.show();
     }
 }

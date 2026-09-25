@@ -5,11 +5,14 @@
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Used only by explicitly user-initiated online services: Play Billing, reviews,
+         Help/feedback links, and optional Google Drive backup. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:name=".SpendTrackerApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:testOnly="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

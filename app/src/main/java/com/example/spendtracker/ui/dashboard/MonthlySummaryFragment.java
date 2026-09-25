@@ -12,11 +12,15 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import com.example.spendtracker.databinding.FragmentDashboardMonthlyBinding;
 import dagger.hilt.android.AndroidEntryPoint;
+import javax.inject.Inject;
 import java.util.Collections;
 import java.util.List;
 
 @AndroidEntryPoint
 public class MonthlySummaryFragment extends Fragment {
+
+    @Inject
+    com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
     private FragmentDashboardMonthlyBinding binding;
     private DashboardViewModel viewModel;
@@ -35,7 +39,9 @@ public class MonthlySummaryFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(requireParentFragment()).get(DashboardViewModel.class);
 
-        binding.btnShareReceipt.setOnClickListener(v -> shareMonthlySummaryReport());
+        binding.btnShareReceipt.setOnClickListener(v -> featureGate.require(
+                com.example.spendtracker.billing.PremiumFeature.ADVANCED_REPORTS,
+                this::shareMonthlySummaryReport, this::openPaywall));
         setupRecyclerView();
         observeViewModel();
     }
@@ -101,6 +107,10 @@ public class MonthlySummaryFragment extends Fragment {
                 if (isAdded()) Toast.makeText(requireContext(), "Authentication required to share a report", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void openPaywall() {
+        if (isAdded()) androidx.navigation.Navigation.findNavController(requireView()).navigate(com.example.spendtracker.R.id.paywallFragment);
     }
 
     @Override

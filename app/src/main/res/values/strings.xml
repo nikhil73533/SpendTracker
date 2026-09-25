@@ -1,4 +1,12 @@
 <resources>
+    <string name="previous_year">Previous year</string>
+    <string name="next_year">Next year</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="reveal_private_amounts">Authenticate to show amounts</string>
+    <string name="category_review_title">Please check this transaction’s category</string>
+    <string name="category_review_body">A transaction needs your review. Tap to correct or confirm its category.</string>
+    <string name="correct_category">Correct category</string>
     <string name="sms_received_time">Received %1$s</string>
     <string name="app_name">SpendTracker</string>
     <string name="action_go">Go</string>
@@ -82,7 +90,7 @@
     <string name="label_google_drive">Google Drive</string>
     <string name="label_connect_drive">Connect Google Drive</string>
     <string name="label_disconnect_drive">Disconnect Google Drive</string>
-    <string name="msg_drive_reason">Google Drive access is required to securely upload encrypted backups of your transaction data. Only the minimum required permissions are requested.</string>
+    <string name="msg_drive_reason">Google Drive access is required to upload backups you explicitly create. Only the minimum required permissions are requested.</string>
     <string name="msg_backup_success">Backup completed successfully</string>
     <string name="msg_backup_failed">Backup failed: %s</string>
     <string name="msg_restore_success">Restore completed successfully</string>
@@ -120,4 +128,77 @@
     <string name="batch_deleted">%1$d transactions moved to Trash</string>
     <string name="delete_failed">Could not delete transactions. Please try again.</string>
     <string name="undo">Undo</string>
+
+    <!-- Premium -->
+    <string name="title_premium">SpendTracker Premium</string>
+    <string name="premium_subtitle">Unlock more while keeping your financial processing on your device.</string>
+    <string name="premium_analytics">Advanced Analytics</string>
+    <string name="premium_monthly">Monthly</string>
+    <string name="premium_yearly">Yearly</string>
+    <string name="premium_lifetime">Lifetime</string>
+    <string name="premium_once">Once</string>
+    <string name="premium_benefits">✓ Advanced Analytics\n✓ PDF Statement Import\n✓ Excel Export\n✓ Advanced Reports\n✓ Smart Alerts\n✓ Advanced Categorization\n✓ Transaction Groups</string>
+    <string name="premium_per_month">per month</string>
+    <string name="premium_per_year">per year</string>
+    <string name="premium_pdf_import">PDF Statement Import</string>
+    <string name="premium_excel_export">Excel Export</string>
+    <string name="premium_reports">Advanced Reports</string>
+    <string name="premium_alerts">Smart Alerts</string>
+    <string name="premium_categorization">Advanced Categorization</string>
+    <string name="premium_groups">Transaction Groups</string>
+    <string name="premium_continue">Continue</string>
+    <string name="premium_restore">Restore Purchases</string>
+    <string name="premium_maybe_later">Maybe Later</string>
+    <string name="premium_loading">Loading available plans…</string>
+    <string name="premium_unavailable">Premium plans are not configured yet. Please try again later.</string>
+    <string name="premium_locked">%1$s is a Premium feature.</string>
+    <string name="premium_pending">Your purchase is pending. Premium will unlock once Google Play confirms it.</string>
+    <string name="premium_purchase_cancelled">Purchase cancelled.</string>
+    <string name="premium_purchase_complete">Premium is now active.</string>
+    <string name="premium_purchase_failed">Purchase could not be completed. Please try again.</string>
+    <string name="premium_restore_complete">Purchases restored.</string>
+
+    <!-- Help and support -->
+    <string name="title_help">Help &amp; FAQs</string>
+    <string name="hint_search_help">Search help</string>
+    <string name="label_all">All</string>
+    <string name="help_empty">No help topics match your search.</string>
+    <string name="help_load_error">Help content could not be loaded.</string>
+    <string name="help_online_heading">Didn’t find what you need?</string>
+    <string name="help_online">Visit Online Help Center</string>
+    <string name="send_feedback">Send Feedback</string>
+    <string name="report_problem">Report a Problem</string>
+    <string name="suggest_feature">Suggest a Feature</string>
+    <string name="online_service_unavailable">This online service is not configured yet. Your offline SpendTracker features are still available.</string>
+    <string name="browser_unavailable">No browser is available to open this link.</string>
+    <string name="internet_required">Internet connection is required for this feature. Your offline SpendTracker features are still available.</string>
+    <string name="rate_spendtracker">Rate SpendTracker</string>
+    <string name="share_spendtracker">Share SpendTracker</string>
+    <string name="share_message">I’ve been using SpendTracker to track expenses privately on my device.\n\nTry SpendTracker:</string>
+    <string name="share_chooser">Share SpendTracker</string>
+    <string name="share_unavailable">No app is available to share SpendTracker.</string>
+    <string name="store_unavailable">Google Play is not available on this device.</string>
+
+    <!-- Privacy -->
+    <string name="title_privacy_offline">Privacy &amp; Offline</string>
+    <string name="privacy_intro">SpendTracker is designed to keep core financial processing on this device.</string>
+    <string name="privacy_on_device">ON THIS DEVICE</string>
+    <string name="privacy_online">OPTIONAL ONLINE SERVICES</string>
+    <string name="privacy_local_items">✓ Transaction processing\n✓ SMS parsing\n✓ Categorization\n✓ Spending analytics\n✓ On-device category learning\n✓ Charts and reports</string>
+    <string name="privacy_online_items">○ Google Play Billing\n○ Google Play rating\n○ Online Help and feedback\n○ Optional Google Drive backup</string>
+    <string name="privacy_note">Using an online service does not move your transaction processing to a SpendTracker server. Financial data is shared only when you explicitly choose an export or backup flow.</string>
+
+    <!-- More -->
+    <string name="more_privacy_security">Privacy &amp; Security</string>
+    <string name="more_data">Data</string>
+    <string name="more_help_support">Help &amp; Support</string>
+    <string name="more_support_app">Support SpendTracker</string>
+    <string name="more_premium">Premium</string>
+    <string name="more_about">About</string>
+    <string name="more_privacy_offline">Privacy &amp; Offline</string>
+    <string name="more_import_statement">Import Statement</string>
+    <string name="more_export_data">Export Data</string>
+    <string name="more_backup">Backup</string>
+    <string name="more_app_version">App version %1$s</string>
+    <string name="more_licenses">Open-source Licenses</string>
 </resources>

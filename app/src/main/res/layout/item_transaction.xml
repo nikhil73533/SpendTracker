@@ -17,9 +17,9 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp">
 
-        <ImageButton android:id="@+id/share_receipt" android:layout_width="28dp" android:layout_height="28dp"
+        <ImageButton android:id="@+id/share_receipt" android:layout_width="48dp" android:layout_height="48dp"
             android:src="@android:drawable/ic_menu_share" android:contentDescription="Share PDF receipt"
-            android:padding="6dp" android:background="?attr/selectableItemBackgroundBorderless" app:tint="@color/text_secondary"
+            android:padding="14dp" android:scaleType="fitCenter" android:background="?attr/selectableItemBackgroundBorderless" app:tint="@color/text_secondary"
             app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
         <ImageView
@@ -33,8 +33,11 @@
 
         <TextView
             android:id="@+id/tv_category"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            app:layout_constraintEnd_toStartOf="@id/tv_time"
             android:layout_marginStart="12dp"
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
@@ -72,12 +75,13 @@
             android:id="@+id/tv_receiver"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/white"
             android:textSize="16sp"
             android:textStyle="bold"
-            app:layout_constraintEnd_toStartOf="@id/tv_income_amount"
+            app:layout_constraintEnd_toStartOf="@id/amount_barrier"
             app:layout_constraintStart_toStartOf="@id/tv_category"
             app:layout_constraintTop_toBottomOf="@id/tv_category"
             tools:text="Jain Ent." />
@@ -86,11 +90,12 @@
             android:id="@+id/tv_description"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/text_secondary"
             android:textSize="14sp"
-            app:layout_constraintEnd_toStartOf="@id/tv_income_amount"
+            app:layout_constraintEnd_toStartOf="@id/amount_barrier"
             app:layout_constraintStart_toStartOf="@id/tv_category"
             app:layout_constraintTop_toBottomOf="@id/tv_receiver"
             tools:text="Lunch" />
@@ -126,35 +131,28 @@
             tools:text="Jaipur Trip"
             tools:visibility="visible" />
 
-        <TextView
-            android:id="@+id/tv_prediction_status"
-            android:layout_width="0dp"
+        <androidx.constraintlayout.widget.Barrier
+            android:id="@+id/amount_barrier"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/audit_green"
-            android:textSize="11sp"
-            app:layout_constraintEnd_toStartOf="@id/share_receipt"
-            app:layout_constraintStart_toStartOf="@id/tv_category"
-            app:layout_constraintTop_toBottomOf="@id/tv_source"
-            tools:text="Category confirmed · 100% confidence" />
+            app:barrierDirection="start"
+            app:constraint_referenced_ids="tv_income_amount,tv_expense_amount" />
 
         <TextView
             android:id="@+id/tv_income_amount"
-            android:layout_width="100dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="end"
             android:textColor="@color/income_blue"
             android:textSize="14sp"
             app:layout_constraintBottom_toBottomOf="@id/tv_description"
-            app:layout_constraintEnd_toStartOf="@id/tv_expense_amount"
+            app:layout_constraintEnd_toStartOf="@id/share_receipt"
             app:layout_constraintTop_toTopOf="@id/tv_receiver"
             tools:text="₹ 0.00" />
 
         <TextView
             android:id="@+id/tv_expense_amount"
-            android:layout_width="100dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="end"
             android:textColor="@color/expense_red"

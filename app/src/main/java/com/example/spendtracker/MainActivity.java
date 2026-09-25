@@ -18,9 +18,9 @@ import javax.inject.Inject;
 @AndroidEntryPoint
 public class MainActivity extends AppCompatActivity {
 
-    private static MainActivity instance;
     private static final int SMS_PERMISSION_CODE = 100;
     private ActivityMainBinding binding;
+    private long lastDashboardTap;
 
     @Inject
     DataInitializer dataInitializer;
@@ -28,50 +28,30 @@ public class MainActivity extends AppCompatActivity {
     @Inject
     com.example.spendtracker.domain.repository.SecurityRepository securityRepository;
 
+    @Inject
+    com.example.spendtracker.billing.PremiumRepository premiumRepository;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        instance = this;
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // EMERGENCY CHECKPOINT
+        // Checkpoint the encrypted database without exposing recovery details in logs.
         try {
             byte[] pass = securityRepository.getDatabasePassphrase();
             java.io.File dbFile = getDatabasePath("spend_tracker_db");
             if (dbFile.exists()) {
-                android.util.Log.e("RECOVERY_CORE", "Attempting Startup Checkpoint...");
-                // pass is raw byte[] from securityRepository.getDatabasePassphrase()
-                // Use the absolute path string to match the byte[] overload
                 net.sqlcipher.database.SQLiteDatabase db = net.sqlcipher.database.SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), pass, null);
                 db.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
                 db.close();
-                android.util.Log.e("RECOVERY_CORE", "Startup Checkpoint Complete.");
             }
-        } catch (Exception e) {
-            android.util.Log.e("RECOVERY_CORE", "Startup Checkpoint Error: " + e.getMessage());
-        }
-
-        // EMERGENCY DIAGNOSTICS
-        try {
-            java.io.File cacheDir = getCacheDir();
-            java.io.File backupZip = new java.io.File(cacheDir, "backup.zip");
-            if (backupZip.exists()) {
-                android.util.Log.e("RECOVERY_CORE", "BACKUP ZIP FOUND: " + backupZip.length() + " bytes");
-                try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.FileInputStream(backupZip))) {
-                    java.util.zip.ZipEntry entry;
-                    while ((entry = zis.getNextEntry()) != null) {
-                        android.util.Log.e("RECOVERY_CORE", "ZIP ENTRY: " + entry.getName() + " Size: " + entry.getSize());
-                    }
-                }
-            }
-        } catch (Exception e) {}
+        } catch (Exception ignored) { }
 
         dataInitializer.initializeData();
         setupNavigation();
         checkPermissions();
 
-        com.example.prediction.util.PredictionLogger.setCallback(MainActivity::logModeling);
     }
 
     private void checkPermissions() {
@@ -112,26 +92,33 @@ public class MainActivity extends AppCompatActivity {
             NavigationUI.setupWithNavController(binding.bottomNavigation, navController);
             
             binding.bottomNavigation.setOnItemSelectedListener(item -> {
+                lastDashboardTap = item.getItemId() == R.id.dashboardFragment
+                        ? android.os.SystemClock.uptimeMillis() : 0;
                 navController.popBackStack(item.getItemId(), false);
                 return NavigationUI.onNavDestinationSelected(item, navController);
             });
-        }
-    }
-
-    public static void logModeling(String message) {
-        if (instance != null) {
-            instance.runOnUiThread(() -> {
-                if (instance.binding != null && instance.binding.auditStrip != null) {
-                    android.widget.TextView tv = (android.widget.TextView) instance.binding.auditStrip.getChildAt(0);
-                    tv.setText(message);
+            binding.bottomNavigation.setOnItemReselectedListener(item -> {
+                if (item.getItemId() != R.id.dashboardFragment) return;
+                long now = android.os.SystemClock.uptimeMillis();
+                if (lastDashboardTap != 0
+                        && now - lastDashboardTap <= android.view.ViewConfiguration.getDoubleTapTimeout()) {
+                    androidx.fragment.app.Fragment current = navHostFragment
+                            .getChildFragmentManager().getPrimaryNavigationFragment();
+                    if (current instanceof com.example.spendtracker.ui.dashboard.DashboardFragment) {
+                        ((com.example.spendtracker.ui.dashboard.DashboardFragment) current).showDaily();
+                    }
+                    lastDashboardTap = 0;
+                } else {
+                    lastDashboardTap = now;
                 }
             });
         }
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy() ;
-        if (instance == this) instance = null;
+    protected void onStart() {
+        super.onStart();
+        premiumRepository.refreshEntitlement();
     }
+
 }
