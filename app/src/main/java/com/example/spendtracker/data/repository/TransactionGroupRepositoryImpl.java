@@ -9,6 +9,8 @@ import com.example.spendtracker.data.local.entity.TransactionGroupEntity;
 import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.domain.model.Transaction;
 import com.example.spendtracker.domain.repository.TransactionGroupRepository;
+import com.example.spendtracker.billing.PremiumFeature;
+import com.example.spendtracker.billing.PremiumRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -19,17 +21,22 @@ public class TransactionGroupRepositoryImpl implements TransactionGroupRepositor
 
     private final TransactionGroupDao groupDao;
     private final TransactionDao transactionDao;
+    private final PremiumRepository premiumRepository;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Inject
-    public TransactionGroupRepositoryImpl(TransactionGroupDao groupDao, @MainDatabase TransactionDao transactionDao) {
+    public TransactionGroupRepositoryImpl(TransactionGroupDao groupDao, @MainDatabase TransactionDao transactionDao,
+                                          PremiumRepository premiumRepository) {
         this.groupDao = groupDao;
         this.transactionDao = transactionDao;
+        this.premiumRepository = premiumRepository;
     }
 
     @Override
     public void createGroup(String name, long startDate, long endDate, List<String> categoryNames) {
         executor.execute(() -> {
+            if (!premiumRepository.hasAccess(PremiumFeature.TRANSACTION_GROUPS)
+                    && groupDao.getAllGroupsSync().size() >= 1) return;
             TransactionGroupEntity group = new TransactionGroupEntity(0, name, startDate, endDate);
             group.tag = TransactionGroupEntity.deriveTag(name);
             groupDao.insertGroupWithCategories(group, categoryNames);

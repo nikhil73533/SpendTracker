@@ -18,7 +18,7 @@
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/iv_avatar"
             android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_height="96dp"
             android:padding="8dp"
             android:background="@color/dark_surface"
             android:src="@android:drawable/ic_menu_myplaces"
@@ -38,7 +38,7 @@
             android:textStyle="bold"
             app:layout_constraintStart_toEndOf="@id/iv_avatar"
             app:layout_constraintTop_toTopOf="@id/iv_avatar"
-            app:layout_constraintEnd_toStartOf="@id/tv_last_date"
+            app:layout_constraintEnd_toStartOf="@id/share_account"
             tools:text="HDFC Bank" />
 
         <TextView
@@ -52,9 +52,10 @@
             android:ellipsize="end"
             app:layout_constraintStart_toStartOf="@id/tv_name"
             app:layout_constraintTop_toBottomOf="@id/tv_name"
-            app:layout_constraintEnd_toStartOf="@id/tv_total_expense"
+            app:layout_constraintEnd_toStartOf="@id/layout_transaction_amounts"
             tools:text="Last Transaction Snippet..." />
 
+        <TextView android:id="@+id/tv_category_count" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="12sp" android:textColor="@color/text_secondary" app:layout_constraintStart_toStartOf="@id/tv_name" app:layout_constraintTop_toBottomOf="@id/tv_upi_id" app:layout_constraintEnd_toStartOf="@id/layout_transaction_amounts" />
         <TextView
             android:id="@+id/tv_last_date"
             android:layout_width="wrap_content"
@@ -65,16 +66,19 @@
             app:layout_constraintTop_toTopOf="@id/tv_name"
             tools:text="Yesterday" />
 
-        <TextView
-            android:id="@+id/tv_total_expense"
+        <LinearLayout
+            android:id="@+id/layout_transaction_amounts"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/expense_red"
-            android:textSize="14sp"
-            android:textStyle="bold"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/iv_avatar"
-            tools:text="₹ 1,240.00" />
+            app:layout_constraintTop_toBottomOf="@id/share_account"
+            android:layout_marginTop="2dp">
+            <TextView android:id="@+id/tv_total_credited" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/dashboard_income_blue" android:textSize="13sp" android:textStyle="bold" tools:text="₹1,240" />
+            <TextView android:id="@+id/tv_total_debited" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="@color/dashboard_expense_red" android:textSize="13sp" android:textStyle="bold" tools:text="₹890" />
+            <TextView android:id="@+id/tv_total_transfer" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="@color/dashboard_brand_transfer" android:textSize="13sp" android:textStyle="bold" tools:text="₹300" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_unread_count"
@@ -87,12 +91,13 @@
             android:textSize="10sp"
             android:textStyle="bold"
             android:visibility="gone"
-            app:layout_constraintEnd_toStartOf="@id/tv_total_expense"
-            app:layout_constraintBottom_toBottomOf="@id/tv_total_expense"
-            app:layout_constraintTop_toTopOf="@id/tv_total_expense"
+            app:layout_constraintEnd_toStartOf="@id/layout_transaction_amounts"
+            app:layout_constraintBottom_toBottomOf="@id/layout_transaction_amounts"
+            app:layout_constraintTop_toTopOf="@id/layout_transaction_amounts"
             tools:text="3"
             tools:visibility="visible" />
 
+        <ImageButton android:id="@+id/share_account" android:layout_width="48dp" android:layout_height="48dp" android:padding="14dp" android:src="@drawable/ic_symbol_share" android:contentDescription="Share account transactions" android:background="?attr/selectableItemBackgroundBorderless" app:tint="@color/text_secondary" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent"/>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 </com.google.android.material.card.MaterialCardView>

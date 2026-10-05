@@ -23,8 +23,11 @@ import com.example.spendtracker.data.local.dao.BillAlertDao;
     TransactionGroupEntity.class,
     TransactionGroupCategoryEntity.class,
     RepeatedAlertEntity.class,
-    BillAlertEntity.class
-}, version = 16, exportSchema = false)
+    BillAlertEntity.class,
+    com.example.spendtracker.data.local.entity.DailyTypeAggregate.class,
+    com.example.spendtracker.data.local.entity.DailyCategoryAggregate.class,
+    com.example.spendtracker.data.local.entity.DailyMerchantAggregate.class
+}, version = 19, exportSchema = false)
 public abstract class SpendTrackerDatabase extends RoomDatabase {
     public abstract TransactionDao transactionDao();
     public abstract CategoryDao categoryDao();

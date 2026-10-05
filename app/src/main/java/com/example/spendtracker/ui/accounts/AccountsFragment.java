@@ -45,14 +45,14 @@ public class AccountsFragment extends Fragment {
             args.putString("accountId", account.name); 
             args.putString("accountName", account.name);
             Navigation.findNavController(requireView()).navigate(R.id.action_accountsFragment_to_accountHistoryFragment, args);
-        }, new AccountsAdapter.AccountFormatter() {
+        }, this::shareAccount, new AccountsAdapter.AccountFormatter() {
             @Override public String formatAmount(double amount) { return viewModel.formatAmount(amount); }
             @Override public String maskPII(String value) { return viewModel.maskPII(value); }
         });
         binding.rvAccounts.setAdapter(adapter);
 
         viewModel.getUniqueAccounts().observe(getViewLifecycleOwner(), accounts -> {
-            allAccounts = accounts;
+            allAccounts = accounts == null ? new ArrayList<>() : accounts;
             if (binding.etSearch.getText() != null) {
                 filterAccounts(binding.etSearch.getText().toString());
             } else {
@@ -62,6 +62,17 @@ public class AccountsFragment extends Fragment {
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
+        });
+    }
+
+    private void shareAccount(TransactionDao.AccountSummary account) {
+        androidx.lifecycle.LiveData<List<com.example.spendtracker.domain.model.Transaction>> history = viewModel.getAccountHistory(account.name, 0, Long.MAX_VALUE);
+        history.observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<com.example.spendtracker.domain.model.Transaction>>() {
+            @Override public void onChanged(List<com.example.spendtracker.domain.model.Transaction> transactions) {
+                history.removeObserver(this);
+                com.example.spendtracker.util.AccountReport.share(AccountsFragment.this, account.name, transactions,
+                        Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()));
+            }
         });
     }
 
@@ -90,94 +101,54 @@ public class AccountsFragment extends Fragment {
         adapter.submitList(filtered);
     }
 
-    private static class AccountsAdapter extends androidx.recyclerview.widget.ListAdapter<TransactionDao.AccountSummary, AccountsAdapter.ViewHolder> {
-        public interface AccountFormatter {
-            String formatAmount(double amount);
-            String maskPII(String value);
-        }
-        private final java.util.function.Consumer<TransactionDao.AccountSummary> listener;
+    private static class AccountsAdapter extends androidx.recyclerview.widget.RecyclerView.Adapter<AccountsAdapter.ViewHolder> {
+        interface AccountFormatter { String formatAmount(double amount); String maskPII(String value); }
+        private final java.util.function.Consumer<TransactionDao.AccountSummary> listener, share;
         private final AccountFormatter formatter;
-
-        protected AccountsAdapter(java.util.function.Consumer<TransactionDao.AccountSummary> listener, AccountFormatter formatter) {
-            super(new androidx.recyclerview.widget.DiffUtil.ItemCallback<TransactionDao.AccountSummary>() {
-                @Override
-                public boolean areItemsTheSame(@NonNull TransactionDao.AccountSummary oldItem, @NonNull TransactionDao.AccountSummary newItem) {
-                    return (oldItem.upiId != null ? oldItem.upiId : oldItem.name).equals(newItem.upiId != null ? newItem.upiId : newItem.name);
-                }
-                @Override
-                public boolean areContentsTheSame(@NonNull TransactionDao.AccountSummary oldItem, @NonNull TransactionDao.AccountSummary newItem) {
-                    return Double.compare(oldItem.totalExpense, newItem.totalExpense) == 0 && oldItem.lastTransactionDate == newItem.lastTransactionDate;
-                }
-            });
-            this.listener = listener;
-            this.formatter = formatter;
+        private final List<Object> rows = new ArrayList<>();
+        AccountsAdapter(java.util.function.Consumer<TransactionDao.AccountSummary> listener,
+                java.util.function.Consumer<TransactionDao.AccountSummary> share, AccountFormatter formatter) {
+            this.listener=listener; this.share=share; this.formatter=formatter;
         }
-
-        @NonNull
-        @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            android.view.View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_account, parent, false);
-            return new ViewHolder(view, formatter);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            TransactionDao.AccountSummary account = getItem(position);
-            holder.bind(account, listener);
-        }
-
-        static class ViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder {
-            android.widget.TextView tvName, tvUpiId, tvExpense, tvLastDate, tvUnread;
-            private final AccountFormatter formatter;
-
-            public ViewHolder(@NonNull android.view.View itemView, AccountFormatter formatter) {
-                super(itemView);
-                this.formatter = formatter;
-                tvName = itemView.findViewById(R.id.tv_name);
-                tvUpiId = itemView.findViewById(R.id.tv_upi_id);
-                tvExpense = itemView.findViewById(R.id.tv_total_expense);
-                tvLastDate = itemView.findViewById(R.id.tv_last_date);
-                tvUnread = itemView.findViewById(R.id.tv_unread_count);
+        void submitList(List<TransactionDao.AccountSummary> accounts) {
+            rows.clear(); String last="";
+            java.text.SimpleDateFormat date=new java.text.SimpleDateFormat("dd MMM yyyy",java.util.Locale.getDefault());
+            if(accounts!=null) for(TransactionDao.AccountSummary account:accounts) {
+                String day=date.format(new java.util.Date(account.lastTransactionDate));
+                if(!day.equals(last)) { rows.add(day); last=day; }
+                rows.add(account);
             }
-
-            public void bind(TransactionDao.AccountSummary account, java.util.function.Consumer<TransactionDao.AccountSummary> listener) {
-                tvName.setText(formatter.maskPII(account.name));
-                tvUpiId.setText(formatter.maskPII(account.upiId));
-                String dateLabel = formatLastDate(account.lastTransactionDate);
-                tvLastDate.setText(dateLabel);
-                tvExpense.setText(formatter.formatAmount(account.totalExpense));
-
-                if (account.unreadCount > 0) {
-                    tvUnread.setVisibility(View.VISIBLE);
-                    tvUnread.setText(String.valueOf(account.unreadCount));
-                } else {
-                    tvUnread.setVisibility(View.GONE);
-                }
-                
-                itemView.setOnClickListener(v -> listener.accept(account));
-            }
-
-            private String formatLastDate(long timestamp) {
-                if (timestamp == 0) return "";
-                java.util.Calendar today = java.util.Calendar.getInstance();
-                java.util.Calendar target = java.util.Calendar.getInstance();
-                target.setTimeInMillis(timestamp);
-
-                if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
-                    today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
-                    return "Today";
-                }
-                
-                today.add(java.util.Calendar.DAY_OF_YEAR, -1);
-                if (today.get(java.util.Calendar.YEAR) == target.get(java.util.Calendar.YEAR) &&
-                    today.get(java.util.Calendar.DAY_OF_YEAR) == target.get(java.util.Calendar.DAY_OF_YEAR)) {
-                    return "Yesterday";
-                }
-
-                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yy", java.util.Locale.getDefault());
-                return sdf.format(new java.util.Date(timestamp));
-            }
+            notifyDataSetChanged();
         }
+        @Override public int getItemCount() { return rows.size(); }
+        @Override public int getItemViewType(int position) { return rows.get(position) instanceof String?0:1; }
+        @NonNull @Override public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent,int type) {
+            if(type==0) {
+                android.widget.TextView text=new android.widget.TextView(parent.getContext());
+                text.setPadding(24,20,24,12); text.setTextSize(14); text.setTypeface(null,android.graphics.Typeface.BOLD);
+                text.setTextColor(parent.getContext().getColor(R.color.text_secondary));
+                text.setLayoutParams(new androidx.recyclerview.widget.RecyclerView.LayoutParams(-1,-2)); return new ViewHolder(text);
+            }
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_account,parent,false));
+        }
+        @Override public void onBindViewHolder(@NonNull ViewHolder holder,int position) {
+            Object row=rows.get(position);
+            if(row instanceof String) { ((android.widget.TextView)holder.itemView).setText((String)row); return; }
+            TransactionDao.AccountSummary account=(TransactionDao.AccountSummary)row;
+            set(holder,R.id.tv_name,formatter.maskPII(account.name));
+            set(holder,R.id.tv_upi_id,formatter.maskPII(account.upiId));
+            set(holder,R.id.tv_category_count,account.categoryCount+" categories");
+            set(holder,R.id.tv_last_date,"");
+            set(holder, R.id.tv_total_credited, formatter.formatAmount(account.totalIncome));
+            set(holder, R.id.tv_total_debited, formatter.formatAmount(account.totalExpense));
+            set(holder, R.id.tv_total_transfer, formatter.formatAmount(account.totalTransfer));
+            android.widget.TextView unread=holder.itemView.findViewById(R.id.tv_unread_count);
+            unread.setVisibility(account.unreadCount>0?View.VISIBLE:View.GONE); unread.setText(String.valueOf(account.unreadCount));
+            holder.itemView.setOnClickListener(v -> listener.accept(account));
+            holder.itemView.findViewById(R.id.share_account).setOnClickListener(v -> share.accept(account));
+        }
+        private void set(ViewHolder holder,int id,String text) { ((android.widget.TextView)holder.itemView.findViewById(id)).setText(text); }
+        static class ViewHolder extends androidx.recyclerview.widget.RecyclerView.ViewHolder { ViewHolder(View view) { super(view); } }
     }
 
     @Override

@@ -17,8 +17,6 @@ import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.ui.transaction.TransactionViewModel;
 import com.google.android.material.tabs.TabLayoutMediator;
 import dagger.hilt.android.AndroidEntryPoint;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
 
 @AndroidEntryPoint
@@ -46,6 +44,7 @@ public class DashboardFragment extends Fragment {
         setupViewPager();
         setupFab();
         setupNotificationBell();
+        setupBookmarks();
         observeViewModel();
     }
 
@@ -83,8 +82,8 @@ public class DashboardFragment extends Fragment {
             switch (position) {
                 case 0: tab.setText("Daily"); break;
                 case 1: tab.setText("Calendar"); break;
-                case 2: tab.setText("Monthly"); break;
-                case 3: tab.setText("Total"); break;
+                case 2: tab.setText("Rhythm"); break;
+                case 3: tab.setText("Position"); break;
                 case 4: tab.setText(getString(R.string.tab_transaction_group)); break;
             }
         }).attach();
@@ -95,7 +94,7 @@ public class DashboardFragment extends Fragment {
                 super.onPageSelected(position);
 
                 // FAB is only relevant on the Daily tab; hide on all other tabs to prevent overlap
-                binding.fabContainer.setVisibility(position == 0 ? View.VISIBLE : View.GONE);
+                animateFab(position == 0);
                 binding.btnPrevDate.setContentDescription(getString(position == 2
                         ? R.string.previous_year : R.string.previous_month));
                 binding.btnNextDate.setContentDescription(getString(position == 2
@@ -125,30 +124,6 @@ public class DashboardFragment extends Fragment {
     private void setupFab() {
         binding.fabAddTransaction.setOnClickListener(v -> {
             Navigation.findNavController(requireView()).navigate(R.id.action_dashboardFragment_to_transactionFormFragment);
-        });
-
-        // Draggable FAB
-        binding.fabContainer.setOnTouchListener(new View.OnTouchListener() {
-            float dX, dY;
-            @Override
-            public boolean onTouch(View view, android.view.MotionEvent event) {
-                switch (event.getAction()) {
-                    case android.view.MotionEvent.ACTION_DOWN:
-                        dX = view.getX() - event.getRawX();
-                        dY = view.getY() - event.getRawY();
-                        break;
-                    case android.view.MotionEvent.ACTION_MOVE:
-                        view.animate()
-                                .x(event.getRawX() + dX)
-                                .y(event.getRawY() + dY)
-                                .setDuration(0)
-                                .start();
-                        break;
-                    default:
-                        return false;
-                }
-                return true;
-            }
         });
 
         binding.fabRevealAmounts.setOnClickListener(v -> {
@@ -184,6 +159,20 @@ public class DashboardFragment extends Fragment {
             Navigation.findNavController(requireView())
                 .navigate(R.id.action_dashboardFragment_to_suspiciousTransactionsFragment);
         });
+    }
+
+    private void setupBookmarks() {
+        binding.btnBookmarks.setOnClickListener(v ->
+                Navigation.findNavController(requireView()).navigate(R.id.bookmarksFragment));
+    }
+
+    private void animateFab(boolean show) {
+        View fab = binding.fabContainer;
+        fab.animate().cancel();
+        if (show) fab.setVisibility(View.VISIBLE);
+        fab.animate().alpha(show ? 1f : 0f).scaleX(show ? 1f : 0.8f).scaleY(show ? 1f : 0.8f)
+                .setDuration(android.animation.ValueAnimator.areAnimatorsEnabled() ? 200 : 0)
+                .withEndAction(() -> { if (!show) fab.setVisibility(View.GONE); }).start();
     }
 
     private void observeViewModel() {

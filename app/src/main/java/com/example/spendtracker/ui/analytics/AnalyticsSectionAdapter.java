@@ -34,8 +34,8 @@ public class AnalyticsSectionAdapter extends RecyclerView.Adapter<RecyclerView.V
             View v = LayoutInflater.from(parent.getContext()).inflate(android.R.layout.simple_list_item_1, parent, false);
             return new HeaderViewHolder(v);
         } else {
-            // using a simple generic layout for phase 1; you can create a custom item_analytics_card.xml later
-            View v = LayoutInflater.from(parent.getContext()).inflate(android.R.layout.simple_list_item_2, parent, false);
+            // Reusable card shared by insights and transaction drill-down.
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_analytics_card, parent, false);
             return new CardViewHolder(v);
         }
     }
@@ -99,7 +99,9 @@ public class AnalyticsSectionAdapter extends RecyclerView.Adapter<RecyclerView.V
         void bind(HeaderItem item) {
             tvTitle.setText(item.title);
             tvTitle.setTextAppearance(itemView.getContext(), androidx.appcompat.R.style.TextAppearance_AppCompat_Widget_ActionBar_Title);
-            tvTitle.setPadding(0, 32, 0, 16);
+            float unit = itemView.getResources().getDisplayMetrics().density;
+            tvTitle.setPadding(0, Math.round(24 * unit), 0, Math.round(12 * unit));
+            tvTitle.setTextColor(itemView.getContext().getColor(R.color.dashboard_text_primary));
         }
     }
 
@@ -114,9 +116,11 @@ public class AnalyticsSectionAdapter extends RecyclerView.Adapter<RecyclerView.V
         void bind(CardItem item) {
             tvTitle.setText(item.title);
             tvValue.setText(item.value);
-            tvValue.setTextColor(itemView.getContext().getResources().getColor(android.R.color.darker_gray));
+            tvValue.setTextColor(itemView.getContext().getResources().getColor(com.example.spendtracker.R.color.dashboard_text_secondary));
             itemView.setOnClickListener(item.action == null ? null : view -> item.action.run());
             itemView.setClickable(item.action != null);
+            itemView.setFocusable(item.action != null);
+            itemView.findViewById(R.id.insight_chevron).setVisibility(item.action == null ? View.GONE : View.VISIBLE);
         }
     }
 }

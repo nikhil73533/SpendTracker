@@ -74,8 +74,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:alignmentMode="alignMargins"
-            android:columnCount="3"
-            android:rowCount="4">
+            android:columnCount="3">
 
             <!-- Item 1: Trash Bin -->
             <LinearLayout
@@ -88,7 +87,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_trash"
-                    android:src="@android:drawable/ic_menu_delete" />
+                    android:src="@drawable/ic_symbol_delete" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -106,7 +105,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_ledger"
-                    android:src="@android:drawable/ic_menu_agenda" />
+                    android:src="@drawable/ic_symbol_ledger" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -126,11 +125,24 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_calcbox"
-                    android:src="@android:drawable/ic_menu_view" />
+                    android:src="@drawable/ic_symbol_calculator" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/label_calcbox" />
+            </LinearLayout>
+
+            <!-- Item 4: Premium -->
+            <LinearLayout
+                android:id="@+id/card_premium"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Premium"
+                    android:src="@drawable/ic_symbol_premium" />
+                <TextView style="@style/SettingsWidgetLabelStyle" android:text="Premium" />
             </LinearLayout>
 
             <!-- Item 5: Advanced Analytics -->
@@ -144,7 +156,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_advanced_analytics"
-                    android:src="@android:drawable/ic_menu_sort_by_size" />
+                    android:src="@drawable/ic_symbol_bar_chart" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -162,7 +174,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_backup"
-                    android:src="@android:drawable/ic_menu_save" />
+                    android:src="@drawable/ic_symbol_backup" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -180,7 +192,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_feedback"
-                    android:src="@android:drawable/ic_menu_send" />
+                    android:src="@drawable/ic_symbol_feedback" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -198,7 +210,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_help"
-                    android:src="@android:drawable/ic_menu_help" />
+                    android:src="@drawable/ic_symbol_help" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -216,7 +228,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/label_recommend"
-                    android:src="@android:drawable/ic_menu_share" />
+                    android:src="@drawable/ic_symbol_share" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -234,8 +246,8 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="Bill Alerts"
-                    android:src="@android:drawable/ic_popup_reminder"
-                    app:tint="#FF9800" />
+                    android:src="@drawable/ic_symbol_bill"
+                    app:tint="@color/brand_secondary" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -255,7 +267,7 @@
                 <ImageView
                     style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="Bulk Ingestion"
-                    android:src="@android:drawable/ic_menu_upload" />
+                    android:src="@drawable/ic_symbol_import" />
 
                 <TextView
                     style="@style/SettingsWidgetLabelStyle"
@@ -270,7 +282,7 @@
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/more_privacy_offline"
-                    android:src="@android:drawable/ic_lock_lock" />
+                    android:src="@drawable/ic_symbol_privacy" />
                 <TextView style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/more_privacy_offline" />
             </LinearLayout>
@@ -283,7 +295,7 @@
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/report_problem"
-                    android:src="@android:drawable/ic_dialog_alert" />
+                    android:src="@drawable/ic_symbol_problem" />
                 <TextView style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/report_problem" />
             </LinearLayout>
@@ -296,7 +308,7 @@
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/suggest_feature"
-                    android:src="@android:drawable/ic_input_add" />
+                    android:src="@drawable/ic_symbol_suggest" />
                 <TextView style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/suggest_feature" />
             </LinearLayout>
@@ -309,7 +321,7 @@
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/help_online"
-                    android:src="@android:drawable/ic_menu_view" />
+                    android:src="@drawable/ic_symbol_online_help" />
                 <TextView style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/help_online" />
             </LinearLayout>
@@ -322,22 +334,9 @@
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
                     android:contentDescription="@string/rate_spendtracker"
-                    android:src="@android:drawable/btn_star_big_on" />
+                    android:src="@drawable/ic_symbol_rating" />
                 <TextView style="@style/SettingsWidgetLabelStyle"
                     android:text="@string/rate_spendtracker" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/card_premium"
-                style="@style/SettingsWidgetItemStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_columnWeight="1">
-                <ImageView style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="@string/title_premium"
-                    android:src="@android:drawable/btn_star_big_on" />
-                <TextView style="@style/SettingsWidgetLabelStyle"
-                    android:text="@string/title_premium" />
             </LinearLayout>
 
         </GridLayout>

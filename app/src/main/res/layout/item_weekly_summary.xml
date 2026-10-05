@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:theme="@style/ThemeOverlay.SpendTracker.Dashboard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingHorizontal="16dp"
     android:paddingVertical="12dp"
     android:gravity="center_vertical"
-    android:background="#1A1A1A">
+    android:background="@color/dashboard_dark_surface_variant">
 
     <TextView
         android:id="@+id/tv_week_range"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textColor="@color/text_secondary"
+        android:textColor="@color/dashboard_text_secondary"
         android:textSize="14sp"
         tools:text="26.07 ~ 01.08" />
 
@@ -23,7 +24,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="24dp"
-        android:textColor="@color/income_blue"
+        android:textColor="@color/dashboard_income_blue"
         android:textSize="14sp"
         tools:text="₹ 0.00" />
 
@@ -37,7 +38,7 @@
             android:id="@+id/tv_week_expense"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/expense_red"
+            android:textColor="@color/dashboard_expense_red"
             android:textSize="14sp"
             tools:text="₹ 8,087.00" />
 
@@ -45,7 +46,7 @@
             android:id="@+id/tv_week_total"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/dashboard_text_secondary"
             android:textSize="10sp"
             tools:text="-₹ 8,087.00" />
     </LinearLayout>

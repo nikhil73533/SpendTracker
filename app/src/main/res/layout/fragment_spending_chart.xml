@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:theme="@style/ThemeOverlay.SpendTracker.Dashboard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/dashboard_dark_surface"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_symbol_trend"
+                android:importantForAccessibility="no"
+                app:tint="@color/dashboard_brand_primary" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/spending_chart_title"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-medium" />
+            <ImageButton
+                android:id="@+id/btn_close_spending_chart"
+                        android:padding="8dp" android:scaleType="fitCenter"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_symbol_close"
+                android:contentDescription="@string/close_spending_chart"
+                app:tint="@color/dashboard_text_primary" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/spending_chart_selection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/spending_chart_subtitle"
+            android:textColor="@color/dashboard_text_secondary"
+            android:textSize="14sp" />
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/spending_chart"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:layout_marginTop="12dp" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

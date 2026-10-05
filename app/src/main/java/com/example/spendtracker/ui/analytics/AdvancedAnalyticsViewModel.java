@@ -37,10 +37,16 @@ import androidx.lifecycle.MediatorLiveData;
 public class AdvancedAnalyticsViewModel extends ViewModel {
 
     private final AnalyticsRepository analyticsRepository;
+    private final LiveData<com.example.spendtracker.domain.model.PredictionInsights> predictionInsights;
+
+    public LiveData<com.example.spendtracker.domain.model.PredictionInsights> getPredictionInsights() { return predictionInsights; }
 
     // Date range filter – defaults to today (midnight to now)
-    private final MutableLiveData<Long> startDate = new MutableLiveData<>();
-    private final MutableLiveData<Long> endDate = new MutableLiveData<>();
+    private static final class DateRange {
+        final long start, end;
+        DateRange(long start, long end) { this.start = start; this.end = end; }
+    }
+    private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
     private final MutableLiveData<AnalyticsGranularity> granularity = new MutableLiveData<>();
 
     // LiveData streams derived from the date range
@@ -70,7 +76,8 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     private final LiveData<List<FinancialInsight>> financialInsights;
     private final LiveData<ForecastResult> spendingForecast;
     @Inject
-    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository) {
+    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository, com.example.spendtracker.domain.repository.TransactionRepository transactions) {
+        predictionInsights = Transformations.map(transactions.getTransactions(), com.example.spendtracker.domain.model.PredictionInsights::from);
         this.analyticsRepository = analyticsRepository;
         // Initialise default date range – start of the current month to now.
         Calendar cal = Calendar.getInstance();
@@ -81,39 +88,38 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
         cal.set(Calendar.MILLISECOND, 0);
         long monthStart = cal.getTimeInMillis();
         long now = System.currentTimeMillis();
-        startDate.setValue(monthStart);
-        endDate.setValue(now);
+        dateRange.setValue(new DateRange(monthStart, now));
         granularity.setValue(AnalyticsGranularity.MONTH);
 
         // -----------------------------------------------------------
         // Reactive streams – recompute whenever start or end changes
         // -----------------------------------------------------------
-        financialOverview = combineDates((s, e) -> analyticsRepository.getFinancialOverview(s, e));
-        monthlyExpenseTrend = combineDates((s, e) -> analyticsRepository.getMonthlyTrend(s, e, "EXPENSE"));
+        financialOverview = combineDates((s, e) -> analyticsRepository.getFinancialOverview(s, e - 1));
+        monthlyExpenseTrend = combineDates((s, e) -> analyticsRepository.getMonthlyTrend(s, e - 1, "EXPENSE"));
         transactionFrequency = combineDatesAndGranularity((s, e, g) -> analyticsRepository.getTransactionFrequency(s, e, g));
         expenseCategoryAnalytics = combineDates((s, e) -> analyticsRepository.getExpenseCategoryAnalytics(s, e));
-        topTransactions = combineDates((s, e) -> analyticsRepository.getTopTransactions(s, e, 5));
+        topTransactions = combineDates((s, e) -> analyticsRepository.getTopTransactions(s, e - 1, 5));
         
-        transactionVolume = combineDates((s, e) -> analyticsRepository.getTransactionVolume(s, e, "Current Period"));
-        incomeExpenseTrend = combineDates((s, e) -> analyticsRepository.getIncomeExpenseTrend(s, e));
-        dayNightAnalytics = combineDates((s, e) -> analyticsRepository.getDayNightAnalytics(s, e));
-        timeOfDayAnalytics = combineDates((s, e) -> analyticsRepository.getTimeOfDayAnalytics(s, e));
-        dayOfWeekAnalytics = combineDates((s, e) -> analyticsRepository.getDayOfWeekAnalytics(s, e));
-        weekdayWeekendAnalytics = combineDates((s, e) -> analyticsRepository.getWeekdayWeekendAnalytics(s, e));
-        spendingVelocity = combineDates((s, e) -> analyticsRepository.getSpendingVelocity(s, e));
-        monthOverMonthComparison = combineDates((s, e) -> analyticsRepository.getMonthOverMonthComparison(s, e));
+        transactionVolume = combineDates((s, e) -> analyticsRepository.getTransactionVolume(s, e - 1, "Current Period"));
+        incomeExpenseTrend = combineDates((s, e) -> analyticsRepository.getIncomeExpenseTrend(s, e - 1));
+        dayNightAnalytics = combineDates((s, e) -> analyticsRepository.getDayNightAnalytics(s, e - 1));
+        timeOfDayAnalytics = combineDates((s, e) -> analyticsRepository.getTimeOfDayAnalytics(s, e - 1));
+        dayOfWeekAnalytics = combineDates((s, e) -> analyticsRepository.getDayOfWeekAnalytics(s, e - 1));
+        weekdayWeekendAnalytics = combineDates((s, e) -> analyticsRepository.getWeekdayWeekendAnalytics(s, e - 1));
+        spendingVelocity = combineDates((s, e) -> analyticsRepository.getSpendingVelocity(s, e - 1));
+        monthOverMonthComparison = combineDates((s, e) -> analyticsRepository.getMonthOverMonthComparison(s, e - 1));
         
-        merchantAnalytics = combineDates((s, e) -> analyticsRepository.getMerchantAnalytics(s, e));
+        merchantAnalytics = combineDates((s, e) -> analyticsRepository.getMerchantAnalytics(s, e - 1));
         recurringMerchants = combineDates((s, e) -> analyticsRepository.getRecurringMerchants());
-        categoryGrowth = combineDates((s, e) -> analyticsRepository.getCategoryGrowth(s, e));
-        spendingConcentration = combineDates((s, e) -> analyticsRepository.getSpendingConcentration(s, e));
-        largeTransactionAnalysis = combineDates((s, e) -> analyticsRepository.getLargeTransactionAnalysis(s, e, 5000.0));
-        unusualTransactions = combineDates((s, e) -> analyticsRepository.getUnusualTransactions(s, e));
+        categoryGrowth = combineDates((s, e) -> analyticsRepository.getCategoryGrowth(s, e - 1));
+        spendingConcentration = combineDates((s, e) -> analyticsRepository.getSpendingConcentration(s, e - 1));
+        largeTransactionAnalysis = combineDates((s, e) -> analyticsRepository.getLargeTransactionAnalysis(s, e - 1, 5000.0));
+        unusualTransactions = combineDates((s, e) -> analyticsRepository.getUnusualTransactions(s, e - 1));
 
-        financialInsights = combineDates((s, e) -> analyticsRepository.generateInsights(s, e));
-        spendingForecast = combineDates((s, e) -> analyticsRepository.getSpendingForecast(s, e));
+        financialInsights = combineDates((s, e) -> analyticsRepository.generateInsights(s, e - 1));
+        spendingForecast = combineDates((s, e) -> analyticsRepository.getSpendingForecast(s, e - 1));
         // Rolling average only depends on the end date (or current date) - using a simple map for now
-        rollingExpenseAverage = Transformations.switchMap(endDate, e -> analyticsRepository.getRollingExpenseAverage(3));
+        rollingExpenseAverage = Transformations.switchMap(dateRange, e -> analyticsRepository.getRollingExpenseAverage(3));
     }
 
     /** Helper functional interface for repository calls that need a start/end range. */
@@ -129,51 +135,12 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
      * Combines startDate and endDate LiveData into a single LiveData stream using MediatorLiveData.
      */
     private <T> LiveData<T> combineDates(DateRangeRepo<T> repoCall) {
-        MediatorLiveData<T> result = new MediatorLiveData<>();
-        
-        // This inner LiveData holds the actual stream returned by the repository
-        final MutableLiveData<LiveData<T>> currentSource = new MutableLiveData<>();
-        
-        Runnable updateSource = () -> {
-            Long s = startDate.getValue();
-            Long e = endDate.getValue();
-            if (s != null && e != null) {
-                LiveData<T> oldSource = currentSource.getValue();
-                if (oldSource != null) {
-                    result.removeSource(oldSource);
-                }
-                
-                LiveData<T> newSource = repoCall.call(s, e);
-                currentSource.setValue(newSource);
-                
-                result.addSource(newSource, result::setValue);
-            }
-        };
-
-        result.addSource(startDate, val -> updateSource.run());
-        result.addSource(endDate, val -> updateSource.run());
-        
-        return result;
+        return Transformations.switchMap(dateRange, range -> repoCall.call(range.start, range.end));
     }
 
     private <T> LiveData<T> combineDatesAndGranularity(GranularDateRangeRepo<T> repoCall) {
-        MediatorLiveData<T> result = new MediatorLiveData<>();
-        final MutableLiveData<LiveData<T>> currentSource = new MutableLiveData<>();
-        Runnable updateSource = () -> {
-            Long start = startDate.getValue();
-            Long end = endDate.getValue();
-            AnalyticsGranularity selected = granularity.getValue();
-            if (start == null || end == null || selected == null) return;
-            LiveData<T> oldSource = currentSource.getValue();
-            if (oldSource != null) result.removeSource(oldSource);
-            LiveData<T> newSource = repoCall.call(start, end, selected);
-            currentSource.setValue(newSource);
-            result.addSource(newSource, result::setValue);
-        };
-        result.addSource(startDate, ignored -> updateSource.run());
-        result.addSource(endDate, ignored -> updateSource.run());
-        result.addSource(granularity, ignored -> updateSource.run());
-        return result;
+        return Transformations.switchMap(dateRange, range -> Transformations.switchMap(granularity,
+                value -> repoCall.call(range.start, range.end, value)));
     }
 
     // ---------------------------------------------------
@@ -207,8 +174,15 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     // ---------------------------------------------------
     // Date range setters (called by UI when user selects a new period)
     // ---------------------------------------------------
-    public void setStartDate(long epochMillis) { startDate.setValue(epochMillis); }
-    public void setEndDate(long epochMillis) { endDate.setValue(epochMillis); }
+    public long getStartDate() { return dateRange.getValue().start; }
+    public long getEndDate() { return dateRange.getValue().end; }
+    public void setDateRange(long start, long end) {
+        if (end <= start) return;
+        DateRange current = dateRange.getValue();
+        if (current.start != start || current.end != end) dateRange.setValue(new DateRange(start, end));
+    }
+    public void setStartDate(long value) { setDateRange(value, getEndDate()); }
+    public void setEndDate(long value) { setDateRange(getStartDate(), value); }
     public void setGranularity(AnalyticsGranularity value) { granularity.setValue(value); }
 }
   

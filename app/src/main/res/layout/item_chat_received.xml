@@ -11,7 +11,9 @@
     <com.google.android.material.card.MaterialCardView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/income_blue"
+        app:cardBackgroundColor="@color/dark_surface_variant"
+        app:strokeColor="@color/income_blue"
+        app:strokeWidth="1dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="2dp">
 
@@ -56,7 +58,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:textColor="@color/white"
-                android:alpha="0.6"
+                android:alpha="0.85"
                 android:textSize="10sp"
                 tools:text="2:15 PM" />
         </LinearLayout>

@@ -15,7 +15,7 @@ public final class CounterpartyExtractor {
     private static final Pattern ROUTING = Pattern.compile("(?i)(?:[A-Z]{4}0[A-Z0-9]{6}|[A-Z]{2,8}\\d{5,})");
     private static final Pattern BANK = Pattern.compile(
             "(?i)(?:(?:STATE BANK OF INDIA|STATE BANK OF|AXIS|ICICI|HDFC|YES|SBI|CNRB|YESB|UTIB|"
-            + "KOTAK|BANK OF INDIA|ANDHRA|UNION|CANARA)(?:\\s+BANK)?(?:\\s+LTD\\.?)?)");
+            + "HDFCH|ICIC|KOTAK|BANK OF INDIA|ANDHRA|UNION|CANARA)(?:\\s+BANK)?(?:\\s+LTD\\.?)?)");
 
     public static final class Result {
         public final String name;
@@ -45,6 +45,8 @@ public final class CounterpartyExtractor {
             chunks.appendTail(normalized);
             text = normalized.toString();
         }
+        // A balance may immediately follow the last narration token (e.g. CEL EBA.AVAILABLE).
+        text = text.replaceFirst("(?i)\\b(?:available|avl\\.?)\\s+bal(?:ance)?\\b.*$", "").replaceAll("[.\\s]+$", "");
         Matcher channel = CHANNEL.matcher(text);
         if (channel.find()) {
             // Statements often print a display name above the machine narration. Keep that

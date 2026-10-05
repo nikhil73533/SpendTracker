@@ -13,6 +13,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <ImageButton android:id="@+id/bookmark_transaction" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="end" android:padding="12dp" android:src="@drawable/ic_symbol_bookmark" android:contentDescription="Bookmark transaction" android:background="?attr/selectableItemBackgroundBorderless" android:visibility="gone" app:tint="@color/text_secondary"/>
         <!-- Top level selector -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/toggle_type"

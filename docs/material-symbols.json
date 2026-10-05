@@ -1,0 +1,299 @@
+{
+  "fetched": "2026-09-25",
+  "repository": "google/material-design-icons",
+  "revision": "bd8cb85bd4bad964fe6918f79665bb40c3a8efef",
+  "style": "Rounded 24px 400",
+  "license": "Apache-2.0",
+  "icons": [
+    {
+      "resource": "ic_symbol_activity",
+      "symbol": "receipt_long",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/receipt_long/materialsymbolsrounded/receipt_long_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_bar_chart",
+      "symbol": "bar_chart",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/bar_chart/materialsymbolsrounded/bar_chart_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_calendar",
+      "symbol": "calendar_month",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/calendar_month/materialsymbolsrounded/calendar_month_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_close",
+      "symbol": "close",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/close/materialsymbolsrounded/close_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_download",
+      "symbol": "download",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/download/materialsymbolsrounded/download_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_expense",
+      "symbol": "north_east",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/north_east/materialsymbolsrounded/north_east_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_income",
+      "symbol": "south_west",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/south_west/materialsymbolsrounded/south_west_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_share",
+      "symbol": "share",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/share/materialsymbolsrounded/share_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_table",
+      "symbol": "table_view",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/table_view/materialsymbolsrounded/table_view_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_transfer",
+      "symbol": "swap_horiz",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/swap_horiz/materialsymbolsrounded/swap_horiz_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_wallet",
+      "symbol": "account_balance_wallet",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/account_balance_wallet/materialsymbolsrounded/account_balance_wallet_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_trend",
+      "symbol": "monitoring",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/monitoring/materialsymbolsrounded/monitoring_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_previous",
+      "symbol": "chevron_left",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/chevron_left/materialsymbolsrounded/chevron_left_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_next",
+      "symbol": "chevron_right",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/chevron_right/materialsymbolsrounded/chevron_right_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_search",
+      "symbol": "search",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/search/materialsymbolsrounded/search_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_notifications",
+      "symbol": "notifications",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/notifications/materialsymbolsrounded/notifications_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_add",
+      "symbol": "add",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/add/materialsymbolsrounded/add_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_balance",
+      "symbol": "savings",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/savings/materialsymbolsrounded/savings_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_accounts",
+      "symbol": "account_balance",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/account_balance/materialsymbolsrounded/account_balance_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_cashflow",
+      "symbol": "currency_exchange",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/currency_exchange/materialsymbolsrounded/currency_exchange_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_expand",
+      "symbol": "expand_more",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/expand_more/materialsymbolsrounded/expand_more_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_collapse",
+      "symbol": "expand_less",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/expand_less/materialsymbolsrounded/expand_less_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_empty",
+      "symbol": "inbox",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/inbox/materialsymbolsrounded/inbox_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_delete",
+      "symbol": "delete",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/delete/materialsymbolsrounded/delete_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_more",
+      "symbol": "more_horiz",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/more_horiz/materialsymbolsrounded/more_horiz_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_dashboard",
+      "symbol": "space_dashboard",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/space_dashboard/materialsymbolsrounded/space_dashboard_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_food",
+      "symbol": "restaurant",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/restaurant/materialsymbolsrounded/restaurant_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_transport",
+      "symbol": "directions_bus",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/directions_bus/materialsymbolsrounded/directions_bus_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_gift",
+      "symbol": "redeem",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/redeem/materialsymbolsrounded/redeem_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_health",
+      "symbol": "health_and_safety",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/health_and_safety/materialsymbolsrounded/health_and_safety_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_shopping",
+      "symbol": "shopping_bag",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/shopping_bag/materialsymbolsrounded/shopping_bag_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_home",
+      "symbol": "home",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/home/materialsymbolsrounded/home_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_utilities",
+      "symbol": "bolt",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/bolt/materialsymbolsrounded/bolt_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_education",
+      "symbol": "school",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/school/materialsymbolsrounded/school_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_entertainment",
+      "symbol": "movie",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/movie/materialsymbolsrounded/movie_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_salary",
+      "symbol": "work",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/work/materialsymbolsrounded/work_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_investment",
+      "symbol": "finance_mode",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/finance_mode/materialsymbolsrounded/finance_mode_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_category",
+      "symbol": "category",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/category/materialsymbolsrounded/category_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_travel",
+      "symbol": "flight",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/flight/materialsymbolsrounded/flight_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_insurance",
+      "symbol": "shield",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/shield/materialsymbolsrounded/shield_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_bill",
+      "symbol": "receipt",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/receipt/materialsymbolsrounded/receipt_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_groceries",
+      "symbol": "grocery",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/grocery/materialsymbolsrounded/grocery_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_phone",
+      "symbol": "smartphone",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/smartphone/materialsymbolsrounded/smartphone_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_allowance",
+      "symbol": "payments",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/payments/materialsymbolsrounded/payments_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_bonus",
+      "symbol": "workspace_premium",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/workspace_premium/materialsymbolsrounded/workspace_premium_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_visibility",
+      "symbol": "visibility_off",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/visibility_off/materialsymbolsrounded/visibility_off_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_ledger",
+      "symbol": "menu_book",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/menu_book/materialsymbolsrounded/menu_book_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_calculator",
+      "symbol": "calculate",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/calculate/materialsymbolsrounded/calculate_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_backup",
+      "symbol": "backup",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/backup/materialsymbolsrounded/backup_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_feedback",
+      "symbol": "chat",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/chat/materialsymbolsrounded/chat_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_help",
+      "symbol": "help",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/help/materialsymbolsrounded/help_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_import",
+      "symbol": "upload_file",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/upload_file/materialsymbolsrounded/upload_file_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_privacy",
+      "symbol": "shield_lock",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/shield_lock/materialsymbolsrounded/shield_lock_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_problem",
+      "symbol": "bug_report",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/bug_report/materialsymbolsrounded/bug_report_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_suggest",
+      "symbol": "lightbulb",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/lightbulb/materialsymbolsrounded/lightbulb_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_online_help",
+      "symbol": "language",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/language/materialsymbolsrounded/language_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_rating",
+      "symbol": "star",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/star/materialsymbolsrounded/star_24px.xml"
+    },
+    {
+      "resource": "ic_symbol_premium",
+      "symbol": "workspace_premium",
+      "url": "https://raw.githubusercontent.com/google/material-design-icons/bd8cb85bd4bad964fe6918f79665bb40c3a8efef/symbols/android/workspace_premium/materialsymbolsrounded/workspace_premium_24px.xml"
+    }
+  ]
+}

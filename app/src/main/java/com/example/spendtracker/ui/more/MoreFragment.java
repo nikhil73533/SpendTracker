@@ -45,11 +45,28 @@ public class MoreFragment extends Fragment {
         binding.cardConfiguration.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_trashFragment));
 
         binding.cardCalcbox.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_calculatorFragment));
-        binding.cardBackup.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_backupFragment));
-        binding.cardFeedback.setOnClickListener(v -> openFeedback(FeedbackManager.Type.FEEDBACK));
-        binding.cardHelp.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_helpFragment));
+        binding.cardBackup.setOnClickListener(v -> requireFeature(
+                com.example.spendtracker.billing.PremiumFeature.BACKUP,
+                () -> safeNavigate(view, R.id.action_moreFragment_to_backupFragment)));
+        binding.cardFeedback.setOnClickListener(v -> new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Feedback")
+                .setItems(new String[]{"Send feedback", "Report a problem", "Suggest a feature", "Rate the app"}, (dialog, which) -> {
+                    if (which == 3) binding.cardRate.performClick();
+                    else openFeedback(which == 0 ? FeedbackManager.Type.FEEDBACK : which == 1 ? FeedbackManager.Type.PROBLEM : FeedbackManager.Type.FEATURE);
+                }).show());
+        binding.cardReportProblem.setVisibility(View.GONE);
+        binding.cardSuggestFeature.setVisibility(View.GONE);
+        binding.cardOnlineHelp.setVisibility(View.GONE);
+        binding.cardRate.setVisibility(View.GONE);
+        binding.cardHelp.setOnClickListener(v -> new android.app.AlertDialog.Builder(requireContext())
+                .setTitle("Help").setItems(new String[]{"Help and FAQs", "Online help"}, (dialog, which) -> {
+                    if (which == 0) safeNavigate(view, R.id.action_moreFragment_to_helpFragment);
+                    else openOnlineHelp();
+                }).show());
         binding.cardRecommend.setOnClickListener(v -> shareApp());
-        binding.cardBillAlerts.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_billAlertsFragment));
+        binding.cardBillAlerts.setOnClickListener(v -> requireFeature(
+                com.example.spendtracker.billing.PremiumFeature.BILL_DETECTION,
+                () -> safeNavigate(view, R.id.action_moreFragment_to_billAlertsFragment)));
 
         binding.cardBulkIngestion.setOnClickListener(v -> requireFeature(
                 com.example.spendtracker.billing.PremiumFeature.PDF_IMPORT,

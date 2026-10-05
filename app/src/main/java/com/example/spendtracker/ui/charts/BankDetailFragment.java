@@ -42,7 +42,8 @@ public class BankDetailFragment extends Fragment {
     private FragmentCategoryDetailBinding binding; // Reusing category detail layout
     private DashboardViewModel dashboardViewModel;
     private TransactionViewModel transactionViewModel;
-    private String bankName;
+    private String bankName = "Unknown";
+    private List<Transaction> current = new ArrayList<>(), history = new ArrayList<>();
     private GroupedTransactionAdapter adapter;
     private List<String> incomeCategories = new ArrayList<>();
     private List<String> expenseCategories = new ArrayList<>();
@@ -72,6 +73,9 @@ public class BankDetailFragment extends Fragment {
         binding.btnPrevDate.setOnClickListener(v -> dashboardViewModel.movePrev());
         binding.btnNextDate.setOnClickListener(v -> dashboardViewModel.moveNext());
 
+        binding.getRoot().findViewById(R.id.flow_summary).setVisibility(View.VISIBLE);
+        binding.tvCategoryTotal.setVisibility(View.GONE);
+        binding.categoryTotalLabel.setVisibility(View.GONE);
         setupRecyclerView();
         observeData();
     }
@@ -117,13 +121,14 @@ public class BankDetailFragment extends Fragment {
             List<Transaction> filtered = new ArrayList<>();
             double total = 0;
             for (Transaction t : transactions) {
-                if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) {
+                if (matchesBank(t)) {
                     filtered.add(t);
                     total += t.getAmount();
                 }
             }
 
-            binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
+            current = filtered;
+            FlowSummary.render(binding.getRoot(), current, dashboardViewModel::formatAmount);
             updateList(filtered);
         });
 
@@ -132,21 +137,16 @@ public class BankDetailFragment extends Fragment {
             if (allTransactions == null) return;
             List<Transaction> bankTxns = new ArrayList<>();
             for (Transaction t : allTransactions) {
-                if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) bankTxns.add(t);
+                if (matchesBank(t)) bankTxns.add(t);
             }
+            history = bankTxns;
             updateTrend(bankTxns);
         });
 
         dashboardViewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
             adapter.notifyDataSetChanged();
-            List<Transaction> transactions = dashboardViewModel.getTransactions().getValue();
-            if (transactions != null) {
-                double total = 0;
-                for (Transaction t : transactions) {
-                    if (bankName.equalsIgnoreCase(t.getBankName()) && !isTransferTransaction(t)) total += t.getAmount();
-                }
-                binding.tvCategoryTotal.setText(dashboardViewModel.formatAmount(total));
-            }
+            FlowSummary.render(binding.getRoot(), current, dashboardViewModel::formatAmount);
+            updateTrend(history);
         });
 
         dashboardViewModel.getDateRange().observe(getViewLifecycleOwner(), range -> {
@@ -181,54 +181,13 @@ public class BankDetailFragment extends Fragment {
     }
 
     private void updateTrend(List<Transaction> transactions) {
-        if (transactions == null || transactions.isEmpty()) {
-            binding.categoryLineChart.clear();
-            binding.categoryLineChart.invalidate();
-            return;
-        }
-
-        Map<Long, Double> monthMap = new TreeMap<>();
-        SimpleDateFormat sdf = new SimpleDateFormat("MMM", Locale.getDefault());
-
-        for (Transaction t : transactions) {
-            long mStart = getStartOfMonth(t.getDate());
-            monthMap.put(mStart, monthMap.getOrDefault(mStart, 0.0) + t.getAmount());
-        }
-
-        List<Entry> entries = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-
-        int i = 0;
-        for (Map.Entry<Long, Double> entry : monthMap.entrySet()) {
-            labels.add(sdf.format(new Date(entry.getKey())));
-            entries.add(new Entry(i++, entry.getValue().floatValue()));
-        }
-
-        LineDataSet dataSet = new LineDataSet(entries, "Monthly Transactions");
-        dataSet.setColor(Color.parseColor("#4CAF50"));
-        dataSet.setCircleColor(Color.WHITE);
-        dataSet.setLineWidth(3f);
-        dataSet.setDrawValues(true);
-        dataSet.setValueTextColor(Color.WHITE);
-        dataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
-
-        LineData data = new LineData(dataSet);
-        binding.categoryLineChart.setData(data);
-        binding.categoryLineChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labels));
-        binding.categoryLineChart.getXAxis().setTextColor(Color.WHITE);
-        binding.categoryLineChart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
-        binding.categoryLineChart.getAxisLeft().setTextColor(Color.WHITE);
-        binding.categoryLineChart.getAxisRight().setEnabled(false);
-        binding.categoryLineChart.getDescription().setEnabled(false);
-        binding.categoryLineChart.animateX(600);
-        binding.categoryLineChart.invalidate();
+        TransactionFlowChart.render(binding.categoryLineChart, transactions, "MONTHLY",
+                Boolean.TRUE.equals(dashboardViewModel.isPrivacyModeEnabled().getValue()));
     }
 
-    private boolean isTransferTransaction(Transaction t) {
-        if (t == null) return false;
-        if ("TRANSFER".equalsIgnoreCase(t.getType())) return true;
-        if (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer")) return true;
-        return false;
+    private boolean matchesBank(Transaction t) {
+        String name = t.getBankName();
+        return bankName.equalsIgnoreCase(name == null || name.isEmpty() ? "Unknown" : name);
     }
 
     private long getStartOfDay(long ts) {

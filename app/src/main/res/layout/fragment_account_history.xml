@@ -36,6 +36,7 @@
                     android:textSize="20sp"
                     android:textStyle="bold"
                     tools:text="ABC" />
+                <ImageButton android:id="@+id/share_account" android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_symbol_share" android:contentDescription="Share account transactions" app:tint="@color/white"/>
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
 
@@ -72,27 +73,15 @@
                     app:iconTint="@color/white" />
             </RelativeLayout>
 
+            <TextView android:id="@+id/tv_merchant_categories" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:textColor="@color/text_secondary" android:paddingVertical="4dp" />
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/trend_chart"
                 android:layout_width="match_parent"
                 android:layout_height="150dp"
                 android:layout_marginTop="8dp" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+            <include layout="@layout/view_flow_summary"/>
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Total Expense" android:textColor="@color/text_secondary" android:textSize="12sp"/>
-                    <TextView android:id="@+id/tv_total_expense" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="@color/expense_red" android:textSize="18sp" android:textStyle="bold" tools:text="₹ 0.00"/>
-                </LinearLayout>
-            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.appbar.AppBarLayout>
 

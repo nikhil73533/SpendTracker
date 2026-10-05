@@ -9,13 +9,16 @@ import javax.inject.Singleton;
 /** Central feature entitlement API consumed by UI gates, not individual premium booleans. */
 @Singleton
 public class PremiumRepository implements BillingManager.Listener {
+    private final com.example.spendtracker.billing.autopay.AutoPayManager autoPay;
     private final EntitlementCache cache;
     private final BillingManager billingManager;
     private final MutableLiveData<PremiumState> premiumState;
     private final MutableLiveData<PurchaseEvent> purchaseEvent = new MutableLiveData<>(PurchaseEvent.NONE);
 
     @Inject
-    public PremiumRepository(EntitlementCache cache, BillingManager billingManager) {
+    public PremiumRepository(EntitlementCache cache, BillingManager billingManager,
+                             com.example.spendtracker.billing.autopay.AutoPayManager autoPay) {
+        this.autoPay = autoPay;
         this.cache = cache;
         this.billingManager = billingManager;
         PremiumState initial = cache.read();
@@ -27,22 +30,27 @@ public class PremiumRepository implements BillingManager.Listener {
         billingManager.setListener(this);
     }
 
-    public LiveData<PremiumState> getPremiumState() { return premiumState; }
-    public LiveData<BillingManager.State> getBillingState() { return billingManager.getState(); }
-    public LiveData<List<PremiumPlan>> getPlans() { return billingManager.getPlans(); }
-    public LiveData<PurchaseEvent> getPurchaseEvent() { return purchaseEvent; }
+    public LiveData<PremiumState> getPremiumState() { return useAutoPay() ? autoPay.premium() : premiumState; }
+    public LiveData<BillingManager.State> getBillingState() { return useAutoPay() ? autoPay.state() : billingManager.getState(); }
+    public LiveData<List<PremiumPlan>> getPlans() { return useAutoPay() ? autoPay.plans() : billingManager.getPlans(); }
+    public LiveData<PurchaseEvent> getPurchaseEvent() { return useAutoPay() ? autoPay.events() : purchaseEvent; }
 
     public boolean hasAccess(PremiumFeature feature) {
+        if (useAutoPay()) return autoPay.hasAccess();
         PremiumState current = premiumState.getValue();
         return current != null && current.hasPremiumAccess(System.currentTimeMillis());
     }
 
     /** Before the owner configures Play products, preserve all existing local functionality. */
-    public boolean isStoreConfigured() { return billingManager.isStoreConfigured(); }
+    public boolean isStoreConfigured() { return useAutoPay() || billingManager.isStoreConfigured(); }
 
-    public void refreshEntitlement() { billingManager.connect(); }
-    public void restorePurchases() { billingManager.refreshPurchases(); }
-    public void purchase(android.app.Activity activity, PremiumPlan plan) { billingManager.launchPurchase(activity, plan); }
+    private boolean useAutoPay() { return com.example.spendtracker.BuildConfig.AUTOPAY_ENABLED; }
+    public void refreshEntitlement() { if (useAutoPay()) autoPay.refresh(); else billingManager.connect(); }
+    public void restorePurchases() { if (useAutoPay()) autoPay.refresh(); else billingManager.refreshPurchases(); }
+    public void purchase(android.app.Activity activity, PremiumPlan plan) {
+        if (useAutoPay()) autoPay.launch(activity, "buy", plan.productId);
+        else billingManager.launchPurchase(activity, plan);
+    }
 
     @Override public void onVerifiedPurchase(BillingProductConfig.ProductSpec spec, String purchaseToken) {
         PremiumState.Status status = spec.purchaseType == PremiumPurchaseType.LIFETIME

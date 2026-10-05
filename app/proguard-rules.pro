@@ -15,3 +15,15 @@
 -assumenosideeffects class java.lang.Throwable {
     public void printStackTrace(...);
 }
+
+# Razorpay Standard Checkout and callback bridge.
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keepattributes JavascriptInterface,*Annotation*
+-dontwarn com.razorpay.**
+-keep class com.razorpay.** { *; }
+-keepclasseswithmembers class * { public void onPayment*(...); }
+
+# PDFBox's optional JPEG2000 codec is not bundled; PDFBox handles its absence.
+# Keep release shrinking strict for every other missing class.
+-dontwarn com.gemalto.jp2.JP2Decoder
+-dontwarn com.gemalto.jp2.JP2Encoder

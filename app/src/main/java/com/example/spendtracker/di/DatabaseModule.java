@@ -58,7 +58,8 @@ public class DatabaseModule {
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -75,7 +76,8 @@ public class DatabaseModule {
 
         return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
                 .addCallback(SANITIZE_CALLBACK)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
@@ -413,6 +415,27 @@ public class DatabaseModule {
     };
 
     /** Preserves an extracted bill deadline time independently of the calendar date. */
+    // Historical confidence/category values cannot reconstruct original predictions or confirmation.
+    // Leave these nullable rather than inventing historical accuracy.
+    public static final Migration MIGRATION_18_19 = new Migration(18, 19) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE transactions ADD COLUMN bookmarked INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    public static final Migration MIGRATION_17_18 = new Migration(17, 18) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            com.example.spendtracker.data.local.database.AnalyticsMaterialization.install(db);
+        }
+    };
+
+    static final Migration MIGRATION_16_17 = new Migration(16, 17) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE transactions ADD COLUMN predictedCategory TEXT");
+            db.execSQL("ALTER TABLE transactions ADD COLUMN predictionFinalCategory TEXT");
+        }
+    };
+
     static final Migration MIGRATION_15_16 = new Migration(15, 16) {
         @Override public void migrate(@androidx.annotation.NonNull androidx.sqlite.db.SupportSQLiteDatabase db) {
             db.execSQL("ALTER TABLE bill_alerts ADD COLUMN dueMinuteOfDay INTEGER NOT NULL DEFAULT -1");

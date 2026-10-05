@@ -1,3 +1,7 @@
+// Public deployment settings only. Never put Razorpay secrets in Gradle properties.
+fun billingSetting(name: String, fallback: String = "") = "\"" + providers.gradleProperty(name).orElse(fallback).get()
+    .replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.hilt)
@@ -18,6 +22,13 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        buildConfigField("boolean", "AUTOPAY_ENABLED", "false")
+        buildConfigField("String", "BILLING_BASE_URL", billingSetting(
+            "billingBaseUrl",
+            "https://dwatnipgdvuftwcsgohm.supabase.co/functions/v1/billing-api"
+        ))
+        buildConfigField("String", "BILLING_GOOGLE_CLIENT_ID", billingSetting("billingGoogleClientId"))
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -25,6 +36,20 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+    buildTypes {
+        create("autopay") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".autopay"
+            matchingFallbacks += listOf("debug")
+            buildConfigField("boolean", "AUTOPAY_ENABLED", "true")
+        }
+        create("autopayRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".autopay"
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "AUTOPAY_ENABLED", "true")
         }
     }
     compileOptions {
@@ -81,6 +106,12 @@ dependencies {
     // Google Sign-In (for Drive backup)
     implementation(libs.google.play.services.auth)
     implementation(libs.google.play.billing)
+    implementation("com.razorpay:checkout:1.6.41")
+    // Vendor checkout uses dynamic core versions. Pin the verified pair for reproducible releases.
+    constraints {
+        implementation("com.razorpay:standard-core:1.7.19") { version { strictly("1.7.19") } }
+        implementation("com.razorpay:core:1.0.19") { version { strictly("1.0.19") } }
+    }
     implementation(libs.google.play.review)
     implementation(project(":prediction"))
 

@@ -141,7 +141,7 @@ public final class TransactionReceipt {
             paint.setColor(Color.WHITE);
             paint.setTextSize(10);
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-            canvas.drawText("SpendTracker receipt", LEFT, 22, paint);
+            canvas.drawText("TrackMint receipt", LEFT, 22, paint);
             y = 54;
         }
 

@@ -85,6 +85,7 @@ public class BankIdentifier {
         {"indusind",         "IndusInd Bank"},
         {"federal",          "Federal Bank"},
         {"idfc first",       "IDFC First Bank"},
+        {"icic bank",        "ICICI Bank"},
         {"icici",            "ICICI Bank"},
         {"hdfc",             "HDFC Bank"},
         {"axis",             "Axis Bank"},

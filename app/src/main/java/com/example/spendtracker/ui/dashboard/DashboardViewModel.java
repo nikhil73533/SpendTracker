@@ -31,6 +31,7 @@ import javax.inject.Inject;
 public class DashboardViewModel extends ViewModel {
 
     private final TransactionRepository repository;
+    private final LiveData<List<Transaction>> allTransactions;
     private final SecurityRepository securityRepository;
     private final BillAlertRepository billAlertRepository;
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
@@ -61,6 +62,7 @@ public class DashboardViewModel extends ViewModel {
     public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository,
                               BillAlertRepository billAlertRepository, @ApplicationContext Context context) {
         this.repository = repository;
+        this.allTransactions = repository.getTransactions();
         this.securityRepository = securityRepository;
         this.billAlertRepository = billAlertRepository;
         this.predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
@@ -198,7 +200,7 @@ public class DashboardViewModel extends ViewModel {
 
     public LiveData<DateRange> getDateRange() { return dateRange; }
 
-    public LiveData<List<Transaction>> getAllTransactions() { return repository.getTransactions(); }
+    public LiveData<List<Transaction>> getAllTransactions() { return allTransactions; }
 
     public LiveData<List<Transaction>> getTransactions() {
         return Transformations.switchMap(dateRange, range -> {
@@ -514,6 +516,8 @@ public class DashboardViewModel extends ViewModel {
                     com.example.prediction.domain.model.PredictionTransaction pt =
                             com.example.spendtracker.util.CategoryPrediction.from(t);
                     com.example.prediction.domain.model.IncrementalPredictionResult result = predictionService.predict(pt);
+                    if (result.getSource() != com.example.prediction.domain.model.IncrementalPredictionResult.Source.TRANSFER_RULE)
+                        t.setPredictedCategory(result.getCategory());
                     if (result.needsUserConfirmation()) {
                         t.setConfidenceScore(result.getConfidence());
                         repository.updateTransaction(t);
@@ -535,6 +539,7 @@ public class DashboardViewModel extends ViewModel {
                         updated.setImportBatchId(t.getImportBatchId());
                         updated.setStatus(t.getStatus());
                         updated.setDeletedAt(t.getDeletedAt());
+                        updated.setPredictedCategory(t.getPredictedCategory());
                         updated.setConfidenceScore(result.getConfidence());
                         repository.updateTransaction(updated);
                     }
@@ -597,9 +602,20 @@ public class DashboardViewModel extends ViewModel {
     }
 
     public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
-        return Transformations.switchMap(dateRange, range ->
-            repository.getBankTotals(range.start, range.end, "EXPENSE")
-        );
+        return Transformations.switchMap(dateRange, range -> Transformations.map(
+                repository.getTransactionsInRange(range.start, range.end), transactions -> {
+                    java.util.Map<String, Double> totals = new java.util.TreeMap<>();
+                    if (transactions != null) for (Transaction t : transactions) {
+                        String bank = t.getBankName() == null || t.getBankName().isEmpty() ? "Unknown" : t.getBankName();
+                        totals.put(bank, totals.getOrDefault(bank, 0.0) + (com.example.spendtracker.util.TransferDirection.isIncoming(t) ? t.getAmount() : -t.getAmount()));
+                    }
+                    java.util.List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> rows = new java.util.ArrayList<>();
+                    for (java.util.Map.Entry<String,Double> entry : totals.entrySet()) {
+                        com.example.spendtracker.data.local.dao.TransactionDao.CategorySum row = new com.example.spendtracker.data.local.dao.TransactionDao.CategorySum();
+                        row.category = entry.getKey(); row.total = entry.getValue(); rows.add(row);
+                    }
+                    return rows;
+                }));
     }
 
     /** Updates only the transaction type and persists to DB. */

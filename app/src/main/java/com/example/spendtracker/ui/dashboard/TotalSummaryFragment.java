@@ -96,7 +96,7 @@ public class TotalSummaryFragment extends Fragment {
     }
 
     private void updateUI(DashboardViewModel.TotalPageData data, boolean masked) {
-        binding.tvComparedPercent.setText(data.comparedPercent + "%");
+        binding.tvComparedPercent.setText(masked ? "***" : data.comparedPercent + "%");
         binding.tvAccountExpenses.setText(formatAmountWithState(data.accountExpenses, masked));
         binding.tvCardExpenses.setText(formatAmountWithState(data.cardExpenses, masked));
         binding.tvTransferIncoming.setText(formatAmountWithState(data.transferIncoming, masked));
@@ -125,10 +125,10 @@ public class TotalSummaryFragment extends Fragment {
                     if (exportDirectory == null || (!exportDirectory.exists() && !exportDirectory.mkdirs())) {
                         throw new java.io.IOException("Export storage is unavailable");
                     }
-                    File file = new File(exportDirectory, "SpendTracker_Export.xlsx");
+                    File file = new File(exportDirectory, "TrackMint_Export.xlsx");
                     FileOutputStream out = new FileOutputStream(file);
 
-                    try (Workbook workbook = new Workbook(out, "SpendTracker", "1.0")) {
+                    try (Workbook workbook = new Workbook(out, "TrackMint", "1.0")) {
                         Worksheet sheet = workbook.newWorksheet("Transactions");
 
                         // Header row
@@ -161,7 +161,7 @@ public class TotalSummaryFragment extends Fragment {
                     Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
                     intent.putExtra(Intent.EXTRA_STREAM, uri);
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    intent.setClipData(android.content.ClipData.newRawUri("SpendTracker export", uri));
+                    intent.setClipData(android.content.ClipData.newRawUri("TrackMint export", uri));
                     startActivity(Intent.createChooser(intent, "Share Excel File"));
 
                 } catch (Exception e) {

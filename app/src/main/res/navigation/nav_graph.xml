@@ -205,4 +205,8 @@
         android:label="@string/title_premium"
         tools:layout="@layout/fragment_paywall" />
 
+    <fragment android:id="@+id/predictionTransactionsFragment"
+        android:name="com.example.spendtracker.ui.analytics.PredictionTransactionsFragment"
+        android:label="Prediction transactions" />
+    <fragment android:id="@+id/bookmarksFragment" android:name="com.example.spendtracker.ui.bookmarks.BookmarksFragment" android:label="Bookmarks"/>
 </navigation>

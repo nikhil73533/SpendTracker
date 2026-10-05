@@ -1,6 +1,6 @@
-# SpendTracker
+# TrackMint
 
-SpendTracker is a production-ready Android application designed to help users efficiently track their income, expenses, and account transactions. It features automated SMS parsing, advanced data visualization, and comprehensive financial reports.
+TrackMint is a production-ready Android application designed to help users efficiently track their income, expenses, and account transactions. It features automated SMS parsing, advanced data visualization, and comprehensive financial reports.
 
 ## Features
 
@@ -43,3 +43,14 @@ SpendTracker is a production-ready Android application designed to help users ef
 
 ## License
 MIT License - See the [LICENSE](LICENSE) file for details.
+
+## Razorpay AutoPay (direct-install build)
+
+The separate `autopay` / `autopayRelease` builds include recurring Razorpay checkout,
+account-bound restore, cancellation, and a server-verified entitlement flow. Pricing:
+₹99 monthly, ₹149 quarterly, ₹299 six-monthly, and ₹499 yearly. The Android app never
+contains merchant secrets; checkout stays unavailable until deployment is configured.
+
+See the [implementation plan](docs/razorpay-implementation-plan.md),
+[backend and owner setup](backend/README.md), and
+[verification results and remaining payment tests](docs/razorpay-test-results.md).

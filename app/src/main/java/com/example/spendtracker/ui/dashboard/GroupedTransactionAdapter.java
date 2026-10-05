@@ -193,8 +193,8 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvDayNumber.setText(dayNumberFormat.format(date));
             tvDayOfWeek.setText(dayOfWeekFormat.format(date));
             tvMonthYear.setText(monthYearFormat.format(date));
-            tvDayIncome.setText(formatter.formatAmount(item.getTotalIncome()));
-            tvDayExpense.setText(formatter.formatAmount(item.getTotalExpense()));
+            tvDayIncome.setText("+ " + formatter.formatAmount(item.getTotalIncome()));
+            tvDayExpense.setText("− " + formatter.formatAmount(item.getTotalExpense()));
             // Show Transfer column only when transfers exist for the day
             if (tvDayTransfer != null) {
                 if (item.getTotalTransfer() != 0) {
@@ -241,33 +241,47 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvCategory.setText(transaction.getCategory());
             int weight = transaction.getConfidenceScore() < com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL;
             for (TextView label : new TextView[]{tvCategory, tvReceiver, tvDescription, tvIncomeAmount, tvExpenseAmount}) label.setTypeface(null, weight);
+            android.widget.ImageButton bookmark = itemView.findViewById(R.id.bookmark_transaction);
+            bookmark.setVisibility(isSelecting() ? View.GONE : View.VISIBLE);
+            bookmark.setImageResource(transaction.isBookmarked() ? R.drawable.ic_symbol_bookmark_filled : R.drawable.ic_symbol_bookmark);
+            bookmark.setContentDescription(transaction.isBookmarked() ? "Remove bookmark" : "Bookmark transaction");
+            bookmark.setOnClickListener(v -> com.example.spendtracker.util.BookmarkActions.set(v.getContext(), transaction.getId(), !transaction.isBookmarked()));
             View share = itemView.findViewById(R.id.share_receipt);
             share.setVisibility(isSelecting() ? View.GONE : View.VISIBLE);
             share.setOnClickListener(v -> com.example.spendtracker.util.TransactionReceipt.share(v.getContext(), transaction));
             
             // Requirement 12: Mask PII (Receiver, Description)
             tvReceiver.setText(formatter.maskPII(com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? transaction.getSender() : transaction.getReceiverName()));
+            if (com.example.spendtracker.util.TransferDirection.isTransfer(transaction)) {
+                String owner = com.example.spendtracker.util.UserProfile.load(itemView.getContext()).name;
+                tvReceiver.setText(formatter.maskPII(com.example.spendtracker.util.TransferDirection.from(transaction, owner))
+                        + " → " + formatter.maskPII(com.example.spendtracker.util.TransferDirection.to(transaction, owner)));
+            }
             tvDescription.setText(formatter.maskPII(transaction.getDescription()));
             
             tvSource.setText(transaction.getSource());
-            tvTime.setText("DATE_ONLY".equals(transaction.getTimestampPrecision()) ? ""
-                    : "SMS_RECEIVED".equals(transaction.getTimestampPrecision())
+            boolean statementDateOnly = "DATE_ONLY".equals(transaction.getTimestampPrecision())
+                    && !transaction.getImportBatchId().isEmpty();
+            boolean receivedTime = "SMS_RECEIVED".equals(transaction.getTimestampPrecision())
+                    || ("DATE_ONLY".equals(transaction.getTimestampPrecision()) && !statementDateOnly);
+            tvTime.setText(statementDateOnly ? ""
+                    : receivedTime
                     ? itemView.getContext().getString(R.string.sms_received_time, timeFormat.format(new Date(transaction.getDate())))
                     : timeFormat.format(new Date(transaction.getDate())));
 
             if ("INCOME".equals(transaction.getType())) {
-                tvIncomeAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_blue_light));
-                tvIncomeAmount.setText(formatter.formatAmount(transaction.getAmount()));
+                tvIncomeAmount.setTextColor(itemView.getContext().getColor(R.color.dashboard_income_blue));
+                tvIncomeAmount.setText("+ " + formatter.formatAmount(transaction.getAmount()));
                 tvExpenseAmount.setText("");
             } else if ("TRANSFER".equals(transaction.getType())) {
                 // Transfer: shown in gray, not counted as income or expense
                 tvIncomeAmount.setText("");
-                tvExpenseAmount.setTextColor(0xFF9E9E9E); // gray
+                tvExpenseAmount.setTextColor(itemView.getContext().getColor(R.color.dashboard_brand_transfer));
                 tvExpenseAmount.setText((com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "↓ " : "↑ ") + formatter.formatAmount(transaction.getAmount()));
             } else {
                 tvIncomeAmount.setText("");
-                tvExpenseAmount.setTextColor(itemView.getContext().getColor(android.R.color.holo_red_light));
-                tvExpenseAmount.setText(formatter.formatAmount(transaction.getAmount()));
+                tvExpenseAmount.setTextColor(itemView.getContext().getColor(R.color.dashboard_expense_red));
+                tvExpenseAmount.setText("− " + formatter.formatAmount(transaction.getAmount()));
             }
 
             // Category click for dropdown
@@ -279,7 +293,10 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 }
                 android.widget.PopupMenu popup = new android.widget.PopupMenu(v.getContext(), v);
                 java.util.List<String> categories = listener.getCategoriesByType("TRANSFER".equals(transaction.getType()) ? (com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "INCOME" : "EXPENSE") : transaction.getType());
-                for (String cat : categories) {
+                java.util.LinkedHashSet<String> choices = new java.util.LinkedHashSet<>();
+                choices.add("Transfer");
+                choices.addAll(categories);
+                for (String cat : choices) {
                     popup.getMenu().add(cat);
                 }
                 popup.setOnMenuItemClickListener(menuItem -> {
@@ -292,15 +309,29 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 popup.show();
             });
 
-            // Simple icon mapping (using some emojis or standard icons)
-            int iconRes = android.R.drawable.ic_menu_help;
             String category = transaction.getCategory() == null ? "" : transaction.getCategory().toLowerCase(Locale.ROOT);
-            if (category.contains("food")) iconRes = android.R.drawable.ic_menu_gallery;
-            else if (category.contains("transport")) iconRes = android.R.drawable.ic_menu_directions;
-            else if (category.contains("gift")) iconRes = android.R.drawable.btn_star_big_on;
-            else if (category.contains("health")) iconRes = android.R.drawable.ic_menu_mylocation;
-            
+            int iconRes = R.drawable.ic_symbol_category;
+            if ("TRANSFER".equals(transaction.getType())) iconRes = R.drawable.ic_symbol_transfer;
+            else if (category.contains("food")) iconRes = R.drawable.ic_symbol_food;
+            else if (category.contains("transport")) iconRes = R.drawable.ic_symbol_transport;
+            else if (category.contains("gift")) iconRes = R.drawable.ic_symbol_gift;
+            else if (category.contains("health") || category.contains("medical")) iconRes = R.drawable.ic_symbol_health;
+            else if (category.contains("education")) iconRes = R.drawable.ic_symbol_education;
+            else if (category.contains("shopping")) iconRes = R.drawable.ic_symbol_shopping;
+            else if (category.contains("salary")) iconRes = R.drawable.ic_symbol_salary;
+            else if (category.contains("rent") || category.contains("home")) iconRes = R.drawable.ic_symbol_home;
+            else if (category.contains("entertainment")) iconRes = R.drawable.ic_symbol_entertainment;
+            else if (category.contains("travel")) iconRes = R.drawable.ic_symbol_travel;
+            else if (category.contains("grocer")) iconRes = R.drawable.ic_symbol_groceries;
+            else if (category.contains("invest")) iconRes = R.drawable.ic_symbol_investment;
+            else if (category.contains("insurance")) iconRes = R.drawable.ic_symbol_insurance;
+            else if (category.contains("phone") || category.contains("mobile")) iconRes = R.drawable.ic_symbol_phone;
+            else if (category.contains("utilit") || category.contains("electric")) iconRes = R.drawable.ic_symbol_utilities;
+            else if (category.contains("bill")) iconRes = R.drawable.ic_symbol_bill;
+            else if (category.contains("allowance")) iconRes = R.drawable.ic_symbol_allowance;
+            else if (category.contains("bonus")) iconRes = R.drawable.ic_symbol_bonus;
             ivIcon.setImageResource(iconRes);
+            ivIcon.setContentDescription(transaction.getCategory());
 
             // Clicking the item opens the edit form
             itemView.setOnClickListener(v -> {
@@ -362,6 +393,9 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
                 Transaction oldT = ((TransactionItem) oldItem).getTransaction();
                 Transaction newT = ((TransactionItem) newItem).getTransaction();
                 return Double.compare(oldT.getConfidenceScore(), newT.getConfidenceScore()) == 0 &&
+                       oldT.isBookmarked() == newT.isBookmarked() &&
+                       Objects.equals(oldT.getFromAccount(), newT.getFromAccount()) &&
+                       Objects.equals(oldT.getToAccount(), newT.getToAccount()) &&
                        Objects.equals(oldT.getDirection(), newT.getDirection()) &&
                        Double.compare(oldT.getAmount(), newT.getAmount()) == 0 &&
                        oldT.getDate() == newT.getDate() &&

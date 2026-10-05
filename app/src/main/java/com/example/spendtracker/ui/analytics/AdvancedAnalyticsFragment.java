@@ -51,6 +51,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
     private ForecastResult currentForecast;
     private List<MerchantAnalytics> currentMerchants = new ArrayList<>();
     private List<AnomalyTransaction> currentAnomalies = new ArrayList<>();
+    private String selectedPeriod = "Monthly";
 
     @Nullable
     @Override
@@ -70,47 +71,78 @@ public class AdvancedAnalyticsFragment extends Fragment {
 
         setupChart();
         setupFilters();
+        binding.predictionChart.setOnChartValueSelectedListener(new com.github.mikephil.charting.listener.OnChartValueSelectedListener() {
+            @Override public void onValueSelected(Entry entry, com.github.mikephil.charting.highlight.Highlight highlight) {
+                openPredictions(Math.round(entry.getX()));
+                binding.predictionChart.highlightValues(null);
+            }
+            @Override public void onNothingSelected() { }
+        });
+        binding.btnReviewPredictions.setOnClickListener(v -> openPredictions(2));
         observeViewModel();
+    }
+
+    private void openPredictions(int outcome) {
+        if (outcome < 0 || outcome > 2) return;
+        Bundle args = new Bundle(); args.putInt("outcome", outcome);
+        androidx.navigation.Navigation.findNavController(requireView()).navigate(com.example.spendtracker.R.id.predictionTransactionsFragment, args);
     }
 
     private void setupFilters() {
         binding.chipGroupGranularity.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == binding.chipDaily.getId()) {
                 viewModel.setGranularity(AnalyticsGranularity.DAY);
+                selectedPeriod = "Daily";
             } else if (checkedId == binding.chipWeekly.getId()) {
                 viewModel.setGranularity(AnalyticsGranularity.WEEK);
+                selectedPeriod = "Weekly";
             } else if (checkedId == binding.chipMonthly.getId()) {
                 viewModel.setGranularity(AnalyticsGranularity.MONTH);
+                selectedPeriod = "Monthly";
             } else if (checkedId == binding.chipAnnual.getId()) {
                 viewModel.setGranularity(AnalyticsGranularity.YEAR);
+                selectedPeriod = "Yearly";
             }
+            binding.tvSelectedPeriodLabel.setText(selectedPeriod + " transactions");
         });
 
+        java.text.SimpleDateFormat date = new java.text.SimpleDateFormat("d MMM yyyy", Locale.getDefault());
+        binding.btnDateFilter.setText(date.format(new java.util.Date(viewModel.getStartDate())) + " – "
+                + date.format(new java.util.Date(viewModel.getEndDate() - 1)));
         binding.btnDateFilter.setOnClickListener(v -> showDateRangePicker());
         binding.toolbar.setNavigationOnClickListener(v -> requireActivity().onBackPressed());
     }
 
     private void showDateRangePicker() {
-        Calendar cal = Calendar.getInstance();
-        cal.set(Calendar.DAY_OF_MONTH, 1);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
         MaterialDatePicker<Pair<Long, Long>> picker = MaterialDatePicker.Builder.dateRangePicker()
                 .setTitleText("Select analytics date range")
-                .setSelection(Pair.create(cal.getTimeInMillis(), System.currentTimeMillis()))
+                .setSelection(Pair.create(utcPickerDate(viewModel.getStartDate()), utcPickerDate(viewModel.getEndDate() - 1)))
                 .build();
         picker.addOnPositiveButtonClickListener(range -> {
-            if (range == null || range.first == null || range.second == null) return;
-            Calendar end = Calendar.getInstance();
-            end.setTimeInMillis(range.second);
-            end.add(Calendar.DAY_OF_MONTH, 1);
-            viewModel.setStartDate(range.first);
-            viewModel.setEndDate(end.getTimeInMillis());
+            if (binding == null || range == null || range.first == null || range.second == null) return;
+            // MaterialDatePicker returns UTC date labels; convert them to local day boundaries.
+            Calendar localEnd = Calendar.getInstance();
+            localEnd.setTimeInMillis(localPickerDate(range.second));
+            localEnd.add(Calendar.DAY_OF_MONTH, 1);
+            viewModel.setDateRange(localPickerDate(range.first), localEnd.getTimeInMillis());
             binding.btnDateFilter.setText(picker.getHeaderText());
         });
         picker.show(getParentFragmentManager(), "analytics_date_range");
+    }
+
+    private static long utcPickerDate(long localMillis) {
+        Calendar local = Calendar.getInstance(); local.setTimeInMillis(localMillis);
+        Calendar utc = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")); utc.clear();
+        utc.set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH));
+        return utc.getTimeInMillis();
+    }
+
+    private static long localPickerDate(long utcMillis) {
+        Calendar utc = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"));
+        utc.setTimeInMillis(utcMillis);
+        Calendar local = Calendar.getInstance(); local.clear();
+        local.set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH));
+        return local.getTimeInMillis();
     }
 
     private void setupChart() {
@@ -123,6 +155,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
     private void configureCartesianChart(com.github.mikephil.charting.charts.BarLineChartBase<?> chart, boolean showLegend) {
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(showLegend);
+        chart.getLegend().setTextColor(requireContext().getColor(com.example.spendtracker.R.color.dashboard_text_secondary));
         chart.setDrawGridBackground(false);
         chart.setTouchEnabled(true);
         chart.setDragEnabled(true);
@@ -132,14 +165,51 @@ public class AdvancedAnalyticsFragment extends Fragment {
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setDrawGridLines(false);
         xAxis.setGranularity(1f);
-        xAxis.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray));
+        xAxis.setTextColor(ContextCompat.getColor(requireContext(), com.example.spendtracker.R.color.dashboard_text_secondary));
 
         chart.getAxisRight().setEnabled(false);
+        chart.setNoDataText("No transactions in this period");
+        chart.setNoDataTextColor(requireContext().getColor(com.example.spendtracker.R.color.dashboard_text_secondary));
+        chart.getAxisLeft().setAxisMinimum(0f);
+        chart.getAxisLeft().setGridColor(requireContext().getColor(com.example.spendtracker.R.color.dashboard_dark_outline));
         chart.getAxisLeft().setDrawGridLines(true);
-        chart.getAxisLeft().setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray));
+        chart.getAxisLeft().setTextColor(ContextCompat.getColor(requireContext(), com.example.spendtracker.R.color.dashboard_text_secondary));
     }
 
     private void observeViewModel() {
+        viewModel.getPredictionInsights().observe(getViewLifecycleOwner(), stats -> {
+            binding.predictionCount.setText(stats.predicted + " predictions\n" + stats.evaluated + " reviewed");
+            binding.predictionAccuracy.setText(stats.evaluated == 0 ? "Not enough data yet"
+                    : String.format(Locale.getDefault(), "%.1f%% accuracy", stats.accuracy()));
+            binding.predictionReview.setText(stats.evaluated == 0
+                    ? (stats.predicted - stats.evaluated) + " awaiting review · retained / corrected unavailable"
+                    : String.format(Locale.getDefault(), "%.1f%% retained · %.1f%% corrected · %d awaiting review",
+                        stats.accuracy(), stats.correctedPercent(), stats.predicted - stats.evaluated));
+            configureCartesianChart(binding.predictionChart, false);
+            binding.predictionChart.setNoDataTextColor(requireContext().getColor(com.example.spendtracker.R.color.dashboard_text_secondary));
+            binding.predictionChart.setNoDataText("No tracked predictions yet");
+            if (stats.predicted == 0) { binding.predictionChart.clear(); return; }
+            List<BarEntry> entries = new ArrayList<>();
+            entries.add(new BarEntry(0, stats.retained));
+            entries.add(new BarEntry(1, stats.evaluated - stats.retained));
+            entries.add(new BarEntry(2, stats.predicted - stats.evaluated));
+            BarDataSet set = new BarDataSet(entries, "Prediction outcomes");
+            set.setColors(requireContext().getColor(com.example.spendtracker.R.color.dashboard_income_blue),
+                    requireContext().getColor(com.example.spendtracker.R.color.dashboard_expense_red),
+                    requireContext().getColor(com.example.spendtracker.R.color.dashboard_brand_transfer));
+            set.setValueTextColor(requireContext().getColor(com.example.spendtracker.R.color.dashboard_text_primary));
+            set.setValueFormatter(new com.github.mikephil.charting.formatter.ValueFormatter() {
+                @Override public String getFormattedValue(float value) { return String.valueOf(Math.round(value)); }
+            });
+            binding.predictionChart.getAxisLeft().setAxisMinimum(0);
+            binding.predictionChart.getAxisLeft().setGranularity(1f);
+            binding.predictionChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(new String[]{"Retained", "Corrected", "Unreviewed"}));
+            binding.predictionChart.getXAxis().setLabelCount(3);
+            binding.predictionChart.setData(new BarData(set));
+            binding.predictionChart.setFitBars(true);
+            binding.predictionChart.notifyDataSetChanged();
+            binding.predictionChart.invalidate();
+        });
         viewModel.getFinancialOverview().observe(getViewLifecycleOwner(), summary -> {
             if (summary != null) {
                 binding.tvTotalIncome.setText(formatAmount(summary.getTotalIncome()));
@@ -149,11 +219,6 @@ public class AdvancedAnalyticsFragment extends Fragment {
                 binding.tvAverageDailyTransactions.setText(String.format(Locale.getDefault(), "%.1f / day",
                         summary.getAverageDailyTransactions()));
             }
-        });
-
-        viewModel.getMonthlyExpenseTrend().observe(getViewLifecycleOwner(), trend -> {
-            // This legacy stream is retained for compatibility; the cash-flow chart below
-            // uses the richer income/expense series.
         });
 
         viewModel.getIncomeExpenseTrend().observe(getViewLifecycleOwner(), trend -> {
@@ -166,8 +231,8 @@ public class AdvancedAnalyticsFragment extends Fragment {
                     expenseEntries.add(new Entry(i, (float) trend.get(i).getSecondaryValue()));
                     labels.add(trend.get(i).getLabel());
                 }
-                LineDataSet incomeSet = createLineSet(incomeEntries, "Credits", android.R.color.holo_blue_light);
-                LineDataSet expenseSet = createLineSet(expenseEntries, "Debits", android.R.color.holo_red_light);
+                LineDataSet incomeSet = createLineSet(incomeEntries, "Credits", com.example.spendtracker.R.color.dashboard_income_blue);
+                LineDataSet expenseSet = createLineSet(expenseEntries, "Debits", com.example.spendtracker.R.color.dashboard_expense_red);
                 List<ILineDataSet> sets = new ArrayList<>();
                 sets.add(incomeSet);
                 sets.add(expenseSet);
@@ -193,11 +258,17 @@ public class AdvancedAnalyticsFragment extends Fragment {
                 labels.add(points.get(i).getLabel());
             }
             BarDataSet dataSet = new BarDataSet(entries, "Transactions");
-            dataSet.setColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_light));
+            dataSet.setColor(ContextCompat.getColor(requireContext(), com.example.spendtracker.R.color.dashboard_income_blue));
             dataSet.setDrawValues(false);
             binding.volumeChart.setData(new BarData(dataSet));
             binding.volumeChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labels));
             binding.volumeChart.invalidate();
+        });
+
+        viewModel.getTransactionVolume().observe(getViewLifecycleOwner(), volume -> {
+            if (volume == null) return;
+            binding.tvSelectedPeriodTotal.setText(String.format(Locale.getDefault(), "%d", volume.getTotalCount()));
+            binding.tvSelectedPeriodLabel.setText(selectedPeriod + " transactions");
         });
 
         viewModel.getExpenseCategoryAnalytics().observe(getViewLifecycleOwner(), categories -> {
@@ -242,7 +313,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
         set.setDrawCircles(true);
         set.setDrawValues(false);
         set.setLineWidth(2f);
-        set.setMode(LineDataSet.Mode.CUBIC_BEZIER);
+        set.setMode(LineDataSet.Mode.LINEAR);
         return set;
     }
 
@@ -261,7 +332,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
             labels.add(category.getCategoryName());
         }
         BarDataSet dataSet = new BarDataSet(entries, "Transactions");
-        dataSet.setColor(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_light));
+        dataSet.setColor(ContextCompat.getColor(requireContext(), com.example.spendtracker.R.color.dashboard_brand_primary));
         dataSet.setDrawValues(false);
         binding.categoryFrequencyChart.setData(new BarData(dataSet));
         binding.categoryFrequencyChart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(labels));

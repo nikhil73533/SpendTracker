@@ -2,18 +2,18 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/dashboardFragment"
-        android:icon="@android:drawable/ic_menu_today"
+        android:icon="@drawable/ic_symbol_dashboard"
         android:title="Dashboard" />
     <item
         android:id="@+id/chartsFragment"
-        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:icon="@drawable/ic_symbol_bar_chart"
         android:title="Charts" />
     <item
         android:id="@+id/accountsFragment"
-        android:icon="@android:drawable/ic_menu_manage"
+        android:icon="@drawable/ic_symbol_accounts"
         android:title="Accounts" />
     <item
         android:id="@+id/moreFragment"
-        android:icon="@android:drawable/ic_menu_more"
+        android:icon="@drawable/ic_symbol_more"
         android:title="More" />
 </menu>

@@ -16,17 +16,20 @@ public class FeatureMigrationTest {
         Context context = ApplicationProvider.getApplicationContext();
         String name = "feature-migration-test.db";
         context.deleteDatabase(name);
-        SpendTrackerDatabase old = Room.databaseBuilder(context, SpendTrackerDatabase.class, name).allowMainThreadQueries().build();
+        SpendTrackerDatabase old = Room.databaseBuilder(context, SpendTrackerDatabase.class, name).addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK).allowMainThreadQueries().build();
         TransactionEntity tx = new TransactionEntity(); tx.amount = 100; tx.type = "INCOME"; tx.category = "Transfer";
         int id = (int) old.transactionDao().insertTransaction(tx);
         old.getOpenHelper().getWritableDatabase().execSQL("ALTER TABLE transactions DROP COLUMN confidenceScore");
+        old.getOpenHelper().getWritableDatabase().execSQL("ALTER TABLE transactions DROP COLUMN predictedCategory");
+        old.getOpenHelper().getWritableDatabase().execSQL("ALTER TABLE transactions DROP COLUMN predictionFinalCategory");
+        old.getOpenHelper().getWritableDatabase().execSQL("ALTER TABLE transactions DROP COLUMN bookmarked");
         old.close();
         try (android.database.sqlite.SQLiteDatabase raw = android.database.sqlite.SQLiteDatabase.openDatabase(
                 context.getDatabasePath(name).getPath(), null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)) {
             raw.setVersion(14);
         }
-        SpendTrackerDatabase upgraded = Room.databaseBuilder(context, SpendTrackerDatabase.class, name)
-                .allowMainThreadQueries().addMigrations(DatabaseModule.MIGRATION_14_15).build();
+        SpendTrackerDatabase upgraded = Room.databaseBuilder(context, SpendTrackerDatabase.class, name).addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
+                .allowMainThreadQueries().addMigrations(DatabaseModule.MIGRATION_14_15, DatabaseModule.MIGRATION_15_16, DatabaseModule.MIGRATION_16_17, DatabaseModule.MIGRATION_17_18, DatabaseModule.MIGRATION_18_19).build();
         try {
             TransactionEntity saved = upgraded.transactionDao().getTransactionByIdSync(id);
             assertEquals(100, saved.amount, 0); assertEquals("CREDIT", saved.direction);

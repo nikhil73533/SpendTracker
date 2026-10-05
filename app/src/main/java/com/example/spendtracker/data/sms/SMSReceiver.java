@@ -55,7 +55,8 @@ public class SMSReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (predictionService == null) {
-            predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
+            try { predictionService = com.example.spendtracker.util.CategoryPrediction.service(context); }
+            catch (RuntimeException error) { Log.w(TAG, "Category model unavailable; parsing remains enabled", error); }
         }
         if (intent != null && "android.provider.Telephony.SMS_RECEIVED".equals(intent.getAction())) {
             final PendingResult pendingResult = goAsync();
@@ -129,11 +130,14 @@ public class SMSReceiver extends BroadcastReceiver {
                 && !originalTransaction.getCategory().equalsIgnoreCase("Other")
                 && !originalTransaction.getCategory().equalsIgnoreCase("Uncategorized");
 
+            try {
             if (!isCategorized) {
                 PredictionTransaction pt = com.example.spendtracker.util.CategoryPrediction.from(originalTransaction);
 
                 IncrementalPredictionResult predResult = predictionService.predict(pt);
                 if (predResult != null && predResult.getCategory() != null) {
+                    if (predResult.getSource() != IncrementalPredictionResult.Source.TRANSFER_RULE)
+                        transactionToSave.setPredictedCategory(predResult.getCategory());
                     // Keep reference/direction/time provenance when assigning a category.
                     if (!predResult.needsUserConfirmation()) {
                         transactionToSave.setCategory(predResult.getCategory());
@@ -146,6 +150,9 @@ public class SMSReceiver extends BroadcastReceiver {
                 }
             }
 
+            } catch (RuntimeException error) {
+                Log.w(TAG, "Category prediction unavailable; saving parsed transaction", error);
+            }
             addTransactionUseCase.execute(transactionToSave);
         }
     }

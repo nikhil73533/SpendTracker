@@ -8,7 +8,7 @@
     <string name="category_review_body">A transaction needs your review. Tap to correct or confirm its category.</string>
     <string name="correct_category">Correct category</string>
     <string name="sms_received_time">Received %1$s</string>
-    <string name="app_name">SpendTracker</string>
+    <string name="app_name">TrackMint</string>
     <string name="action_go">Go</string>
     <string name="baking_title">Baking with Gemini</string>
     <string name="label_prompt">Prompt</string>
@@ -130,7 +130,7 @@
     <string name="undo">Undo</string>
 
     <!-- Premium -->
-    <string name="title_premium">SpendTracker Premium</string>
+    <string name="title_premium">TrackMint Premium</string>
     <string name="premium_subtitle">Unlock more while keeping your financial processing on your device.</string>
     <string name="premium_analytics">Advanced Analytics</string>
     <string name="premium_monthly">Monthly</string>
@@ -169,40 +169,40 @@
     <string name="send_feedback">Send Feedback</string>
     <string name="report_problem">Report a Problem</string>
     <string name="suggest_feature">Suggest a Feature</string>
-    <string name="online_service_unavailable">This online service is not configured yet. Your offline SpendTracker features are still available.</string>
+    <string name="online_service_unavailable">This online service is not configured yet. Your offline TrackMint features are still available.</string>
     <string name="browser_unavailable">No browser is available to open this link.</string>
     <string name="daily_activity_title">Daily activity</string>
     <string name="daily_activity_subtitle">Total money moved on each day</string>
-    <string name="daily_activity_hint">Pull down to see your daily movement</string>
+    <string name="daily_activity_hint">Pull down for daily totals</string>
     <string name="daily_activity_empty">No transactions in this period yet.</string>
     <string name="daily_activity_close">Close daily activity chart</string>
-    <string name="daily_stream_title">Activity stream</string>
-    <string name="monthly_pulse_title">Yearly pulse</string>
-    <string name="monthly_pulse_subtitle">Open a month to see its weekly rhythm</string>
+    <string name="daily_stream_title">Your activity</string>
+    <string name="monthly_pulse_title">MONTHLY REVIEW</string>
+    <string name="monthly_pulse_subtitle">Your year, month by month</string>
     <string name="total_overview_title">Financial overview</string>
-    <string name="total_overview_subtitle">A clear view of your money across every account</string>
-    <string name="internet_required">Internet connection is required for this feature. Your offline SpendTracker features are still available.</string>
-    <string name="rate_spendtracker">Rate SpendTracker</string>
-    <string name="share_spendtracker">Share SpendTracker</string>
-    <string name="share_message">I’ve been using SpendTracker to track expenses privately on my device.\n\nTry SpendTracker:</string>
-    <string name="share_chooser">Share SpendTracker</string>
-    <string name="share_unavailable">No app is available to share SpendTracker.</string>
+    <string name="total_overview_subtitle">Every account. One clear picture.</string>
+    <string name="internet_required">Internet connection is required for this feature. Your offline TrackMint features are still available.</string>
+    <string name="rate_spendtracker">Rate TrackMint</string>
+    <string name="share_spendtracker">Share TrackMint</string>
+    <string name="share_message">I’ve been using TrackMint to track expenses privately on my device.\n\nTry TrackMint:</string>
+    <string name="share_chooser">Share TrackMint</string>
+    <string name="share_unavailable">No app is available to share TrackMint.</string>
     <string name="store_unavailable">Google Play is not available on this device.</string>
 
     <!-- Privacy -->
     <string name="title_privacy_offline">Privacy &amp; Offline</string>
-    <string name="privacy_intro">SpendTracker is designed to keep core financial processing on this device.</string>
+    <string name="privacy_intro">TrackMint is designed to keep core financial processing on this device.</string>
     <string name="privacy_on_device">ON THIS DEVICE</string>
     <string name="privacy_online">OPTIONAL ONLINE SERVICES</string>
     <string name="privacy_local_items">✓ Transaction processing\n✓ SMS parsing\n✓ Categorization\n✓ Spending analytics\n✓ On-device category learning\n✓ Charts and reports</string>
     <string name="privacy_online_items">○ Google Play Billing\n○ Google Play rating\n○ Online Help and feedback\n○ Optional Google Drive backup</string>
-    <string name="privacy_note">Using an online service does not move your transaction processing to a SpendTracker server. Financial data is shared only when you explicitly choose an export or backup flow.</string>
+    <string name="privacy_note">Using an online service does not move your transaction processing to a TrackMint server. Financial data is shared only when you explicitly choose an export or backup flow.</string>
 
     <!-- More -->
     <string name="more_privacy_security">Privacy &amp; Security</string>
     <string name="more_data">Data</string>
     <string name="more_help_support">Help &amp; Support</string>
-    <string name="more_support_app">Support SpendTracker</string>
+    <string name="more_support_app">Support TrackMint</string>
     <string name="more_premium">Premium</string>
     <string name="more_about">About</string>
     <string name="more_privacy_offline">Privacy &amp; Offline</string>
@@ -211,4 +211,39 @@
     <string name="more_backup">Backup</string>
     <string name="more_app_version">App version %1$s</string>
     <string name="more_licenses">Open-source Licenses</string>
+    <string name="show_daily_chart">Show daily chart</string>
+    <string name="daily_chart_explanation">Income + expenses + transfers · one bar per day</string>
+    <string name="spending_strip_title">7-DAY SPENDING</string>
+    <string name="spending_chart_title">Last 7 days</string>
+    <string name="spending_chart_subtitle">Expenses only · one point per day</string>
+    <string name="close_spending_chart">Close spending chart</string>
+    <string name="spending_strip_accessibility">%1$s. Open spending chart</string>
+    <string name="chart_private">Chart hidden in Privacy Mode</string>
+    <string name="month_net">Net balance</string>
+    <string name="month_income">Income</string>
+    <string name="month_expense">Expenses</string>
+    <string name="month_expand">Show weeks</string>
+    <string name="month_collapse">Hide weeks</string>
+    <string name="summary_balance">NET CASH FLOW</string>
+    <string name="summary_transfer">Transfers</string>
+    <string name="summary_income">Income</string>
+    <string name="summary_expense">Expenses</string>
+    <string name="chart_action">Chart</string>
+    <string name="prediction_title">Prediction Insights · All time</string>
+    <string name="prediction_loading">Prediction Insights · All time\nLoading local history…</string>
+    <string name="prediction_insufficient">Not enough data yet</string>
+    <string name="prediction_compact">Prediction Insights · All time · %1$d predictions\n%2$s · Details ›</string>
+    <string name="prediction_detail">%1$d recorded predictions\n%2$d reviewed · %3$d awaiting review\n\n%4$s\n\nAccuracy and retained %% = original predictions matching the latest confirmed category ÷ reviewed predictions. Corrected %% is the remainder. Unverified predictions are excluded.\n\nAll time covers active transactions with recorded prediction history. Older rows lack that history and cannot be evaluated. Save a category to confirm or correct it; importing alone does not confirm it.</string>
+    <plurals name="merchant_category_count"><item quantity="one">%d category</item><item quantity="other">%d categories</item></plurals>
+    <string name="summary_compact_balance">Net</string>
+    <string name="chart_day_night_title">Day vs Night</string>
+    <string name="chart_day_night_hours">Day: 6 am–6 pm · Night: 6 pm–6 am</string>
+    <string name="chart_day_label">Day</string>
+    <string name="chart_night_label">Night</string>
+    <string name="chart_weekday_weekend_title">Weekend vs Weekday</string>
+    <string name="chart_week_summary">%1$s spent · %2$s · expenses only</string>
+    <string name="activity_period">This period</string>
+    <string name="activity_week">7-day expenses</string>
+    <string name="chart_bars">Bars</string>
+    <string name="chart_line">Line</string>
 </resources>

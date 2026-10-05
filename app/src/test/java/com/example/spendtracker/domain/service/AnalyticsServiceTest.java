@@ -22,7 +22,7 @@ public class AnalyticsServiceTest {
         health.label = "Health";
         health.transactionCount = 7;
         health.totalAmount = 650.0;
-        when(dao.getExpenseCategoryFrequencySync(100L, 200L)).thenReturn(Arrays.asList(health));
+        when(dao.getExpenseCategoryFrequencySync(100L, 199L)).thenReturn(Arrays.asList(health));
 
         List<CategoryAnalytics> result = new AnalyticsService(dao).getExpenseCategoryAnalytics(100L, 200L);
 

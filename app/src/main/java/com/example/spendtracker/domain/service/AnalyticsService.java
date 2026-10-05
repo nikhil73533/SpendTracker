@@ -35,16 +35,15 @@ public class AnalyticsService {
     }
 
     public AnalyticsSummary getFinancialOverview(long start, long end) {
-        double totalIncome = transactionDao.getTotalIncomeSync(start, end);
-        double totalExpense = transactionDao.getTotalExpenseSync(start, end);
-        double totalTransfer = transactionDao.getTotalTransferAmountSync(start, end);
-        int incomeCount = transactionDao.getIncomeCountSync(start, end);
-        int expenseCount = transactionDao.getExpenseCountSync(start, end);
-        int transferCount = transactionDao.getTransferCountSync(start, end);
-        Double avgIncome = transactionDao.getAverageIncomeSync(start, end);
-        Double avgExpense = transactionDao.getAverageExpenseSync(start, end);
-        double avgInc = avgIncome != null ? avgIncome : 0.0;
-        double avgExp = avgExpense != null ? avgExpense : 0.0;
+        double totalIncome = 0, totalExpense = 0, totalTransfer = 0;
+        int incomeCount = 0, expenseCount = 0, transferCount = 0;
+        for (TransactionDao.FinancialTotal row : transactionDao.getFinancialTotalsSync(start, end)) {
+            if ("INCOME".equals(row.category)) { totalIncome = row.total; incomeCount = row.count; }
+            if ("EXPENSE".equals(row.category)) { totalExpense = row.total; expenseCount = row.count; }
+            if ("TRANSFER".equals(row.category)) { totalTransfer = row.total; transferCount = row.count; }
+        }
+        double avgInc = incomeCount == 0 ? 0 : totalIncome / incomeCount;
+        double avgExp = expenseCount == 0 ? 0 : totalExpense / expenseCount;
         long duration = Math.max(1L, end - start);
         int daysInPeriod = (int) Math.max(1L, (duration + 86_400_000L - 1L) / 86_400_000L);
         return new AnalyticsSummary(totalIncome, totalExpense, totalTransfer,
@@ -130,7 +129,7 @@ public class AnalyticsService {
     }
 
     public List<CategoryAnalytics> getExpenseCategoryAnalytics(long start, long end) {
-        List<TransactionDao.AnalyticsBucket> buckets = transactionDao.getExpenseCategoryFrequencySync(start, end);
+        List<TransactionDao.AnalyticsBucket> buckets = transactionDao.getExpenseCategoryFrequencySync(start, end - 1);
         List<CategoryAnalytics> result = new ArrayList<>();
         for (TransactionDao.AnalyticsBucket bucket : buckets) {
             result.add(new CategoryAnalytics(bucket.label, bucket.totalAmount, bucket.transactionCount));

@@ -34,7 +34,7 @@ public class TransactionGroupIntegrationTest {
     @Before
     public void createDb() {
         Context context = ApplicationProvider.getApplicationContext();
-        db = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class)
+        db = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class).addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
                 .allowMainThreadQueries()
                 .build();
         groupDao = db.transactionGroupDao();

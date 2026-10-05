@@ -16,7 +16,12 @@ import androidx.room.PrimaryKey;
 public class TransactionEntity {
     @PrimaryKey(autoGenerate = true)
     public int id;
+    @ColumnInfo(defaultValue = "0")
+    public boolean bookmarked;
     public double amount;
+    /** Original model output and latest explicit user label, kept independently of confidence. */
+    public String predictedCategory;
+    public String predictionFinalCategory;
     @ColumnInfo(defaultValue = "1.0")
     public double confidenceScore = 1.0;
     public String category = "";

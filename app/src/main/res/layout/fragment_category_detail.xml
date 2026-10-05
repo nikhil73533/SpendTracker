@@ -92,6 +92,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:id="@+id/category_total_label"
                 android:text="Total Balance"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
@@ -106,6 +107,7 @@
                 android:layout_marginBottom="16dp"
                 tools:text="₹ 5,257.00" />
 
+            <include android:id="@+id/flow_summary" layout="@layout/view_flow_summary" android:visibility="gone"/>
             <com.github.mikephil.charting.charts.LineChart
                 android:id="@+id/category_line_chart"
                 android:layout_width="match_parent"

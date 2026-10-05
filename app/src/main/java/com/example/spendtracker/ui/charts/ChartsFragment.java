@@ -14,6 +14,9 @@ import com.example.spendtracker.R;
 import com.example.spendtracker.databinding.FragmentChartsBinding;
 import com.example.spendtracker.domain.model.Summary;
 import com.example.spendtracker.domain.model.DailyTrend;
+import com.example.spendtracker.ui.dashboard.DashboardChartRenderer;
+import com.example.spendtracker.ui.dashboard.DashboardChartSeries;
+import com.example.spendtracker.data.local.dao.TransactionDao.CategorySum;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.charts.BarChart;
@@ -47,6 +50,8 @@ public class ChartsFragment extends Fragment {
     private CategoryStatsAdapter statsAdapter;
     private CategoryStatsAdapter sourceStatsAdapter;
     private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMM yyyy", Locale.getDefault());
+    private List<CategorySum> weekendTotals;
+    private List<CategorySum> bankTotals;
     private boolean showingExpenses = true;
     private boolean showingTransfers = false;
     private Map<String, Double> transferBreakdown = new java.util.LinkedHashMap<>();
@@ -136,6 +141,7 @@ public class ChartsFragment extends Fragment {
     }
 
     private void updateSectionVisibility() {
+        binding.cardDayNight.setVisibility(showingTransfers ? View.GONE : View.VISIBLE);
         if (showingExpenses) {
             binding.tvTrendsTitle.setVisibility(View.VISIBLE);
             binding.lineChart.setVisibility(View.VISIBLE);
@@ -247,11 +253,15 @@ public class ChartsFragment extends Fragment {
             binding.lineChart.invalidate();
         });
 
+        viewModel.getDayNightTotals().observe(getViewLifecycleOwner(), ignored -> renderDayNight());
+
         viewModel.getWeekdayWeekendTotals().observe(getViewLifecycleOwner(), data -> {
-            setupBarChart(binding.barChartWeekend, data, "Weekend vs Weekday");
+            weekendTotals = data;
+            setupBarChart(binding.barChartWeekend, data, getString(R.string.chart_weekday_weekend_title));
         });
 
         viewModel.getBankTotals().observe(getViewLifecycleOwner(), data -> {
+            bankTotals = data;
             setupBarChart(binding.barChartBanks, data, "Bank Totals");
         });
 
@@ -265,6 +275,9 @@ public class ChartsFragment extends Fragment {
         updateSectionVisibility();
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            renderDayNight();
+            setupBarChart(binding.barChartWeekend, weekendTotals, getString(R.string.chart_weekday_weekend_title));
+            setupBarChart(binding.barChartBanks, bankTotals, "Bank Totals");
             if (showingTransfers) renderTransfers();
             // Re-render all charts with current data (formatters handle masking)
             Summary summary = viewModel.getChartData().getValue();
@@ -278,6 +291,24 @@ public class ChartsFragment extends Fragment {
                 binding.lineChart.invalidate();
             }
         });
+    }
+
+    private void renderDayNight() {
+        if (binding == null) return;
+        DayNightTotals totals = viewModel.getDayNightTotals().getValue();
+        List<CategorySum> values = new ArrayList<>();
+        if (totals != null) {
+            CategorySum day = new CategorySum();
+            day.category = getString(R.string.chart_day_label); day.total = totals.day;
+            CategorySum night = new CategorySum();
+            night.category = getString(R.string.chart_night_label); night.total = totals.night;
+            values.add(day); values.add(night);
+        }
+        setupBarChart(binding.barChartDayNight, values, getString(R.string.chart_day_night_title));
+    }
+
+    @Override public void onResume() {
+        super.onResume();
     }
 
     /** Returns true when biometric privacy mode is active and sensitive values should be masked. */
@@ -596,9 +627,12 @@ public class ChartsFragment extends Fragment {
     }
 
     private void setupBarChart(BarChart chart, List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> data, String label) {
-        if (data == null || data.isEmpty()) {
+        chart.setNoDataTextColor(requireContext().getColor(R.color.text_secondary));
+        if (isPrivacyActive() || data == null || data.isEmpty()) {
             chart.clear();
-            chart.setNoDataText("No data available");
+            String message = isPrivacyActive() ? getString(R.string.chart_private) : "No data available";
+            chart.setNoDataText(message);
+            chart.setContentDescription(message);
             chart.invalidate();
             return;
         }
@@ -611,12 +645,26 @@ public class ChartsFragment extends Fragment {
         }
 
         BarDataSet dataSet = new BarDataSet(entries, label);
-        dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
+        dataSet.setColors(requireContext().getColor(R.color.brand_secondary), requireContext().getColor(R.color.brand_accent));
+        dataSet.setBarBorderWidth(1f);
+        dataSet.setBarBorderColor(requireContext().getColor(R.color.text_primary));
         dataSet.setValueTextColor(Color.WHITE);
         dataSet.setValueTextSize(10f);
         dataSet.setValueFormatter(getMaskedValueFormatter());
 
         BarData barData = new BarData(dataSet);
+        barData.setBarWidth(0.55f);
+        chart.setFitBars(true);
+        chart.setScaleEnabled(false);
+        chart.setDoubleTapToZoomEnabled(false);
+        chart.getAxisLeft().setAxisMinimum(0f);
+        chart.getAxisLeft().setValueFormatter(getMaskedValueFormatter());
+        if (barData.getYMax() <= 0) chart.getAxisLeft().setAxisMaximum(1f);
+        else chart.getAxisLeft().resetAxisMaximum();
+        StringBuilder description = new StringBuilder(label);
+        for (CategorySum value : data) description.append("; ").append(value.category)
+                .append(": ").append(viewModel.formatAmount(value.total));
+        chart.setContentDescription(description.toString());
         chart.setData(barData);
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
@@ -624,11 +672,11 @@ public class ChartsFragment extends Fragment {
         chart.getXAxis().setValueFormatter(new IndexAxisValueFormatter(xLabels));
         chart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
         chart.getXAxis().setDrawGridLines(false);
-        chart.getXAxis().setTextColor(Color.GRAY);
+        chart.getXAxis().setTextColor(requireContext().getColor(R.color.text_secondary));
         chart.getXAxis().setGranularity(1f);
 
-        chart.getAxisLeft().setTextColor(Color.GRAY);
-        chart.getAxisLeft().setGridColor(Color.DKGRAY);
+        chart.getAxisLeft().setTextColor(requireContext().getColor(R.color.text_secondary));
+        chart.getAxisLeft().setGridColor(requireContext().getColor(R.color.dark_outline));
         chart.getAxisRight().setEnabled(false);
 
         chart.animateY(300);

@@ -16,17 +16,19 @@ public class AmountExtractor {
     private static final Pattern OTHER_FIELD = Pattern.compile(
             "(?i)(?:avl\\.?\\s*(?:bal(?:ance)?|limit)|avail(?:able)?\\s*(?:bal(?:ance)?|limit)|"
             + "(?:closing|opening|current|remaining|ledger)\\s+bal(?:ance)?|\\bbal(?:ance)?|"
-            + "(?:credit|available)\\s+limit|(?:total|minimum|amount)\\s+due|outstanding|fee|charges)\\s*[:=.-]?\\s*$");
+            + "(?:credit|available)\\s+limit|(?:total|minimum|amount)\\s+due|outstanding|fee|charges)\\s*(?:(?:is|of)\\s*)?[:=.-]?\\s*$");
     private static final Pattern VALID_NUMBER = Pattern.compile(
             "(?:\\d+|\\d{1,3}(?:,\\d{3})+|\\d{1,2}(?:,\\d{2})*,\\d{3})(?:\\.\\d{1,2})?");
 
     public ExtractionResult<Double> extract(String message) {
         String text = TransactionText.posted(message);
+        java.util.List<NumericEntityRoles.Span> roles = NumericEntityRoles.identify(text);
         Double best = null;
         int bestScore = -1;
         boolean conflict = false;
         Matcher contextual = AFTER_ACTION.matcher(text);
         while (contextual.find()) {
+            if (NumericEntityRoles.overlaps(roles, contextual.start(1), contextual.end(1))) continue;
             Double value = valid(contextual.group(1));
             if (value == null) continue;
             if (bestScore == 3 && !value.equals(best)) conflict = true;
@@ -36,6 +38,7 @@ public class AmountExtractor {
         while (money.find()) {
             String before = text.substring(Math.max(0, money.start() - 45), money.start());
             if (OTHER_FIELD.matcher(before).find()) continue;
+            if (NumericEntityRoles.overlaps(roles, money.start(1), money.end(1))) continue;
             Double value = valid(money.group(1));
             if (value == null) continue;
             String after = text.substring(money.end(), Math.min(text.length(), money.end() + 55));

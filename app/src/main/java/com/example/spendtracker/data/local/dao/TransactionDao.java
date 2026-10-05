@@ -16,6 +16,11 @@ import java.util.List;
  */
 @Dao
 public interface TransactionDao {
+    /** Lifetime count: soft deletion must not reset the free-tier quota. */
+    @Query("SELECT COUNT(*) FROM transactions")
+    int getLifetimeTransactionCountSync();
+    @Query("UPDATE transactions SET bookmarked = :value WHERE id = :id")
+    void setBookmarked(int id, boolean value);
     @Query("SELECT * FROM transactions WHERE status = 'ACTIVE' ORDER BY date DESC, id DESC")
     LiveData<List<TransactionEntity>> getAllTransactions();
 
@@ -44,10 +49,10 @@ public interface TransactionDao {
     @Delete
     void deleteTransaction(TransactionEntity transaction);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'INCOME'")
     LiveData<Double> getTotalIncome(long start, long end);
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'EXPENSE'")
     LiveData<Double> getTotalExpense(long start, long end);
 
     @Query("SELECT SUM(amount) FROM transactions WHERE sourceType = 'Account' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
@@ -56,16 +61,16 @@ public interface TransactionDao {
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE status = 'ACTIVE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND date BETWEEN :start AND :end GROUP BY category")
     LiveData<List<CategorySum>> getCategorySummaries(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT bucket AS category, SUM(amount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY bucket")
     LiveData<List<CategorySum>> getExpenseCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT bucket AS category, SUM(amount) / SUM(transactionCount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY bucket")
     LiveData<List<CategorySum>> getExpenseCategoryAverages(long start, long end);
 
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT bucket AS category, SUM(amount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'INCOME' GROUP BY bucket")
     LiveData<List<CategorySum>> getIncomeCategorySummaries(long start, long end);
 
-    @Query("SELECT category, AVG(amount) as total FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT bucket AS category, SUM(amount) / SUM(transactionCount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'INCOME' GROUP BY bucket")
     LiveData<List<CategorySum>> getIncomeCategoryAverages(long start, long end);
 
     @Query("SELECT date as timestamp, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (date / 86400000) ORDER BY date ASC")
@@ -83,7 +88,8 @@ public interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE LOWER(category) = LOWER(:category) AND status = 'ACTIVE' AND type = 'EXPENSE' AND date BETWEEN :start AND :end")
     double getCategoryTotalInRangeSync(String category, long start, long end);
 
-    @Query("SELECT (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) as name, upiId, MAX(date) as lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END) as totalExpense, SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END) as totalIncome, SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END) as unreadCount FROM transactions WHERE status = 'ACTIVE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' GROUP BY (CASE WHEN type = 'INCOME' THEN sender ELSE receiverName END) ORDER BY lastTransactionDate DESC")
+    // Aggregate category variety once, avoiding a history scan for every merchant.
+    @Query("SELECT COALESCE(NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN sender ELSE receiverName END), ''), NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN fromAccount ELSE toAccount END), ''), NULLIF(upiId, ''), 'Unknown') AS name, MAX(upiId) AS upiId, MAX(date) AS lastTransactionDate, SUM(CASE WHEN type = 'EXPENSE' AND NOT (type = 'TRANSFER' OR LOWER(COALESCE(category,'')) LIKE '%transfer%') THEN amount ELSE 0 END) AS totalExpense, SUM(CASE WHEN type = 'INCOME' AND NOT (type = 'TRANSFER' OR LOWER(COALESCE(category,'')) LIKE '%transfer%') THEN amount ELSE 0 END) AS totalIncome, SUM(CASE WHEN (type = 'TRANSFER' OR LOWER(COALESCE(category,'')) LIKE '%transfer%') THEN amount ELSE 0 END) AS totalTransfer, SUM(CASE WHEN isRead = 0 THEN 1 ELSE 0 END) AS unreadCount, COUNT(DISTINCT NULLIF(LOWER(TRIM(category)), '')) AS categoryCount, GROUP_CONCAT(DISTINCT NULLIF(TRIM(category), '')) AS categoryNames FROM transactions WHERE status = 'ACTIVE' GROUP BY COALESCE(NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN sender ELSE receiverName END), ''), NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN fromAccount ELSE toAccount END), ''), NULLIF(upiId, ''), 'Unknown') ORDER BY lastTransactionDate DESC")
     LiveData<List<AccountSummary>> getUniqueAccounts();
 
     @Query("SELECT (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END) as category, SUM(amount) as total FROM transactions WHERE ((:type = 'TRANSFER' AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%')) OR (:type != 'TRANSFER' AND type = :type AND LOWER(category) NOT LIKE '%transfer%')) AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY (CASE WHEN strftime('%w', date/1000, 'unixepoch', 'localtime') IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END)")
@@ -110,10 +116,10 @@ public interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end AND (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%') AND (direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME'))")
     LiveData<Double> getTransferIncoming(long start, long end);
 
-    @Query("UPDATE transactions SET isRead = 1 WHERE (receiverName = :accountName OR sender = :accountName)")
+    @Query("UPDATE transactions SET isRead = 1 WHERE COALESCE(NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN sender ELSE receiverName END), ''), NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN fromAccount ELSE toAccount END), ''), NULLIF(upiId, ''), 'Unknown') = :accountName")
     void markAsRead(String accountName);
 
-    @Query("SELECT * FROM transactions WHERE (receiverName = :accountName OR sender = :accountName) AND status = 'ACTIVE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND date BETWEEN :start AND :end ORDER BY date DESC, id DESC")
+    @Query("SELECT * FROM transactions WHERE COALESCE(NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN sender ELSE receiverName END), ''), NULLIF(TRIM(CASE WHEN direction = 'CREDIT' OR (direction = 'UNKNOWN' AND type = 'INCOME') THEN fromAccount ELSE toAccount END), ''), NULLIF(upiId, ''), 'Unknown') = :accountName AND status = 'ACTIVE' AND date BETWEEN :start AND :end ORDER BY date DESC, id DESC")
     LiveData<List<TransactionEntity>> getAccountHistory(String accountName, long start, long end);
 
     @Query("UPDATE transactions SET category = :newName WHERE category = :oldName")
@@ -161,33 +167,33 @@ public interface TransactionDao {
     // ── Advanced Analytics Queries ─────────────────────────────────────────
 
     // Transaction counts by type (sync for analytics service)
-    @Query("SELECT COUNT(*) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(transactionCount), 0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'EXPENSE'")
     int getExpenseCountSync(long start, long end);
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(transactionCount), 0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'INCOME'")
     int getIncomeCountSync(long start, long end);
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(transactionCount), 0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'TRANSFER'")
     int getTransferCountSync(long start, long end);
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(transactionCount), 0) FROM " + AnalyticsSql.TYPE_FACTS)
     int getTotalCountSync(long start, long end);
 
     // Averages (sync)
-    @Query("SELECT AVG(amount) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) / SUM(transactionCount) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'EXPENSE'")
     Double getAverageExpenseSync(long start, long end);
 
-    @Query("SELECT AVG(amount) FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT SUM(amount) / SUM(transactionCount) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'INCOME'")
     Double getAverageIncomeSync(long start, long end);
 
     // Totals (sync)
-    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'EXPENSE'")
     double getTotalExpenseSync(long start, long end);
 
-    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE type = 'INCOME' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'INCOME'")
     double getTotalIncomeSync(long start, long end);
 
-    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE (type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%') AND status = 'ACTIVE' AND date BETWEEN :start AND :end")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM " + AnalyticsSql.TYPE_FACTS + " WHERE type = 'TRANSFER'")
     double getTotalTransferAmountSync(long start, long end);
 
     // Highest transactions
@@ -204,10 +210,10 @@ public interface TransactionDao {
     List<TransactionEntity> getTopTransactionsSync(long start, long end, int limit);
 
     // Category analytics (sync, expenses only)
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category ORDER BY total DESC")
+    @Query("SELECT bucket AS category, SUM(amount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY bucket ORDER BY total DESC")
     List<CategorySum> getExpenseCategorySummariesSync(long start, long end);
 
-    @Query("SELECT category, COUNT(*) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category ORDER BY total DESC")
+    @Query("SELECT bucket AS category, SUM(transactionCount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY bucket ORDER BY total DESC")
     List<CategorySum> getExpenseCategoryCountsSync(long start, long end);
 
     // Monthly totals/counts (sync, for trend analysis)
@@ -218,10 +224,10 @@ public interface TransactionDao {
     List<CategorySum> getMonthlyCountsSync(long start, long end, String type);
 
     // Merchant analytics
-    @Query("SELECT receiverName as category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND receiverName IS NOT NULL AND receiverName != '' AND date BETWEEN :start AND :end GROUP BY receiverName ORDER BY total DESC LIMIT :limit")
+    @Query("SELECT bucket AS category, SUM(amount) AS total FROM " + AnalyticsSql.MERCHANT_FACTS + " WHERE type = 'EXPENSE' AND bucket != '' GROUP BY bucket ORDER BY total DESC LIMIT :limit")
     List<CategorySum> getTopMerchantsByAmountSync(long start, long end, int limit);
 
-    @Query("SELECT receiverName as category, COUNT(*) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND receiverName IS NOT NULL AND receiverName != '' AND date BETWEEN :start AND :end GROUP BY receiverName ORDER BY total DESC LIMIT :limit")
+    @Query("SELECT bucket AS category, SUM(transactionCount) AS total FROM " + AnalyticsSql.MERCHANT_FACTS + " WHERE type = 'EXPENSE' AND bucket != '' GROUP BY bucket ORDER BY total DESC LIMIT :limit")
     List<CategorySum> getTopMerchantsByFrequencySync(long start, long end, int limit);
 
     // Bank/Account analytics (sync)
@@ -263,7 +269,7 @@ public interface TransactionDao {
     List<TransactionEntity> getMerchantTransactionsSync(String merchantName);
 
     // Category totals (sync, for category growth comparison)
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND status = 'ACTIVE' AND date BETWEEN :start AND :end GROUP BY category")
+    @Query("SELECT bucket AS category, SUM(amount) AS total FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY bucket ORDER BY total DESC")
     List<CategorySum> getCategoryTotalsSync(long start, long end);
 
     // Account × Category cross-dimensional
@@ -292,8 +298,29 @@ public interface TransactionDao {
     @Query("SELECT strftime('%Y', date/1000, 'unixepoch', 'localtime') AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0) AS incomeAmount, COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0) AS expenseAmount, COALESCE(SUM(CASE WHEN type = 'TRANSFER' OR LOWER(category) LIKE '%transfer%' THEN amount ELSE 0 END), 0) AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND date >= :start AND date < :end GROUP BY strftime('%Y', date/1000, 'unixepoch', 'localtime') ORDER BY label")
     List<AnalyticsBucket> getAnnualAnalyticsBucketsSync(long start, long end);
 
-    @Query("SELECT CASE WHEN category IS NULL OR TRIM(category) = '' THEN 'Uncategorized' ELSE category END AS label, COUNT(*) AS transactionCount, COALESCE(SUM(amount), 0) AS totalAmount, 0 AS incomeAmount, COALESCE(SUM(amount), 0) AS expenseAmount, 0 AS transferAmount FROM transactions WHERE status = 'ACTIVE' AND type = 'EXPENSE' AND type != 'TRANSFER' AND LOWER(category) NOT LIKE '%transfer%' AND date >= :start AND date < :end GROUP BY CASE WHEN category IS NULL OR TRIM(category) = '' THEN 'Uncategorized' ELSE category END ORDER BY transactionCount DESC, totalAmount DESC")
+    @Query("SELECT CASE WHEN TRIM(bucket) = '' THEN 'Uncategorized' ELSE bucket END AS label, SUM(transactionCount) AS transactionCount, SUM(amount) AS totalAmount, 0 AS incomeAmount, SUM(amount) AS expenseAmount, 0 AS transferAmount FROM " + AnalyticsSql.CATEGORY_FACTS + " WHERE type = 'EXPENSE' GROUP BY label ORDER BY transactionCount DESC, totalAmount DESC")
     List<AnalyticsBucket> getExpenseCategoryFrequencySync(long start, long end);
+
+    @Query("SELECT type AS category, SUM(amount) AS total, SUM(transactionCount) AS count FROM " + AnalyticsSql.TYPE_FACTS + " GROUP BY type")
+    List<FinancialTotal> getFinancialTotalsSync(long start, long end);
+
+    /** One database snapshot replaces eight independently emitting dashboard queries. */
+    @Query(AnalyticsSql.DASHBOARD_SUMMARY)
+    LiveData<List<SummaryRow>> getDashboardSummary(long start, long end);
+
+    class SummaryRow {
+        public String type;
+        public String category;
+        public double total;
+        public long transactionCount;
+        public double accountTotal;
+    }
+
+    class FinancialTotal {
+        public String category;
+        public double total;
+        public int count;
+    }
 
     class CategorySum {
         public String category;
@@ -311,7 +338,10 @@ public interface TransactionDao {
         public long lastTransactionDate;
         public double totalExpense;
         public double totalIncome;
+        public double totalTransfer;
         public int unreadCount;
+        public int categoryCount;
+        public String categoryNames;
     }
 
     /** Typed aggregate used by the advanced dashboard instead of overloading CategorySum. */

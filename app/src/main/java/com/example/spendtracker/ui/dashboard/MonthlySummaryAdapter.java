@@ -22,7 +22,7 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
     }
 
     private final List<MonthSummary> items = new ArrayList<>();
-    private final SimpleDateFormat monthNameFormat = new SimpleDateFormat("MMM", Locale.getDefault());
+    private final SimpleDateFormat monthNameFormat = new SimpleDateFormat("MMMM", Locale.getDefault());
     private final AmountFormatter formatter;
 
     public MonthlySummaryAdapter(AmountFormatter formatter) {
@@ -120,6 +120,10 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
                 rvWeeks.setAdapter(new WeeklyAdapter(item.weeks, formatter));
             }
 
+            ((android.widget.ImageView) itemView.findViewById(R.id.iv_month_expand)).setImageResource(
+                    item.isExpanded ? R.drawable.ic_symbol_collapse : R.drawable.ic_symbol_expand);
+            androidx.core.view.ViewCompat.setStateDescription(layoutRow, itemView.getContext().getString(
+                    item.isExpanded ? R.string.month_collapse : R.string.month_expand));
             layoutRow.setOnClickListener(v -> {
                 item.isExpanded = !item.isExpanded;
                 notifyItemChanged(getAdapterPosition());
@@ -147,8 +151,8 @@ public class MonthlySummaryAdapter extends RecyclerView.Adapter<MonthlySummaryAd
         public void onBindViewHolder(@NonNull WeekViewHolder holder, int position) {
             WeeklySummary w = weeks.get(position);
             holder.tvRange.setText(w.range);
-            holder.tvIncome.setText(formatter.format(w.income));
-            holder.tvExpense.setText(formatter.format(w.expense));
+            holder.tvIncome.setText("+ " + formatter.format(w.income));
+            holder.tvExpense.setText("− " + formatter.format(w.expense));
             double total = w.income - w.expense;
             String totalStr = formatter.format(Math.abs(total));
             holder.tvTotal.setText(String.format(Locale.getDefault(), "%s%s", total >= 0 ? "" : "-", totalStr));

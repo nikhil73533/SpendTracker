@@ -34,6 +34,7 @@ public class TransactionGroupFragment extends Fragment {
     private FragmentDashboardNotesBinding binding;
     private TransactionGroupViewModel viewModel;
     private GroupListAdapter adapter;
+    private int groupCount;
 
     @Nullable
     @Override
@@ -64,11 +65,14 @@ public class TransactionGroupFragment extends Fragment {
         binding.rvGroups.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.rvGroups.setAdapter(adapter);
 
-        binding.fabAddGroup.setOnClickListener(v -> featureGate.require(
-                com.example.spendtracker.billing.PremiumFeature.TRANSACTION_GROUPS,
-                () -> showGroupForm(-1), this::openPaywall));
+        binding.fabAddGroup.setOnClickListener(v -> {
+            if (groupCount < 1) showGroupForm(-1);
+            else featureGate.require(com.example.spendtracker.billing.PremiumFeature.TRANSACTION_GROUPS,
+                    () -> showGroupForm(-1), this::openPaywall);
+        });
 
         viewModel.getAllGroups().observe(getViewLifecycleOwner(), groups -> {
+            groupCount = groups == null ? 0 : groups.size();
             if (groups == null || groups.isEmpty()) {
                 binding.layoutEmptyState.setVisibility(View.VISIBLE);
                 binding.rvGroups.setVisibility(View.GONE);

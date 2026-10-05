@@ -42,11 +42,12 @@ public class PremiumPlanAdapter extends RecyclerView.Adapter<PremiumPlanAdapter.
         holder.period.setText(plan.period);
         holder.card.setChecked(position == selectedPosition);
         holder.itemView.setOnClickListener(view -> {
-            if (selectedPosition == position) return;
+            int currentPosition = holder.getAdapterPosition();
+            if (currentPosition == RecyclerView.NO_POSITION || selectedPosition == currentPosition) return;
             int old = selectedPosition;
-            selectedPosition = position;
+            selectedPosition = currentPosition;
             if (old != RecyclerView.NO_POSITION) notifyItemChanged(old);
-            notifyItemChanged(position);
+            notifyItemChanged(currentPosition);
             selectionChanged.run();
         });
     }

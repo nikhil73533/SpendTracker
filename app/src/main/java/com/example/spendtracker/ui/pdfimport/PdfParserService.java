@@ -475,6 +475,7 @@ public class PdfParserService {
         String upiId = json.optString("upiId", "");
         String merchant = json.optString("merchant", "");
 
+        String predictedCategory = null;
         double confidence = 0.0;
         String category;
         if ("TRANSFER".equals(type)) {
@@ -486,6 +487,8 @@ public class PdfParserService {
                         merchant, upiId, amount, type, timestamp, narration
                 );
                 IncrementalPredictionResult pred = predictionService.predict(pt);
+                if (pred != null && pred.getSource() != IncrementalPredictionResult.Source.TRANSFER_RULE)
+                    predictedCategory = pred.getCategory();
                 confidence = pred == null ? 0.0 : pred.getConfidence();
                 category = (pred != null && pred.getCategory() != null && !pred.needsUserConfirmation())
                         ? pred.getCategory() : "Uncategorized";
@@ -501,6 +504,7 @@ public class PdfParserService {
         t.setType(type);
         t.setCategory(category);
         t.setConfidenceScore(confidence);
+        t.setPredictedCategory(predictedCategory);
         t.setDate(timestamp);
         t.setDescription(narration);
         t.setBankName(bankName);

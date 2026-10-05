@@ -35,165 +35,148 @@ public class AnalyticsRepositoryImpl implements AnalyticsRepository {
 
     private final AnalyticsService analyticsService;
     private final InsightEngine insightEngine;
+    private final com.example.spendtracker.data.local.database.SpendTrackerDatabase database;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Inject
-    public AnalyticsRepositoryImpl(AnalyticsService analyticsService, InsightEngine insightEngine) {
+    public AnalyticsRepositoryImpl(AnalyticsService analyticsService, InsightEngine insightEngine,
+            @com.example.spendtracker.di.MainDatabase com.example.spendtracker.data.local.database.SpendTrackerDatabase database) {
+        this.database = database;
         this.analyticsService = analyticsService;
         this.insightEngine = insightEngine;
     }
 
     @Override
     public LiveData<AnalyticsSummary> getFinancialOverview(long start, long end) {
-        MutableLiveData<AnalyticsSummary> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getFinancialOverview(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getFinancialOverview(start, end));
     }
 
     @Override
     public LiveData<List<TransactionEntity>> getTopTransactions(long start, long end, int limit) {
-        MutableLiveData<List<TransactionEntity>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getTopTransactions(start, end, limit)));
-        return liveData;
+        return observe(() -> analyticsService.getTopTransactions(start, end, limit));
     }
 
     @Override
     public LiveData<List<TimeSeriesPoint>> getMonthlyTrend(long start, long end, String type) {
-        MutableLiveData<List<TimeSeriesPoint>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getMonthlyTrend(start, end, type)));
-        return liveData;
+        return observe(() -> analyticsService.getMonthlyTrend(start, end, type));
     }
 
     @Override
     public LiveData<List<TimeSeriesPoint>> getTransactionFrequency(long start, long end, AnalyticsGranularity granularity) {
-        MutableLiveData<List<TimeSeriesPoint>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getTransactionFrequency(start, end, granularity)));
-        return liveData;
+        return observe(() -> analyticsService.getTransactionFrequency(start, end, granularity));
     }
 
     @Override
     public LiveData<List<CategoryAnalytics>> getExpenseCategoryAnalytics(long start, long end) {
-        MutableLiveData<List<CategoryAnalytics>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getExpenseCategoryAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getExpenseCategoryAnalytics(start, end));
     }
 
     @Override
     public LiveData<RollingAverage> getRollingExpenseAverage(int months) {
-        MutableLiveData<RollingAverage> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getRollingExpenseAverage(months)));
-        return liveData;
+        return observe(() -> analyticsService.getRollingExpenseAverage(months));
     }
 
     @Override
     public LiveData<TransactionVolume> getTransactionVolume(long start, long end, String periodLabel) {
-        MutableLiveData<TransactionVolume> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getTransactionVolume(start, end, periodLabel)));
-        return liveData;
+        return observe(() -> analyticsService.getTransactionVolume(start, end, periodLabel));
     }
 
     @Override
     public LiveData<List<TimeSeriesPoint>> getIncomeExpenseTrend(long start, long end) {
-        MutableLiveData<List<TimeSeriesPoint>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getIncomeExpenseTrend(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getIncomeExpenseTrend(start, end));
     }
 
     @Override
     public LiveData<BehaviorAnalytics> getDayNightAnalytics(long start, long end) {
-        MutableLiveData<BehaviorAnalytics> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getDayNightAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getDayNightAnalytics(start, end));
     }
 
     @Override
     public LiveData<BehaviorAnalytics> getTimeOfDayAnalytics(long start, long end) {
-        MutableLiveData<BehaviorAnalytics> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getTimeOfDayAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getTimeOfDayAnalytics(start, end));
     }
 
     @Override
     public LiveData<BehaviorAnalytics> getDayOfWeekAnalytics(long start, long end) {
-        MutableLiveData<BehaviorAnalytics> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getDayOfWeekAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getDayOfWeekAnalytics(start, end));
     }
 
     @Override
     public LiveData<BehaviorAnalytics> getWeekdayWeekendAnalytics(long start, long end) {
-        MutableLiveData<BehaviorAnalytics> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getWeekdayWeekendAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getWeekdayWeekendAnalytics(start, end));
     }
 
     @Override
     public LiveData<ForecastResult> getSpendingVelocity(long start, long end) {
-        MutableLiveData<ForecastResult> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getSpendingVelocity(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getSpendingVelocity(start, end));
     }
 
     @Override
     public LiveData<MonthlyComparison> getMonthOverMonthComparison(long start, long end) {
-        MutableLiveData<MonthlyComparison> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getMonthOverMonthComparison(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getMonthOverMonthComparison(start, end));
     }
 
     @Override
     public LiveData<List<MerchantAnalytics>> getMerchantAnalytics(long start, long end) {
-        MutableLiveData<List<MerchantAnalytics>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getMerchantAnalytics(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getMerchantAnalytics(start, end));
     }
 
     @Override
     public LiveData<List<MerchantAnalytics>> getRecurringMerchants() {
-        MutableLiveData<List<MerchantAnalytics>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getRecurringMerchants()));
-        return liveData;
+        return observe(() -> analyticsService.getRecurringMerchants());
     }
 
     @Override
     public LiveData<List<CategoryAnalytics>> getCategoryGrowth(long start, long end) {
-        MutableLiveData<List<CategoryAnalytics>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getCategoryGrowth(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getCategoryGrowth(start, end));
     }
 
     @Override
     public LiveData<SpendingConcentration> getSpendingConcentration(long start, long end) {
-        MutableLiveData<SpendingConcentration> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getSpendingConcentration(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getSpendingConcentration(start, end));
     }
 
     @Override
     public LiveData<LargeTransactionSummary> getLargeTransactionAnalysis(long start, long end, double threshold) {
-        MutableLiveData<LargeTransactionSummary> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getLargeTransactionAnalysis(start, end, threshold)));
-        return liveData;
+        return observe(() -> analyticsService.getLargeTransactionAnalysis(start, end, threshold));
     }
 
     @Override
     public LiveData<List<AnomalyTransaction>> getUnusualTransactions(long start, long end) {
-        MutableLiveData<List<AnomalyTransaction>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(analyticsService.getUnusualTransactions(start, end)));
-        return liveData;
+        return observe(() -> analyticsService.getUnusualTransactions(start, end));
     }
 
     @Override
     public LiveData<List<FinancialInsight>> generateInsights(long start, long end) {
-        MutableLiveData<List<FinancialInsight>> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(insightEngine.generateInsights(start, end)));
-        return liveData;
+        return observe(() -> insightEngine.generateInsights(start, end));
     }
 
     @Override
     public LiveData<ForecastResult> getSpendingForecast(long start, long end) {
-        MutableLiveData<ForecastResult> liveData = new MutableLiveData<>();
-        executor.execute(() -> liveData.postValue(insightEngine.getSpendingForecast(start, end)));
-        return liveData;
+        return observe(() -> insightEngine.getSpendingForecast(start, end));
     }
+    private <T> LiveData<T> observe(java.util.concurrent.Callable<T> query) {
+        return new LiveData<T>() {
+            private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+            private final java.util.concurrent.atomic.AtomicInteger generation = new java.util.concurrent.atomic.AtomicInteger();
+            private final androidx.room.InvalidationTracker.Observer observer = new androidx.room.InvalidationTracker.Observer("transactions") {
+                @Override public void onInvalidated(java.util.Set<String> tables) { refresh(); }
+            };
+            private void refresh() {
+                int request = generation.incrementAndGet();
+                executor.execute(() -> {
+                    if (request != generation.get()) return;
+                    try {
+                        T value = query.call();
+                        main.post(() -> { if (hasActiveObservers() && request == generation.get()) setValue(value); });
+                    } catch (Exception error) {
+                        android.util.Log.e("Analytics", "Unable to load analytics", error);
+                    }
+                });
+            }
+            @Override protected void onActive() { database.getInvalidationTracker().addObserver(observer); refresh(); }
+            @Override protected void onInactive() { generation.incrementAndGet(); database.getInvalidationTracker().removeObserver(observer); }
+        };
+    }
+
 }

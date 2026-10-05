@@ -30,10 +30,12 @@ public class TransactionFormFragment extends Fragment {
     private FragmentTransactionFormBinding binding;
     private TransactionViewModel viewModel;
     private Transaction existingTransaction;
+    private boolean transactionLoaded;
     private Calendar calendar = Calendar.getInstance();
     private final SimpleDateFormat dateTimeSdf = new SimpleDateFormat("dd/MM/yy (EEE) h:mm a", Locale.getDefault());
     private int transactionId = -1;
     private String selectedType = "EXPENSE";
+    private String originalDirection = "DEBIT";
 
     /** Known Indian bank names for the Bank Name autocomplete. */
     private static final List<String> KNOWN_BANKS = Arrays.asList(
@@ -66,6 +68,16 @@ public class TransactionFormFragment extends Fragment {
         }
 
         setupUI();
+        if (transactionId != -1) {
+            android.widget.ImageButton bookmark = binding.bookmarkTransaction;
+            bookmark.setVisibility(View.VISIBLE);
+            viewModel.getTransaction(transactionId).observe(getViewLifecycleOwner(), t -> {
+                if (t == null) return;
+                bookmark.setImageResource(t.isBookmarked() ? R.drawable.ic_symbol_bookmark_filled : R.drawable.ic_symbol_bookmark);
+                bookmark.setContentDescription(t.isBookmarked() ? "Remove bookmark" : "Bookmark transaction");
+                bookmark.setOnClickListener(v -> com.example.spendtracker.util.BookmarkActions.set(requireContext(), t.getId(), !t.isBookmarked()));
+            });
+        }
         if (getArguments() != null && getArguments().getBoolean("reviewCategory", false)) {
             binding.tilCategory.setHelperText(getString(R.string.category_review_title));
         }
@@ -79,8 +91,10 @@ public class TransactionFormFragment extends Fragment {
             if (isChecked) {
                 if (checkedId == R.id.btn_type_income) {
                     selectedType = "INCOME";
+                    originalDirection = "CREDIT";
                 } else if (checkedId == R.id.btn_type_expense) {
                     selectedType = "EXPENSE";
+                    originalDirection = "DEBIT";
                 } else if (checkedId == R.id.btn_type_transfer) {
                     selectedType = "TRANSFER";
                 }
@@ -117,6 +131,8 @@ public class TransactionFormFragment extends Fragment {
             String selected = (String) parent.getItemAtPosition(position);
             if ("Create New Category...".equals(selected)) {
                 showCreateCategoryDialog();
+            } else if ("Transfer".equalsIgnoreCase(selected)) {
+                binding.toggleType.check(R.id.btn_type_transfer);
             } else if ("Manage Categories...".equals(selected)) {
                 showManageCategoriesDialog();
             }
@@ -133,6 +149,14 @@ public class TransactionFormFragment extends Fragment {
         if ("TRANSFER".equals(selectedType)) {
             binding.tilCategory.setVisibility(View.GONE);
             binding.layoutTransferFields.setVisibility(View.VISIBLE);
+            String owner = binding.etBankName.getText().toString().trim();
+            if (owner.isEmpty() || "Unknown".equalsIgnoreCase(owner)) owner = com.example.spendtracker.util.UserProfile.load(requireContext()).name;
+            if (owner.isEmpty()) owner = "You";
+            boolean incoming = "CREDIT".equals(originalDirection);
+            if (binding.etFromAccount.getText().toString().trim().isEmpty())
+                binding.etFromAccount.setText(incoming ? binding.etSender.getText() : owner);
+            if (binding.etToAccount.getText().toString().trim().isEmpty())
+                binding.etToAccount.setText(incoming ? owner : binding.etReceiver.getText());
             binding.btnFees.setVisibility(View.VISIBLE);
             binding.tilSender.setVisibility(View.GONE);
             binding.tilReceiver.setVisibility(View.GONE);
@@ -360,7 +384,8 @@ public class TransactionFormFragment extends Fragment {
 
     private void loadTransaction() {
         viewModel.getTransaction(transactionId).observe(getViewLifecycleOwner(), transaction -> {
-            if (transaction != null) {
+            if (transaction != null && !transactionLoaded) {
+                transactionLoaded = true;
                 this.existingTransaction = transaction;
                 binding.etAmount.setText(String.valueOf(transaction.getAmount()));
                 
@@ -380,6 +405,8 @@ public class TransactionFormFragment extends Fragment {
                 String sourceType = transaction.getSourceType() != null ? transaction.getSourceType() : "";
                 binding.etAccountInfo.setText(sourceType, false);
 
+                originalDirection = com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "CREDIT" : "DEBIT";
+                com.example.spendtracker.util.TransferDirection.fillEndpoints(transaction, com.example.spendtracker.util.UserProfile.load(requireContext()).name);
                 selectedType = transaction.getType();
                 if ("INCOME".equals(selectedType)) {
                     binding.toggleType.check(R.id.btn_type_income);
@@ -443,7 +470,10 @@ public class TransactionFormFragment extends Fragment {
             return;
         }
 
-        double amount = Double.parseDouble(amountStr);
+        double amount;
+        try { amount = Double.parseDouble(amountStr); }
+        catch (NumberFormatException error) { binding.etAmount.setError("Enter a valid amount"); return; }
+        if (!Double.isFinite(amount) || amount <= 0) { binding.etAmount.setError("Enter an amount greater than zero"); return; }
         String categoryInput = "TRANSFER".equals(selectedType) ? "Transfer" : binding.actvCategory.getText().toString().trim();
         
         String categoryName = categoryInput;
@@ -502,6 +532,7 @@ public class TransactionFormFragment extends Fragment {
             );
         }
 
+        transaction.setDirection("TRANSFER".equals(selectedType) ? originalDirection : "INCOME".equals(selectedType) ? "CREDIT" : "DEBIT");
         if (transactionId == -1) {
             viewModel.addTransaction(transaction);
         } else {
@@ -509,7 +540,7 @@ public class TransactionFormFragment extends Fragment {
                 transaction.setSourceTransactionId(existingTransaction.getSourceTransactionId());
                 transaction.setReferenceNumber(existingTransaction.getReferenceNumber());
                 transaction.setDirection("TRANSFER".equals(selectedType) ?
-                        (com.example.spendtracker.util.TransferDirection.isIncoming(existingTransaction) ? "CREDIT" : "DEBIT") :
+                        originalDirection :
                         ("INCOME".equals(selectedType) ? "CREDIT" : "DEBIT"));
                 transaction.setTimestampPrecision(existingTransaction.getTimestampPrecision());
                 transaction.setImportBatchId(existingTransaction.getImportBatchId());
@@ -526,6 +557,7 @@ public class TransactionFormFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
+        transactionLoaded = false;
     }
 
     private String cleanText(String text) {

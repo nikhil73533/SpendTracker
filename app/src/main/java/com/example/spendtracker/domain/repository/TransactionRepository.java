@@ -12,6 +12,7 @@ public interface TransactionRepository {
     void addTransaction(Transaction transaction);
     void importTransactions(List<Transaction> transactions, ImportCallback callback);
     void updateTransaction(Transaction transaction);
+    void setBookmarked(int id, boolean value);
     /** Explicit user saves only; automated imports/predictions must not train themselves. */
     void updateConfirmedTransaction(Transaction transaction);
     void addConfirmedTransaction(Transaction transaction);

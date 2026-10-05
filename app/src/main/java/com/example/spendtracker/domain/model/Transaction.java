@@ -1,7 +1,18 @@
 package com.example.spendtracker.domain.model;
 
 public class Transaction {
+    private boolean bookmarked;
+    public boolean isBookmarked() { return bookmarked; }
+    public void setBookmarked(boolean value) { bookmarked = value; }
     private int id;
+    // Null means no recorded model prediction; confidence is never proof of user review.
+    private String predictedCategory;
+    private String predictionFinalCategory;
+    public String getPredictedCategory() { return predictedCategory; }
+    public void setPredictedCategory(String value) { predictedCategory = value; }
+    public String getPredictionFinalCategory() { return predictionFinalCategory; }
+    public void setPredictionFinalCategory(String value) { predictionFinalCategory = value; }
+
     private double amount;
     private String category;
     private String categoryEmoji;

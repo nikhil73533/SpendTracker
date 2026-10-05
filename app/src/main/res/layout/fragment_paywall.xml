@@ -16,6 +16,9 @@
                 android:layout_gravity="center_horizontal" android:layout_marginTop="28dp" />
             <TextView android:id="@+id/premium_status" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="16dp" android:textColor="@color/text_secondary" android:gravity="center" />
+            <TextView android:id="@+id/autopay_terms" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="16dp" android:visibility="gone"
+                android:textColor="@color/text_secondary" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/premium_plans" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="16dp" android:nestedScrollingEnabled="false" />
         </LinearLayout>
@@ -25,6 +28,9 @@
             android:layout_height="wrap_content" android:enabled="false" android:text="@string/premium_continue" />
         <com.google.android.material.button.MaterialButton android:id="@+id/premium_restore" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:text="@string/premium_restore" style="@style/Widget.Material3.Button.OutlinedButton" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/autopay_cancel" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:visibility="gone" android:text="@string/autopay_cancel"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
         <com.google.android.material.button.MaterialButton android:id="@+id/premium_later" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:text="@string/premium_maybe_later" style="@style/Widget.Material3.Button.TextButton" />
     </LinearLayout>

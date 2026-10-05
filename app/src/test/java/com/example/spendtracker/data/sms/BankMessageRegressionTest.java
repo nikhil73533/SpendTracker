@@ -130,6 +130,12 @@ public class BankMessageRegressionTest {
         assertEquals("SMS_RECEIVED", extractor.extractDetailed("on 31-Feb-2026", arrival).precision);
         assertEquals("DATE_ONLY", extractor.extractDetailed("on 15-Sep-26", arrival).precision);
         assertEquals("SMS_RECEIVED", extractor.extractDetailed("No date", arrival).precision);
+
+        DateExtractor.Result shortDate = extractor.extractDetailed("paid on 16-09", arrival);
+        LocalDateTime shortDateTime = Instant.ofEpochMilli(shortDate.timestamp)
+                .atZone(ZoneId.systemDefault()).toLocalDateTime();
+        assertEquals(LocalDate.of(2026, 9, 16), shortDateTime.toLocalDate());
+        assertEquals(LocalTime.of(22, 0), shortDateTime.toLocalTime());
     }
 
     @Test public void ambiguousOrMalformedAmountsAreNotSilentlyAccepted() {
@@ -171,5 +177,14 @@ public class BankMessageRegressionTest {
             assertEquals(row[0], 500, r.getTransaction().getAmount(), .001);
             assertEquals(row[0], "EXPENSE", r.getTransaction().getType());
         }
+    }
+
+    @Test public void reportedNeftCreditUsesProductionBankConfig() {
+        ParseResult result=service.parse("ICICIB", "ICIC BANK Account XX110 credited Rs. 10 on 01-Oct-26. Info NEFT-HDFCH-CHO1297600205-CEL EBA.AVAILABLE BALANCE is Rs. 20.", arrival);
+        assertTrue(result.isSuccess());
+        assertEquals(10,result.getTransaction().getAmount(),.001);
+        assertEquals("INCOME",result.getTransaction().getType());
+        assertEquals("CEL EBA",result.getTransaction().getSender().toUpperCase(Locale.ROOT));
+        assertEquals("CHO1297600205",result.getTransaction().getReferenceNumber());
     }
 }

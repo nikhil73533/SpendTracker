@@ -16,6 +16,8 @@ import javax.inject.Inject;
 public class ChartsViewModel extends ViewModel {
     private final TransactionRepository repository;
     private final SecurityRepository securityRepository;
+    private final LiveData<List<com.example.spendtracker.domain.model.Transaction>> allTransactions;
+    private final LiveData<DayNightTotals> dayNightTotals;
 
     public enum Granularity { DAILY, WEEKLY, MONTHLY, ANNUALLY }
 
@@ -27,6 +29,12 @@ public class ChartsViewModel extends ViewModel {
     public ChartsViewModel(TransactionRepository repository, SecurityRepository securityRepository) {
         this.repository = repository;
         this.securityRepository = securityRepository;
+        allTransactions = repository.getTransactions();
+        dayNightTotals = Transformations.switchMap(currentMonthStart, start ->
+                Transformations.switchMap(granularity, g ->
+                        Transformations.switchMap(transactionType, type ->
+                                Transformations.map(repository.getTransactionsInRange(start, calculateEndTime(start, g)),
+                                        transactions -> DayNightTotals.from(transactions, type)))));
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.DAY_OF_MONTH, 1);
         cal.set(Calendar.HOUR_OF_DAY, 0);
@@ -35,6 +43,9 @@ public class ChartsViewModel extends ViewModel {
         cal.set(Calendar.MILLISECOND, 0);
         currentMonthStart.setValue(cal.getTimeInMillis());
     }
+
+    public LiveData<List<com.example.spendtracker.domain.model.Transaction>> getAllTransactions() { return allTransactions; }
+    LiveData<DayNightTotals> getDayNightTotals() { return dayNightTotals; }
 
     public LiveData<Long> getCurrentMonthStart() { return currentMonthStart; }
     public LiveData<Granularity> getGranularity() { return granularity; }

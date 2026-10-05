@@ -13,7 +13,8 @@ public class FeatureGate {
     }
 
     public void require(PremiumFeature feature, Runnable allowed, Runnable locked) {
-        if (!premiumRepository.isStoreConfigured() || premiumRepository.hasAccess(feature)) allowed.run();
-        else locked.run();
+        // A missing merchant configuration is not a premium entitlement. Failing
+        // closed keeps a release build from accidentally making every paid feature free.
+        if (premiumRepository.hasAccess(feature)) allowed.run(); else locked.run();
     }
 }

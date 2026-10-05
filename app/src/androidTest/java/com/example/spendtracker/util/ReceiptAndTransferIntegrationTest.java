@@ -21,8 +21,8 @@ public class ReceiptAndTransferIntegrationTest {
     private Context context;
     @Before public void setup() {
         context = ApplicationProvider.getApplicationContext();
-        db = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class).allowMainThreadQueries().build();
-        clone = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class).allowMainThreadQueries().build();
+        db = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class).addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK).allowMainThreadQueries().build();
+        clone = Room.inMemoryDatabaseBuilder(context, SpendTrackerDatabase.class).addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK).allowMainThreadQueries().build();
     }
     @After public void close() { db.close(); clone.close(); }
     @Test public void transferTotalsUseDirectionAndExcludeDeletedRows() throws Exception {

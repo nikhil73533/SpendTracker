@@ -75,9 +75,20 @@ public class DailyTransactionsFragment extends Fragment {
         binding.btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelected());
         binding.checkSelectAll.setOnClickListener(v -> adapter.selectAll(binding.checkSelectAll.isChecked()));
         binding.btnCloseDailyChart.setOnClickListener(v -> hideActivityChart());
+        binding.btnShowDailyChart.setOnClickListener(v -> showActivityChart());
+        if (savedInstanceState != null) {
+            binding.activityMetric.check(savedInstanceState.getBoolean("weekExpenses") ? R.id.metric_week : R.id.metric_activity);
+            binding.activityStyle.check(savedInstanceState.getBoolean("linePlot") ? R.id.style_line : R.id.style_bar);
+        }
+        binding.activityMetric.addOnButtonCheckedListener((group, id, checked) -> { if (checked) renderActivityChart(activityTransactions); });
+        binding.activityStyle.addOnButtonCheckedListener((group, id, checked) -> { if (checked) renderActivityChart(activityTransactions); });
+        viewModel.getAllTransactions().observe(getViewLifecycleOwner(), ignored -> {
+            if (binding != null && binding.dailyChartOverlay.getVisibility() == View.VISIBLE) renderActivityChart(activityTransactions);
+        });
         setupSwipe();
         setupActivityChartGesture();
         observeViewModel();
+        if (savedInstanceState != null && savedInstanceState.getBoolean("dailyChartVisible")) showActivityChart();
     }
 
     private void renderSelection() {
@@ -120,9 +131,9 @@ public class DailyTransactionsFragment extends Fragment {
                     @NonNull RecyclerView.ViewHolder holder, float dx, float dy, int state, boolean active) {
                 if (dx > 0) {
                     View item = holder.itemView;
-                    paint.setColor(0xFFD32F2F);
+                    paint.setColor(requireContext().getColor(R.color.dashboard_expense_red));
                     canvas.drawRect(item.getLeft(), item.getTop(), item.getLeft() + dx, item.getBottom(), paint);
-                    paint.setColor(android.graphics.Color.WHITE);
+                    paint.setColor(requireContext().getColor(R.color.dashboard_brand_on_error));
                     paint.setTextSize(16 * getResources().getDisplayMetrics().scaledDensity);
                     canvas.save();
                     canvas.clipRect(item.getLeft(), item.getTop(), item.getLeft() + dx, item.getBottom());
@@ -161,19 +172,26 @@ public class DailyTransactionsFragment extends Fragment {
     /** A pull from the top of the activity stream opens the compact daily bar view. */
     private void setupActivityChartGesture() {
         binding.rvTransactions.addOnItemTouchListener(new RecyclerView.SimpleOnItemTouchListener() {
-            private float startY;
+            private float startY, startX;
             private boolean startedAtTop;
 
             @Override public boolean onInterceptTouchEvent(@NonNull RecyclerView recycler, @NonNull MotionEvent event) {
                 if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                     startY = event.getY();
+                    startX = event.getX();
                     startedAtTop = !recycler.canScrollVertically(-1);
-                } else if (event.getActionMasked() == MotionEvent.ACTION_UP && startedAtTop
+                } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE && startedAtTop
                         && event.getY() - startY > 64 * recycler.getResources().getDisplayMetrics().density
+                        && Math.abs(event.getY() - startY) > Math.abs(event.getX() - startX) * 1.5f
                         && !adapter.isSelecting()) {
                     showActivityChart();
                     startedAtTop = false;
-                } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    return true;
+                } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE
+                        && Math.abs(event.getX() - startX) > ViewConfiguration.get(recycler.getContext()).getScaledTouchSlop()
+                        && Math.abs(event.getX() - startX) > Math.abs(event.getY() - startY)) {
+                    startedAtTop = false;
+                } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL || event.getActionMasked() == MotionEvent.ACTION_UP) {
                     startedAtTop = false;
                 }
                 return false;
@@ -182,85 +200,69 @@ public class DailyTransactionsFragment extends Fragment {
     }
 
     private void showActivityChart() {
-        if (binding == null) return;
+        if (binding == null || binding.dailyChartOverlay.getVisibility() == View.VISIBLE) return;
+        binding.dailyChartOverlay.animate().cancel();
         binding.dailyChartOverlay.setVisibility(View.VISIBLE);
+        binding.dailyChartOverlay.setAlpha(0f);
+        binding.dailyChartOverlay.setTranslationY(-32f * getResources().getDisplayMetrics().density);
+        binding.dailyChartOverlay.animate().alpha(1f).translationY(0f).setDuration(android.animation.ValueAnimator.areAnimatorsEnabled() ? 220 : 0).start();
         renderActivityChart(activityTransactions);
         updateBackCallback();
     }
 
     private void hideActivityChart() {
         if (binding == null) return;
-        binding.dailyChartOverlay.setVisibility(View.GONE);
-        updateBackCallback();
+        binding.dailyChartOverlay.animate().cancel();
+        binding.dailyChartOverlay.animate().alpha(0f)
+                .translationY(-20f * getResources().getDisplayMetrics().density)
+                .setDuration(android.animation.ValueAnimator.areAnimatorsEnabled() ? 160 : 0).withEndAction(() -> {
+                    if (binding != null) {
+                        binding.dailyChartOverlay.setVisibility(View.GONE);
+                        updateBackCallback();
+                    }
+                }).start();
     }
 
     private void updateBackCallback() {
         if (selectionBack != null && binding != null) {
-            selectionBack.setEnabled(adapter.isSelecting()
-                    || binding.dailyChartOverlay.getVisibility() == View.VISIBLE);
+            selectionBack.setEnabled(isResumed() && (adapter.isSelecting()
+                    || binding.dailyChartOverlay.getVisibility() == View.VISIBLE));
         }
     }
 
     private void renderActivityChart(List<Transaction> transactions) {
         if (binding == null) return;
-        com.github.mikephil.charting.charts.BarChart chart = binding.dailyActivityChart;
-        if (Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())) {
-            chart.clear();
-            chart.setNoDataText("Unlock Privacy Mode to view daily activity");
-            chart.invalidate();
-            return;
-        }
-        if (transactions == null || transactions.isEmpty()) {
-            chart.clear();
-            chart.setNoDataText(getString(R.string.daily_activity_empty));
-            chart.invalidate();
-            return;
-        }
-
-        Map<Long, Double> dailyTotals = new LinkedHashMap<>();
-        Calendar calendar = Calendar.getInstance();
-        for (Transaction transaction : transactions) {
-            calendar.setTimeInMillis(transaction.getDate());
-            calendar.set(Calendar.HOUR_OF_DAY, 0);
-            calendar.set(Calendar.MINUTE, 0);
-            calendar.set(Calendar.SECOND, 0);
-            calendar.set(Calendar.MILLISECOND, 0);
-            long day = calendar.getTimeInMillis();
-            double current = dailyTotals.containsKey(day) ? dailyTotals.get(day) : 0d;
-            dailyTotals.put(day, current + Math.abs(transaction.getAmount()));
-        }
-
-        List<com.github.mikephil.charting.data.BarEntry> entries = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        java.text.SimpleDateFormat labelFormat = new java.text.SimpleDateFormat("dd", java.util.Locale.getDefault());
-        int index = 0;
-        for (Map.Entry<Long, Double> entry : dailyTotals.entrySet()) {
-            entries.add(new com.github.mikephil.charting.data.BarEntry(index++, entry.getValue().floatValue()));
-            labels.add(labelFormat.format(new java.util.Date(entry.getKey())));
-        }
-        com.github.mikephil.charting.data.BarDataSet dataSet =
-                new com.github.mikephil.charting.data.BarDataSet(entries, getString(R.string.daily_activity_title));
-        dataSet.setColor(Color.rgb(90, 175, 220));
-        dataSet.setDrawValues(false);
-        com.github.mikephil.charting.data.BarData data = new com.github.mikephil.charting.data.BarData(dataSet);
-        data.setBarWidth(0.58f);
-        chart.setData(data);
-        chart.getDescription().setEnabled(false);
-        chart.getLegend().setEnabled(false);
-        chart.setDrawGridBackground(false);
-        chart.setFitBars(true);
-        chart.setTouchEnabled(true);
-        chart.setScaleEnabled(false);
-        chart.getXAxis().setValueFormatter(new com.github.mikephil.charting.formatter.IndexAxisValueFormatter(labels));
-        chart.getXAxis().setPosition(com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM);
-        chart.getXAxis().setDrawGridLines(false);
-        chart.getXAxis().setTextColor(Color.LTGRAY);
-        chart.getXAxis().setGranularity(1f);
-        chart.getAxisLeft().setTextColor(Color.LTGRAY);
-        chart.getAxisLeft().setGridColor(Color.argb(70, 255, 255, 255));
-        chart.getAxisRight().setEnabled(false);
-        chart.animateY(280);
-        chart.invalidate();
+        boolean week = binding.activityMetric.getCheckedButtonId() == R.id.metric_week;
+        boolean line = binding.activityStyle.getCheckedButtonId() == R.id.style_line;
+        boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+        Map<Long, Double> series = week
+                ? DashboardChartSeries.spendingWeek(viewModel.getAllTransactions().getValue(), System.currentTimeMillis())
+                : DashboardChartSeries.activity(transactions);
+        String title = week ? getString(R.string.activity_week) : getString(R.string.daily_activity_title);
+        binding.tvDailyChartTitle.setText(title);
+        double total = 0;
+        for (double amount : series.values()) total += amount;
+        String caption = week ? "Last 7 calendar days · expenses only" : "Selected period · income, expenses and transfers";
+        String scale = line ? "Linear scale" : "Square-root scale";
+        binding.tvDailyChartSubtitle.setText(masked ? getString(R.string.chart_private)
+                : caption + "\n" + DashboardChartRenderer.currency(total) + " total · " + scale);
+        List<Long> dates = new ArrayList<>(series.keySet());
+        com.github.mikephil.charting.listener.OnChartValueSelectedListener selection = new com.github.mikephil.charting.listener.OnChartValueSelectedListener() {
+            @Override public void onValueSelected(com.github.mikephil.charting.data.Entry entry, com.github.mikephil.charting.highlight.Highlight highlight) {
+                int index = Math.round(entry.getX());
+                if (binding == null || Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()) || index < 0 || index >= dates.size()) return;
+                binding.tvDailyChartSubtitle.setText(new java.text.SimpleDateFormat("EEE, d MMM", java.util.Locale.getDefault()).format(new java.util.Date(dates.get(index)))
+                        + " · " + DashboardChartRenderer.currency(series.get(dates.get(index))) + "\n" + scale);
+            }
+            @Override public void onNothingSelected() { }
+        };
+        binding.dailyActivityChart.setOnChartValueSelectedListener(selection);
+        binding.dailyActivityLine.setOnChartValueSelectedListener(selection);
+        binding.dailyActivityChart.setVisibility(line ? View.GONE : View.VISIBLE);
+        binding.dailyActivityLine.setVisibility(line ? View.VISIBLE : View.GONE);
+        // Clear both chart buffers when privacy is enabled, including the hidden plot.
+        DashboardChartRenderer.render(binding.dailyActivityChart, series, masked, title);
+        DashboardChartRenderer.render(binding.dailyActivityLine, series, masked, title);
     }
 
     private void setupRecyclerView() {
@@ -371,9 +373,23 @@ public class DailyTransactionsFragment extends Fragment {
         }
     }
 
+    @Override public void onResume() {
+        super.onResume();
+        updateBackCallback();
+    }
+
+    @Override public void onPause() {
+        if (binding != null) { binding.dailyChartOverlay.animate().cancel(); binding.dailyChartOverlay.setVisibility(View.GONE); }
+        if (selectionBack != null) selectionBack.setEnabled(false);
+        super.onPause();
+    }
+
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putBoolean("weekExpenses", binding != null && binding.activityMetric.getCheckedButtonId() == R.id.metric_week);
+        outState.putBoolean("linePlot", binding != null && binding.activityStyle.getCheckedButtonId() == R.id.style_line);
+        outState.putBoolean("dailyChartVisible", binding != null && binding.dailyChartOverlay.getVisibility() == View.VISIBLE);
         if (adapter != null && adapter.isSelecting()) {
             ArrayList<Integer> ids = new ArrayList<>();
             for (Transaction transaction : adapter.getSelectedTransactions()) ids.add(transaction.getId());
@@ -384,6 +400,7 @@ public class DailyTransactionsFragment extends Fragment {
     @Override
     public void onDestroyView() {
         if (swipeHelper != null) swipeHelper.attachToRecyclerView(null);
+        binding.dailyChartOverlay.animate().cancel();
         binding.rvTransactions.setAdapter(null);
         super.onDestroyView();
         binding = null;

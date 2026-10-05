@@ -45,10 +45,13 @@ public class DateExtractor {
         Matcher shortDate = YEARLESS.matcher(text);
         if (shortDate.find()) {
             try {
-                LocalDate received = Instant.ofEpochMilli(arrival).atZone(zone).toLocalDate();
+                LocalDateTime receivedAt = Instant.ofEpochMilli(arrival).atZone(zone).toLocalDateTime();
+                LocalDate received = receivedAt.toLocalDate();
                 LocalDate date = LocalDate.of(received.getYear(), Integer.parseInt(shortDate.group(2)), Integer.parseInt(shortDate.group(1)));
                 if (date.isAfter(received.plusMonths(6))) date = date.minusYears(1);
-                return new Result(date.atStartOfDay(zone).toInstant().toEpochMilli(), "DATE_ONLY");
+                // The message supplies the transaction day, while the SMS timestamp is the
+                // best available time. Keeping both avoids displaying a misleading midnight.
+                return new Result(date.atTime(receivedAt.toLocalTime()).atZone(zone).toInstant().toEpochMilli(), "DATE_ONLY");
             } catch (DateTimeException ignored) { }
         }
         return new Result(arrival, "SMS_RECEIVED");

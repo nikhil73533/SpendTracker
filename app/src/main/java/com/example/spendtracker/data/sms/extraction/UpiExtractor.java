@@ -23,6 +23,8 @@ public class UpiExtractor {
 
     public ExtractionResult<String> extractReferenceId(String msg) {
         if (msg == null) return ExtractionResult.empty();
+        Matcher neft = Pattern.compile("(?i)\\b(?:NEFT|RTGS|IMPS)[/-][A-Z]{3,8}[/-]([A-Z0-9]{6,30})(?=[/-])").matcher(msg);
+        if (neft.find() && neft.group(1).matches(".*\\d.*")) return ExtractionResult.of(neft.group(1), .90);
         Matcher m = NUMERIC_REF.matcher(TransactionText.core(msg));
         if (m.find() && m.group(1) != null) return ExtractionResult.of(m.group(1), 0.95);
         return ExtractionResult.empty();

@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:theme="@style/ThemeOverlay.SpendTracker.Dashboard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingVertical="8dp">
+    android:minHeight="48dp"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground"
+    android:focusable="true"
+    android:paddingVertical="12dp">
 
     <TextView
         android:id="@+id/tv_bank_name"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/text_secondary"
+        android:layout_toStartOf="@id/tv_bank_amount"
+        android:layout_marginEnd="12dp"
+        android:textColor="@color/dashboard_text_secondary"
         tools:text="HDFC Bank" />
 
     <TextView
@@ -17,7 +24,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/dashboard_text_primary"
         android:textStyle="bold"
         tools:text="₹ 5,000" />
 

@@ -23,6 +23,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SpendTracker"
+rootProject.name = "TrackMint"
 include(":app")
 include(":prediction")

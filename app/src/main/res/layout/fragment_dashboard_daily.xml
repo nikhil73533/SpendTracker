@@ -1,53 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:theme="@style/ThemeOverlay.SpendTracker.Dashboard"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/dark_background">
-
+    android:background="@color/dashboard_dark_background">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
-
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="12dp"
-            app:cardBackgroundColor="#182636"
-            app:cardCornerRadius="20dp"
-            app:strokeColor="#314963"
-            app:strokeWidth="1dp">
-
+            android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:gravity="center_vertical">
             <LinearLayout
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/daily_stream_title"
-                    android:textColor="@color/text_primary"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
+                android:layout_weight="1"
+                android:orientation="vertical">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="end"
+                    android:text="@string/daily_stream_title"
+                    android:textColor="@color/dashboard_text_primary"
+                    android:textSize="17sp"
+                    android:fontFamily="sans-serif-medium" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
                     android:text="@string/daily_activity_hint"
-                    android:textColor="#9EC5EC"
+                    android:textColor="@color/dashboard_text_secondary"
                     android:textSize="12sp" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_show_daily_chart"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:minWidth="48dp"
+                android:text="@string/chart_action"
+                android:contentDescription="@string/show_daily_chart"
+                app:icon="@drawable/ic_symbol_bar_chart"
+                app:iconTint="@color/dashboard_brand_on_primary_container" />
+        </LinearLayout>
         <LinearLayout
             android:id="@+id/selection_bar"
             android:layout_width="match_parent"
@@ -56,49 +57,44 @@
             android:gravity="center_vertical"
             android:paddingHorizontal="8dp"
             android:visibility="gone">
-
             <CheckBox
                 android:id="@+id/check_select_all"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:contentDescription="@string/select_all_shown_transactions"
                 android:text="@string/select_all" />
-
             <TextView
                 android:id="@+id/tv_selection_count"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="center" />
-
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_delete_selected"
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
-                android:text="@string/delete_selected" />
-
+                android:text="@string/delete_selected"
+                app:icon="@drawable/ic_symbol_delete" />
             <ImageButton
                 android:id="@+id/btn_cancel_selection"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/cancel_selection"
-                android:src="@android:drawable/ic_menu_close_clear_cancel" />
+                android:src="@drawable/ic_symbol_close"
+                app:tint="@color/dashboard_text_primary" />
         </LinearLayout>
-
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
-
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rv_transactions"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:paddingBottom="12dp"
+                android:paddingBottom="88dp"
                 tools:listitem="@layout/item_transaction" />
-
             <LinearLayout
                 android:id="@+id/layout_empty_state"
                 android:layout_width="wrap_content"
@@ -108,87 +104,109 @@
                 android:orientation="vertical"
                 android:visibility="gone"
                 tools:visibility="visible">
-
                 <ImageView
                     android:layout_width="80dp"
                     android:layout_height="80dp"
                     android:alpha="0.5"
                     android:contentDescription="No data"
-                    android:src="@android:drawable/ic_menu_save" />
-
+                    android:src="@drawable/ic_symbol_empty"
+                    app:tint="@color/dashboard_brand_primary" />
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:alpha="0.65"
                     android:text="No activity in this period."
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
             </LinearLayout>
         </FrameLayout>
     </LinearLayout>
-
     <FrameLayout
         android:id="@+id/daily_chart_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#D9121B26"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
         android:clickable="true"
         android:focusable="true"
-        android:padding="16dp"
+        android:layout_margin="12dp"
         android:visibility="gone">
-
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            app:cardBackgroundColor="#182636"
-            app:cardCornerRadius="28dp"
-            app:strokeColor="#466987"
+            android:layout_gravity="top"
+            app:cardBackgroundColor="@color/dashboard_dark_surface_variant"
+            app:cardCornerRadius="20dp"
+            app:strokeColor="@color/dashboard_brand_primary"
             app:strokeWidth="1dp">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
-
+                android:padding="12dp">
                 <RelativeLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
-
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_alignParentStart="true"
+                        android:contentDescription="Daily chart"
+                        android:src="@drawable/ic_symbol_bar_chart"
+                        app:tint="@color/dashboard_brand_secondary" />
                     <TextView
                         android:id="@+id/tv_daily_chart_title"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_toStartOf="@id/btn_close_daily_chart"
                         android:text="@string/daily_activity_title"
-                        android:textColor="@color/text_primary"
-                        android:textSize="21sp"
+                        android:layout_marginStart="40dp"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="18sp"
                         android:textStyle="bold" />
-
                     <ImageButton
                         android:id="@+id/btn_close_daily_chart"
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
+                        android:padding="8dp" android:scaleType="fitCenter"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:layout_alignParentEnd="true"
                         android:layout_centerVertical="true"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/daily_activity_close"
-                        android:src="@android:drawable/ic_menu_close_clear_cancel"
-                        app:tint="@color/text_primary" />
+                        android:src="@drawable/ic_symbol_close"
+                        app:tint="@color/dashboard_text_primary" />
                 </RelativeLayout>
-
                 <TextView
                     android:id="@+id/tv_daily_chart_subtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="@string/daily_activity_subtitle"
-                    android:textColor="#9EC5EC" />
-
+                    android:text="@string/daily_chart_explanation"
+                    android:textColor="@color/dashboard_text_secondary" />
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/activity_metric" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@id/metric_activity">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/metric_activity"
+                        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="48dp" android:text="@string/activity_period" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/metric_week"
+                        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="48dp" android:text="@string/activity_week" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/activity_style" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    app:singleSelection="true" app:selectionRequired="true" app:checkedButton="@id/style_bar">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/style_bar"
+                        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="48dp" android:text="@string/chart_bars" app:icon="@drawable/ic_symbol_bar_chart" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/style_line"
+                        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                        android:layout_height="48dp" android:text="@string/chart_line" app:icon="@drawable/ic_symbol_trend" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+                <com.github.mikephil.charting.charts.LineChart android:id="@+id/daily_activity_line"
+                    android:layout_width="match_parent" android:layout_height="200dp" android:visibility="gone" />
                 <com.github.mikephil.charting.charts.BarChart
                     android:id="@+id/daily_activity_chart"
                     android:layout_width="match_parent"
-                    android:layout_height="260dp"
+                    android:layout_height="200dp"
                     android:layout_marginTop="12dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

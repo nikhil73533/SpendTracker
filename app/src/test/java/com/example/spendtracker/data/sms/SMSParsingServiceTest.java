@@ -378,4 +378,24 @@ public class SMSParsingServiceTest {
     }
 
 
+
+    @Test public void reportedIcicCreditWithNeftReferenceAndBalance() {
+        ParseResult result = service.parse("ICICIB", "ICIC BANK Account XX110 credited Rs. 10 on 01-Oct-26. Info NEFT-HDFCH-CHO1297600205-CEL EBA.AVAILABLE BALANCE is Rs. 20.", System.currentTimeMillis());
+        assertTrue(result.isSuccess());
+        Transaction t=result.getTransaction();
+        assertEquals(10, t.getAmount(), .001);
+        assertEquals("INCOME",t.getType()); assertEquals("CREDIT",t.getDirection());
+        assertEquals("ICICI",t.getBankName());
+        assertEquals("CEL EBA",t.getSender().toUpperCase(java.util.Locale.ROOT));
+        assertEquals("CHO1297600205",t.getReferenceNumber());
+        assertEquals("2026-10-01",new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date(t.getDate())));
+    }
+    @Test public void dateAfterCreditIsNotTheAmount() {
+        ParseResult result=service.parse("ICICIB","Account XX110 credited 01-Oct-26 with INR 10. Available balance is INR 20.",System.currentTimeMillis());
+        assertTrue(result.isSuccess()); assertEquals(10,result.getTransaction().getAmount(),.001);
+    }
+    @Test public void futureCreditAndOtpDoNotBecomeIncome() {
+        assertFalse(service.parse("ICICIB","Your account will be credited INR 100 on 01-Oct-26.",System.currentTimeMillis()).isSuccess());
+        assertFalse(service.parse("ICICIB","OTP 123456 for payment of INR 100",System.currentTimeMillis()).isSuccess());
+    }
 }

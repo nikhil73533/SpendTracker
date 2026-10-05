@@ -38,6 +38,7 @@ public class AccountHistoryFragment extends Fragment {
     private FragmentAccountHistoryBinding binding;
     private TransactionViewModel viewModel;
     private ChatAdapter adapter;
+    private List<Transaction> current = new ArrayList<>();
     private String accountId;
     private String accountName;
     
@@ -79,6 +80,8 @@ public class AccountHistoryFragment extends Fragment {
         adapter = new ChatAdapter();
         binding.rvHistory.setAdapter(adapter);
         
+        binding.shareAccount.setOnClickListener(v -> com.example.spendtracker.util.AccountReport.share(this, accountName, current,
+                Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue())));
         setupLineChart();
     }
 
@@ -97,22 +100,33 @@ public class AccountHistoryFragment extends Fragment {
     }
 
     private void observeData() {
+        viewModel.getUniqueAccounts().observe(getViewLifecycleOwner(), accounts -> {
+            if (accounts == null) return;
+            for (com.example.spendtracker.data.local.dao.TransactionDao.AccountSummary account : accounts) {
+                if (java.util.Objects.equals(account.name, accountId)) {
+                    binding.tvMerchantCategories.setText(getResources().getQuantityString(R.plurals.merchant_category_count,
+                            account.categoryCount, account.categoryCount) + " · All time\n"
+                            + (account.categoryNames == null ? "" : account.categoryNames.replace(",", ", ")));
+                    break;
+                }
+            }
+        });
         // Fetch all history for this account
-        viewModel.getAccountHistory(accountId, 0, System.currentTimeMillis()).observe(getViewLifecycleOwner(), transactions -> {
+        viewModel.getAccountHistory(accountId, 0, Long.MAX_VALUE).observe(getViewLifecycleOwner(), transactions -> {
             if (transactions != null) {
-                processAndSubmitList(transactions);
+                current = new ArrayList<>(transactions);
+                processAndSubmitList(new ArrayList<>(transactions));
                 updateTrendChart(transactions);
                 
-                double totalExpense = 0;
-                for (Transaction t : transactions) {
-                    if ("EXPENSE".equals(t.getType())) totalExpense += t.getAmount();
-                }
-                binding.tvTotalExpense.setText(viewModel.formatAmount(totalExpense));
+                com.example.spendtracker.ui.charts.FlowSummary.render(binding.getRoot(), current, viewModel::formatAmount);
             }
         });
 
         viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), enabled -> {
+            binding.tvAccountName.setText(viewModel.maskPII(accountName));
+            binding.tvUpiId.setText(viewModel.maskPII(accountId));
             adapter.notifyDataSetChanged();
+            com.example.spendtracker.ui.charts.FlowSummary.render(binding.getRoot(), current, viewModel::formatAmount);
             updateTrendChart(); // Redraw chart to mask values if needed
         });
     }
@@ -186,85 +200,12 @@ public class AccountHistoryFragment extends Fragment {
     }
 
     private void updateTrendChart() {
-        // This is called when granularity changes or privacy mode toggles
-        viewModel.getAccountHistory(accountId, 0, System.currentTimeMillis()).observe(getViewLifecycleOwner(), transactions -> {
-            if (transactions != null) updateTrendChart(transactions);
-        });
+        updateTrendChart(current);
     }
 
     private void updateTrendChart(List<Transaction> transactions) {
-        if (transactions == null || transactions.isEmpty()) {
-            binding.trendChart.clear();
-            return;
-        }
-
-        TreeMap<Long, Double> groupedData = new TreeMap<>();
-        Calendar cal = Calendar.getInstance();
-
-        for (Transaction t : transactions) {
-            if (!"EXPENSE".equals(t.getType())) continue;
-            
-            cal.setTimeInMillis(t.getDate());
-            if (currentGranularity == Granularity.WEEKLY) {
-                cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
-            } else if (currentGranularity == Granularity.MONTHLY) {
-                cal.set(Calendar.DAY_OF_MONTH, 1);
-            } else if (currentGranularity == Granularity.ANNUAL) {
-                cal.set(Calendar.DAY_OF_YEAR, 1);
-            }
-            cal.set(Calendar.HOUR_OF_DAY, 0);
-            cal.set(Calendar.MINUTE, 0);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-            
-            long key = cal.getTimeInMillis();
-            groupedData.put(key, groupedData.getOrDefault(key, 0.0) + t.getAmount());
-        }
-
-        List<Entry> entries = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        int index = 0;
-        
-        SimpleDateFormat labelFormat;
-        if (currentGranularity == Granularity.WEEKLY) labelFormat = new SimpleDateFormat("dd/MM", Locale.getDefault());
-        else if (currentGranularity == Granularity.MONTHLY) labelFormat = new SimpleDateFormat("MMM", Locale.getDefault());
-        else labelFormat = new SimpleDateFormat("yyyy", Locale.getDefault());
-
-        for (Map.Entry<Long, Double> entry : groupedData.entrySet()) {
-            entries.add(new Entry(index++, entry.getValue().floatValue()));
-            labels.add(labelFormat.format(new Date(entry.getKey())));
-        }
-
-        LineDataSet dataSet = new LineDataSet(entries, "Expense Trend");
-        dataSet.setColor(Color.parseColor("#FF5252"));
-        dataSet.setCircleColor(Color.parseColor("#FF5252"));
-        dataSet.setLineWidth(2f);
-        dataSet.setCircleRadius(3f);
-        dataSet.setDrawCircleHole(false);
-        dataSet.setValueTextColor(Color.WHITE);
-        dataSet.setValueTextSize(9f);
-        dataSet.setDrawFilled(true);
-        dataSet.setFillAlpha(50);
-        dataSet.setFillColor(Color.parseColor("#FF5252"));
-        
-        dataSet.setValueFormatter(new ValueFormatter() {
-            @Override
-            public String getPointLabel(Entry entry) {
-                return viewModel.formatAmount(entry.getY());
-            }
-        });
-
-        binding.trendChart.getXAxis().setValueFormatter(new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                int idx = (int) value;
-                if (idx >= 0 && idx < labels.size()) return labels.get(idx);
-                return "";
-            }
-        });
-
-        binding.trendChart.setData(new LineData(dataSet));
-        binding.trendChart.invalidate();
+        com.example.spendtracker.ui.charts.TransactionFlowChart.render(binding.trendChart, transactions,
+                currentGranularity.name(), Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue()));
     }
 
     private static class ChatListItem {
@@ -299,7 +240,7 @@ public class AccountHistoryFragment extends Fragment {
         public int getItemViewType(int position) {
             ChatListItem item = items.get(position);
             if (item.type == ChatListItem.TYPE_SEPARATOR) return 2;
-            return "INCOME".equals(item.transaction.getType()) ? 1 : 0;
+            return com.example.spendtracker.util.TransferDirection.isIncoming(item.transaction) ? 1 : 0;
         }
 
         @NonNull
@@ -325,7 +266,15 @@ public class AccountHistoryFragment extends Fragment {
                 vh.tvCategory.setText(t.getCategory());
                 vh.tvTime.setText(timeFormat.format(new Date(t.getDate())));
                 
-                if ("INCOME".equals(t.getType())) {
+                vh.itemView.setOnClickListener(v -> {
+                    Bundle args = new Bundle(); args.putInt("transactionId", t.getId());
+                    Navigation.findNavController(v).navigate(R.id.transactionFormFragment, args);
+                });
+                if (com.example.spendtracker.util.TransferDirection.isTransfer(t)) {
+                    String owner = com.example.spendtracker.util.UserProfile.load(requireContext()).name;
+                    vh.tvStatus.setText("Transfer · " + viewModel.maskPII(com.example.spendtracker.util.TransferDirection.from(t, owner)) + " → "
+                            + viewModel.maskPII(com.example.spendtracker.util.TransferDirection.to(t, owner)));
+                } else if ("INCOME".equals(t.getType())) {
                     vh.tvStatus.setText("Received from " + viewModel.maskPII(accountName));
                 } else {
                     vh.tvStatus.setText("Paid to " + viewModel.maskPII(accountName));
