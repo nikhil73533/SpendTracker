@@ -1,0 +1,8 @@
+<resources>
+    <string name="title_premium">Your Free plan</string>
+    <string name="premium_subtitle">Your tools for everyday money management. No payment required.</string>
+    <string name="premium_free_description">All features in this version are included. Track transactions, explore analytics, import statements and export reports. No payment or sign-in is needed for on-device features.</string>
+    <string name="privacy_online_items">○ Google Play rating
+○ Online Help and feedback
+○ Android backup and chosen backup folders</string>
+</resources>

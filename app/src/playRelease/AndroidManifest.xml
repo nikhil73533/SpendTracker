@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="com.android.vending.BILLING" tools:node="remove" />
+    <application>
+        <activity android:name="com.example.spendtracker.billing.autopay.AutoPayActivity" tools:node="remove" />
+        <activity android:name="com.razorpay.CheckoutActivity" tools:node="remove" />
+        <activity android:name="com.razorpay.RzpTokenReceiverActivity" tools:node="remove" />
+        <activity android:name="com.razorpay.MagicXActivity" tools:node="remove" />
+        <activity android:name="com.razorpay.DeeplinkActivity" tools:node="remove" />
+        <receiver android:name="com.razorpay.UpiChooserSelectionReceiver" tools:node="remove" />
+        <activity android:name="com.android.billingclient.api.ProxyBillingActivity" tools:node="remove" />
+        <activity android:name="com.android.billingclient.api.ProxyBillingActivityV2" tools:node="remove" />
+        <provider android:name="androidx.startup.InitializationProvider" android:authorities="${applicationId}.androidx-startup" tools:node="merge">
+            <meta-data android:name="com.razorpay.RazorpayInitializer" tools:node="remove" />
+            <meta-data android:name="com.razorpay.CoreInitializer" tools:node="remove" />
+        </provider>
+    </application>
+</manifest>

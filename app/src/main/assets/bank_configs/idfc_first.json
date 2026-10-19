@@ -1,0 +1,26 @@
+{
+  "bankName": "IDFC First Bank",
+  "senders": ["IDFC"],
+  "patterns": [
+    {
+      "name": "Account Debit",
+      "regex": "(?i)(?:INR|Rs\\.?|₹)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+(?:debited|deducted)\\s+(?:from)?\\s*(?:IDFC)?\\s*(?:A/c|Account)\\s+(?:XX*)?([0-9]+)",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Account Credit",
+      "regex": "(?i)(?:INR|Rs\\.?|₹)\\s*([0-9,]+(?:\\.[0-9]{1,2})?)\\s+credited\\s+to\\s+(?:IDFC)?\\s*(?:A/c|Account)\\s+(?:XX*)?([0-9]+)",
+      "amountGroup": 1,
+      "accountGroup": 2,
+      "receiverGroup": 0,
+      "upiGroup": 0,
+      "type": "INCOME",
+      "sourceType": "Account"
+    }
+  ]
+}

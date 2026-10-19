@@ -1,0 +1,13 @@
+- `[x]` Enhance modeling with user behavior features
+    - `[x]` Create `MerchantStatsEntity` and DAO in `:prediction`
+    - `[x]` Update `PredictionDatabase` to version 2 with destructive migration
+    - `[x]` Update `FeatureExtractor` with bucketing (Amount, Hour, Weekend)
+    - `[x]` Update `PredictionService` to track merchant stats during `learn()`
+- `[x]` Redesign Calendar UI
+    - `[x]` Update `item_calendar_day.xml` for minimalist grid look
+    - `[x]` Update `CalendarGridAdapter` for "1.M" formatting and color coding
+    - `[x]` Add day-of-week header to `fragment_dashboard.xml`
+- `[x]` Implement Auto-Update (Refinement Pass)
+    - `[x]` Add `batchPredict()` to `PredictionService`
+    - `[x]` Update `DashboardViewModel` to auto-categorize "Uncategorized" transactions after learning
+- `[x]` Verify build and manual testing

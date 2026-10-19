@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar" android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize" app:title="Bill reminders"
+        app:navigationIcon="@android:drawable/ic_menu_revert" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp" android:paddingBottom="8dp"
+        android:text="Reminders start 2 days before the due date, then daily through the due date, around 9 AM. Android battery settings may delay delivery." />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingHorizontal="12dp" android:orientation="horizontal">
+        <com.google.android.material.button.MaterialButton android:id="@+id/btn_add_bill"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:text="Paste message" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/btn_scan_bills"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:text="Scan SMS" />
+    </LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/btn_notifications"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Notification settings" />
+    <TextView android:id="@+id/tv_empty" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:padding="16dp"
+        android:text="No active bills. Paste a bill message or scan your last 90 days of SMS. New incoming bill messages are detected automatically when SMS permission is enabled." />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_bill_alerts"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:paddingHorizontal="12dp" android:paddingBottom="16dp" android:clipToPadding="false" />
+</LinearLayout>

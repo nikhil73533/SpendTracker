@@ -1,0 +1,736 @@
+package com.example.spendtracker.ui.dashboard;
+
+import android.content.Context;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Transformations;
+import androidx.lifecycle.ViewModel;
+import com.example.spendtracker.domain.model.Summary;
+import com.example.spendtracker.domain.model.Transaction;
+import com.example.spendtracker.domain.repository.SecurityRepository;
+import com.example.spendtracker.domain.repository.BillAlertRepository;
+import com.example.spendtracker.domain.model.BillAlert;
+import com.example.spendtracker.domain.repository.TransactionRepository;
+import com.example.prediction.domain.service.IncrementalPredictionService;
+import dagger.hilt.android.lifecycle.HiltViewModel;
+import dagger.hilt.android.qualifiers.ApplicationContext;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import javax.inject.Inject;
+
+@HiltViewModel
+public class DashboardViewModel extends ViewModel {
+
+    private final TransactionRepository repository;
+    private final LiveData<List<Transaction>> allTransactions;
+    /** Shared filtered snapshot prevents each dashboard widget rebuilding the same list. */
+    private final LiveData<List<Transaction>> visibleTransactions;
+    private final SecurityRepository securityRepository;
+    private final BillAlertRepository billAlertRepository;
+    private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
+    private final MutableLiveData<FilterType> currentFilter = new MutableLiveData<>(FilterType.DAILY);
+    private final MutableLiveData<Integer> selectedTab = new MutableLiveData<>(0);
+    private final MutableLiveData<String> searchQuery = new MutableLiveData<>("");
+    private final IncrementalPredictionService predictionService;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private long calendarViewMonthStart;
+    /** True when the user tapped a specific calendar day; prevents the tab-change from resetting to a monthly filter. */
+    private boolean calendarDaySelected = false;
+    private final SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
+    private final SimpleDateFormat dayFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.getDefault());
+
+    public static class DateRange {
+        public final long start;
+        public final long end;
+        public final String label;
+
+        public DateRange(long start, long end, String label) {
+            this.start = start;
+            this.end = end;
+            this.label = label;
+        }
+    }
+
+    @Inject
+    public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository,
+                              BillAlertRepository billAlertRepository, @ApplicationContext Context context) {
+        this.repository = repository;
+        this.allTransactions = repository.getTransactions();
+        this.securityRepository = securityRepository;
+        this.billAlertRepository = billAlertRepository;
+        this.predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
+        calendarViewMonthStart = getStartOfMonth(System.currentTimeMillis());
+        visibleTransactions = createVisibleTransactions();
+        setFilter(FilterType.DAILY);
+    }
+
+    /** Kept for existing JVM tests that exercise transaction-only dashboard behaviour. */
+    public DashboardViewModel(TransactionRepository repository, SecurityRepository securityRepository,
+                              @ApplicationContext Context context) {
+        this(repository, securityRepository, new com.example.spendtracker.domain.repository.BillAlertRepository() {
+            @Override public LiveData<List<BillAlert>> getActiveAlerts() { return new MutableLiveData<>(new ArrayList<>()); }
+            @Override public LiveData<List<BillAlert>> getAllAlerts() { return new MutableLiveData<>(new ArrayList<>()); }
+            @Override public void resolveAlert(int id) { }
+        }, context);
+    }
+
+    public enum FilterType { DAILY, MONTHLY, YEARLY, TOTAL, CALENDAR, TRANSACTION_GROUP }
+
+    public void setFilter(FilterType type) {
+        FilterType previous = currentFilter.getValue();
+        currentFilter.setValue(type);
+        if (type == FilterType.TRANSACTION_GROUP) {
+            if (previous == FilterType.YEARLY) setMonthFilter(calendarViewMonthStart);
+            return;
+        }
+
+        DateRange current = dateRange.getValue();
+        long start;
+        if (current != null && current.start != 0) {
+            start = getStartOfMonth(current.start);
+        } else {
+            start = calendarViewMonthStart;
+        }
+        
+        if (type == FilterType.YEARLY) {
+            if (previous != FilterType.YEARLY) calendarViewMonthStart = start;
+            setYearFilter(calendarViewMonthStart);
+        } else if (type == FilterType.DAILY || type == FilterType.MONTHLY || type == FilterType.TOTAL || type == FilterType.CALENDAR) {
+            if (previous == FilterType.YEARLY) start = calendarViewMonthStart;
+            setMonthFilter(start);
+        }
+    }
+
+    public void selectTab(int index) {
+        selectedTab.setValue(index);
+    }
+
+    public LiveData<Integer> getSelectedTab() {
+        return selectedTab;
+    }
+
+    public void setSearchQuery(String query) {
+        searchQuery.setValue(query);
+    }
+
+    public LiveData<String> getSearchQuery() {
+        return searchQuery;
+    }
+
+    public void moveNext() {
+        moveDate(1);
+    }
+
+    public void movePrev() {
+        moveDate(-1);
+    }
+
+    private void moveDate(int direction) {
+        DateRange current = dateRange.getValue();
+        if (current == null) return;
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(current.start);
+        
+        if (currentFilter.getValue() == FilterType.YEARLY) {
+            cal.setTimeInMillis(calendarViewMonthStart);
+            cal.add(Calendar.YEAR, direction);
+            calendarViewMonthStart = cal.getTimeInMillis();
+            setYearFilter(calendarViewMonthStart);
+        } else {
+            cal.add(Calendar.MONTH, direction);
+            setMonthFilter(cal.getTimeInMillis());
+        }
+    }
+
+    public LiveData<Boolean> isPrivacyModeEnabled() {
+        return securityRepository.isPrivacyModeEnabled();
+    }
+
+    public void setPrivacyModeEnabled(boolean enabled) {
+        securityRepository.setPrivacyModeEnabled(enabled);
+    }
+
+    public String formatAmount(double amount) {
+        if (Boolean.TRUE.equals(isPrivacyModeEnabled().getValue())) return "***";
+        return String.format(Locale.getDefault(), "₹ %.0f", amount);
+    }
+
+    private void setMonthFilter(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.DAY_OF_MONTH, 1);
+        long start = getStartOfDay(cal.getTimeInMillis());
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+        long end = getStartOfDay(cal.getTimeInMillis()) + 86399999;
+        dateRange.setValue(new DateRange(start, end, monthYearFormat.format(new Date(start))));
+    }
+
+    private void setYearFilter(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.DAY_OF_YEAR, 1);
+        long start = getStartOfDay(cal.getTimeInMillis());
+        cal.setTimeInMillis(start);
+        cal.add(Calendar.YEAR, 1);
+        dateRange.setValue(new DateRange(start, cal.getTimeInMillis() - 1,
+                new SimpleDateFormat("yyyy", Locale.getDefault()).format(new Date(start))));
+    }
+
+    public void setCalendarFilter(long timestamp, String label) {
+        calendarDaySelected = true;
+        long start = getStartOfDay(timestamp);
+        dateRange.setValue(new DateRange(start, start + 86399999, label));
+    }
+
+    /** @return {@code true} when a specific calendar day was selected and the daily tab should preserve its filter. */
+    public boolean isCalendarDaySelected() {
+        return calendarDaySelected;
+    }
+
+    /** Clears the calendar-day-selected guard so normal tab switching resumes month-based filtering. */
+    public void clearCalendarDaySelected() {
+        calendarDaySelected = false;
+    }
+
+    public LiveData<DateRange> getDateRange() { return dateRange; }
+
+    public LiveData<List<Transaction>> getAllTransactions() { return allTransactions; }
+
+    public LiveData<List<Transaction>> getTransactions() {
+        return visibleTransactions;
+    }
+
+    private LiveData<List<Transaction>> createVisibleTransactions() {
+        return Transformations.switchMap(dateRange, range -> {
+            LiveData<List<Transaction>> baseTxns = null;
+            if (range != null) {
+                if (range.start == 0 && range.end == Long.MAX_VALUE) {
+                    baseTxns = repository.getTransactions();
+                } else {
+                    baseTxns = repository.getTransactionsInRange(range.start, range.end);
+                }
+            }
+            if (baseTxns == null) {
+                baseTxns = repository.getTransactions();
+            }
+            if (baseTxns == null) {
+                baseTxns = new MutableLiveData<>(new ArrayList<>());
+            }
+            final LiveData<List<Transaction>> safeBaseTxns = baseTxns;
+            return Transformations.switchMap(searchQuery, query ->
+                Transformations.map(safeBaseTxns, transactions -> {
+                    if (query == null || query.trim().isEmpty()) {
+                        return transactions;
+                    }
+                    String q = query.trim().toLowerCase();
+                    List<Transaction> filtered = new ArrayList<>();
+                    if (transactions != null) {
+                        for (Transaction t : transactions) {
+                            if (matchesSearch(t, q)) {
+                                filtered.add(t);
+                            }
+                        }
+                    }
+                    return filtered;
+                })
+            );
+        });
+    }
+
+    private boolean matchesSearch(Transaction t, String q) {
+        if (t == null || q == null || q.isEmpty()) return true;
+
+        // 1. Sender name search
+        if (t.getSender() != null && t.getSender().toLowerCase().contains(q)) return true;
+
+        // 2. Receiver name search
+        if (t.getReceiverName() != null && t.getReceiverName().toLowerCase().contains(q)) return true;
+
+        // 3. Category search
+        if (t.getCategory() != null && t.getCategory().toLowerCase().contains(q)) return true;
+
+        // 4. Amount search (numeric or formatted string)
+        String amountStr = String.valueOf(t.getAmount());
+        if (amountStr.contains(q)) return true;
+        String formattedAmt = String.format(Locale.getDefault(), "%.0f", t.getAmount());
+        if (formattedAmt.contains(q)) return true;
+
+        // 5. Description & Source search
+        if (t.getDescription() != null && t.getDescription().toLowerCase().contains(q)) return true;
+        if (t.getSource() != null && t.getSource().toLowerCase().contains(q)) return true;
+
+        return false;
+    }
+
+    public LiveData<List<GroupedTransactionAdapter.ListItem>> getGroupedTransactions() {
+        return Transformations.map(getTransactions(), transactions -> {
+            List<GroupedTransactionAdapter.ListItem> items = new ArrayList<>();
+            if (transactions == null || transactions.isEmpty()) return items;
+
+            Map<Long, List<Transaction>> grouped = new LinkedHashMap<>();
+            for (Transaction t : transactions) {
+                long tDay = getStartOfDay(t.getDate());
+                if (!grouped.containsKey(tDay)) grouped.put(tDay, new ArrayList<>());
+                grouped.get(tDay).add(t);
+            }
+
+            for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
+                double income = 0, expense = 0, transfer = 0;
+                for (Transaction t : entry.getValue()) {
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                    if (isTransfer) {
+                        transfer += t.getAmount();
+                    } else if ("INCOME".equals(t.getType())) {
+                        income += t.getAmount();
+                    } else if ("EXPENSE".equals(t.getType())) {
+                        expense += t.getAmount();
+                    }
+                }
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
+                for (Transaction t : entry.getValue()) {
+                    items.add(new GroupedTransactionAdapter.TransactionItem(t));
+                }
+            }
+            return items;
+        });
+    }
+
+    public LiveData<List<MonthlySummaryAdapter.MonthSummary>> getMonthlySummaries() {
+        return Transformations.switchMap(dateRange, range -> Transformations.map(repository.getTransactions(), transactions -> {
+            List<MonthlySummaryAdapter.MonthSummary> summaries = new ArrayList<>();
+            if (transactions == null || transactions.isEmpty()) return summaries;
+
+            Calendar year = Calendar.getInstance();
+            year.setTimeInMillis(range.start);
+            int selectedYear = year.get(Calendar.YEAR);
+
+            Map<Long, List<Transaction>> monthGroups = new LinkedHashMap<>();
+            for (Transaction t : transactions) {
+                year.setTimeInMillis(t.getDate());
+                if (year.get(Calendar.YEAR) != selectedYear) continue;
+                long monthStart = getStartOfMonth(t.getDate());
+                if (!monthGroups.containsKey(monthStart)) monthGroups.put(monthStart, new ArrayList<>());
+                monthGroups.get(monthStart).add(t);
+            }
+
+            for (Map.Entry<Long, List<Transaction>> entry : monthGroups.entrySet()) {
+                double income = 0, expense = 0;
+                for (Transaction t : entry.getValue()) {
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                    if (!isTransfer) {
+                        if ("INCOME".equals(t.getType())) income += t.getAmount();
+                        else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                    }
+                }
+                List<MonthlySummaryAdapter.WeeklySummary> weeks = calculateWeeklySummaries(entry.getValue());
+                summaries.add(new MonthlySummaryAdapter.MonthSummary(entry.getKey(), income, expense, weeks));
+            }
+            summaries.sort((a, b) -> Long.compare(b.monthTimestamp, a.monthTimestamp));
+            return summaries;
+        }));
+    }
+
+    private List<MonthlySummaryAdapter.WeeklySummary> calculateWeeklySummaries(List<Transaction> monthTransactions) {
+        List<MonthlySummaryAdapter.WeeklySummary> weeks = new ArrayList<>();
+        if (monthTransactions == null || monthTransactions.isEmpty()) return weeks;
+
+        monthTransactions.sort((a, b) -> {
+            int cmp = Long.compare(b.getDate(), a.getDate());
+            return cmp != 0 ? cmp : Integer.compare(b.getId(), a.getId());
+        });
+
+        Calendar cal = Calendar.getInstance();
+        Map<Integer, List<Transaction>> weekGroups = new LinkedHashMap<>();
+        for (Transaction t : monthTransactions) {
+            cal.setTimeInMillis(t.getDate());
+            int week = cal.get(Calendar.WEEK_OF_MONTH);
+            if (!weekGroups.containsKey(week)) weekGroups.put(week, new ArrayList<>());
+            weekGroups.get(week).add(t);
+        }
+
+        for (Map.Entry<Integer, List<Transaction>> entry : weekGroups.entrySet()) {
+            double wIncome = 0, wExpense = 0;
+            long min = Long.MAX_VALUE, max = 0;
+            for (Transaction t : entry.getValue()) {
+                boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                if (!isTransfer) {
+                    if ("INCOME".equals(t.getType())) wIncome += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) wExpense += t.getAmount();
+                }
+                min = Math.min(min, t.getDate());
+                max = Math.max(max, t.getDate());
+            }
+            SimpleDateFormat sdf = new SimpleDateFormat("dd MMM", Locale.getDefault());
+            String range = sdf.format(new Date(min)) + " - " + sdf.format(new Date(max));
+            weeks.add(new MonthlySummaryAdapter.WeeklySummary(range, wIncome, wExpense));
+        }
+        return weeks;
+    }
+
+    private long getStartOfMonth(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.DAY_OF_MONTH, 1);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+
+    public LiveData<List<CalendarAdapter.CalendarDay>> getCalendarDays() {
+        return Transformations.switchMap(dateRange, range -> {
+            MediatorLiveData<List<CalendarAdapter.CalendarDay>> result = new MediatorLiveData<>();
+            LiveData<List<Transaction>> transactionsSource = repository.getTransactionsInRange(range.start, range.end);
+            LiveData<List<BillAlert>> remindersSource = billAlertRepository.getActiveAlerts();
+            final List<Transaction>[] transactions = new List[]{new ArrayList<>()};
+            final List<BillAlert>[] reminders = new List[]{new ArrayList<>()};
+            Runnable rebuild = () -> result.setValue(buildCalendarDays(range, transactions[0], reminders[0]));
+            result.addSource(transactionsSource, value -> { transactions[0] = value == null ? new ArrayList<>() : value; rebuild.run(); });
+            result.addSource(remindersSource, value -> { reminders[0] = value == null ? new ArrayList<>() : value; rebuild.run(); });
+            return result;
+        });
+    }
+
+    private List<CalendarAdapter.CalendarDay> buildCalendarDays(DateRange range, List<Transaction> transactions,
+                                                                  List<BillAlert> reminders) {
+                List<CalendarAdapter.CalendarDay> days = new ArrayList<>();
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(range.start);
+
+                cal.set(Calendar.DAY_OF_MONTH, 1);
+                int firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+                for (int i = 1; i < firstDayOfWeek; i++) {
+                    days.add(new CalendarAdapter.CalendarDay(0, 0, 0, false, 0));
+                }
+
+                int daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+                for (int i = 1; i <= daysInMonth; i++) {
+                    cal.set(Calendar.DAY_OF_MONTH, i);
+                    long start = getStartOfDay(cal.getTimeInMillis());
+                    long end = start + 86399999;
+                    double dIncome = 0, dExpense = 0, dTransfer = 0;
+                    if (transactions != null) {
+                        for (Transaction t : transactions) {
+                            if (t.getDate() >= start && t.getDate() <= end) {
+                                boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory()) || (t.getCategory() != null && t.getCategory().toLowerCase().contains("transfer"));
+                                if (isTransfer) {
+                                    dTransfer += t.getAmount();
+                                } else if ("INCOME".equals(t.getType())) {
+                                    dIncome += t.getAmount();
+                                } else if ("EXPENSE".equals(t.getType())) {
+                                    dExpense += t.getAmount();
+                                }
+                            }
+                        }
+                    }
+                    int billCount = 0;
+                    String billLabel = "";
+                    if (reminders != null) {
+                        long day = java.time.Instant.ofEpochMilli(start).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay();
+                        for (BillAlert reminder : reminders) {
+                            if (reminder != null && !reminder.isResolved() && reminder.getDueEpochDay() == day) {
+                                billCount++;
+                                if (billLabel.isEmpty()) billLabel = reminder.getSender();
+                            }
+                        }
+                    }
+                    days.add(new CalendarAdapter.CalendarDay(i, dIncome, dExpense, dTransfer, true, start, billCount, billLabel));
+                }
+                return days;
+    }
+
+    private long getStartOfDay(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
+    }
+
+    public LiveData<Summary> getSummary() {
+        return Transformations.switchMap(dateRange, range -> 
+            repository.getSummary(range.start, range.end)
+        );
+    }
+
+    public LiveData<List<String>> getCategories() {
+        return repository.getCategories();
+    }
+
+    public void updateTransactionCategory(Transaction transaction, String newCategory) {
+        executor.execute(() -> {
+            String updatedType = transaction.getType();
+            if ("Transfer".equalsIgnoreCase(newCategory)) {
+                updatedType = "TRANSFER";
+            } else if ("TRANSFER".equals(transaction.getType())) {
+                updatedType = com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "INCOME" : "EXPENSE";
+            }
+
+            // Create a new Transaction instance to ensure DiffUtil detects the change
+            Transaction updated = new Transaction(
+                transaction.getId(),
+                transaction.getAmount(),
+                newCategory,
+                transaction.getCategoryEmoji(),
+                transaction.getDescription(),
+                updatedType,
+                transaction.getDate(),
+                transaction.getSource(),
+                transaction.getSender(),
+                transaction.getUpiId(),
+                transaction.getReceiverName(),
+                transaction.getBankName(),
+                transaction.getSourceType(),
+                transaction.getFromAccount(),
+                transaction.getToAccount(),
+                transaction.getFees()
+            );
+            updated.setSourceTransactionId(transaction.getSourceTransactionId());
+            updated.setReferenceNumber(transaction.getReferenceNumber());
+            updated.setDirection("UNKNOWN".equals(transaction.getDirection())
+                    ? ("INCOME".equals(transaction.getType()) ? "CREDIT" : "DEBIT") : transaction.getDirection());
+            updated.setTimestampPrecision(transaction.getTimestampPrecision());
+            updated.setImportBatchId(transaction.getImportBatchId());
+            updated.setStatus(transaction.getStatus());
+            updated.setDeletedAt(transaction.getDeletedAt());
+            repository.updateConfirmedTransaction(updated);
+        });
+    }
+
+    public void resetModel() {
+        executor.execute(() -> predictionService.resetAllData());
+    }
+
+    public void triggerRefinementPass() {
+        executor.execute(() -> {
+            List<Transaction> transactions = repository.getTransactionsSync();
+            if (transactions == null || transactions.isEmpty()) return;
+
+            for (Transaction t : transactions) {
+                if ("PENDING".equals(t.getCategory()) || t.getCategory().isEmpty()) {
+                    com.example.prediction.domain.model.PredictionTransaction pt =
+                            com.example.spendtracker.util.CategoryPrediction.from(t);
+                    com.example.prediction.domain.model.IncrementalPredictionResult result = predictionService.predict(pt);
+                    if (result.getSource() != com.example.prediction.domain.model.IncrementalPredictionResult.Source.TRANSFER_RULE)
+                        t.setPredictedCategory(result.getCategory());
+                    if (result.needsUserConfirmation()) {
+                        t.setConfidenceScore(result.getConfidence());
+                        repository.updateTransaction(t);
+                        continue;
+                    }
+                    String predicted = result.getCategory();
+                    if (!predicted.equals(t.getCategory())) {
+                        // Create new instance for DiffUtil reliability
+                        Transaction updated = new Transaction(
+                            t.getId(), t.getAmount(), predicted, t.getCategoryEmoji(), t.getDescription(),
+                            t.getType(), t.getDate(), t.getSource(), t.getSender(),
+                            t.getUpiId(), t.getReceiverName(), t.getBankName(), t.getSourceType(),
+                            t.getFromAccount(), t.getToAccount(), t.getFees()
+                        );
+                        updated.setSourceTransactionId(t.getSourceTransactionId());
+                        updated.setReferenceNumber(t.getReferenceNumber());
+                        updated.setDirection(t.getDirection());
+                        updated.setTimestampPrecision(t.getTimestampPrecision());
+                        updated.setImportBatchId(t.getImportBatchId());
+                        updated.setStatus(t.getStatus());
+                        updated.setDeletedAt(t.getDeletedAt());
+                        updated.setPredictedCategory(t.getPredictedCategory());
+                        updated.setConfidenceScore(result.getConfidence());
+                        repository.updateTransaction(updated);
+                    }
+                }
+            }
+        });
+    }
+
+    public LiveData<TotalPageData> getTotalPageData() {
+        return Transformations.switchMap(dateRange, range -> {
+            Calendar cal = Calendar.getInstance();
+            cal.setTimeInMillis(range.start);
+            cal.add(Calendar.MONTH, -1);
+            long lastStart = getStartOfMonth(cal.getTimeInMillis());
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            long lastEnd = getStartOfDay(cal.getTimeInMillis()) + 86399999;
+
+            LiveData<Summary> currentSummaryLive = repository.getSummary(range.start, range.end);
+            LiveData<Summary> lastSummaryLive    = repository.getSummary(lastStart, lastEnd);
+            LiveData<Double>  cardExpLive        = repository.getTotalCardExpense(range.start, range.end);
+            LiveData<Double>  acctExpLive        = repository.getTotalAccountExpense(range.start, range.end);
+            LiveData<Double>  transferLive       = repository.getTotalTransfer(range.start, range.end);
+            LiveData<Double>  transferInLive     = repository.getTotalTransferIncoming(range.start, range.end);
+            LiveData<Double>  transferOutLive    = repository.getTotalTransferOutgoing(range.start, range.end);
+
+            MediatorLiveData<TotalPageData> mediator = new MediatorLiveData<>();
+
+            Runnable update = () -> {
+                Summary current = currentSummaryLive.getValue();
+                Summary last    = lastSummaryLive.getValue();
+                if (current != null) {
+                    double currentExp = current.getTotalExpense();
+                    double lastExp    = (last != null) ? last.getTotalExpense() : 0;
+                    int percent = 0;
+                    if (lastExp > 0) percent = (int) (((currentExp - lastExp) / lastExp) * 100);
+
+                    double cardExp    = cardExpLive.getValue()    != null ? cardExpLive.getValue()    : 0;
+                    double acctExp    = acctExpLive.getValue()    != null ? acctExpLive.getValue()    : 0;
+                    double transferIn = transferInLive.getValue() != null ? transferInLive.getValue() : 0;
+                    double transferOut= transferOutLive.getValue()!= null ? transferOutLive.getValue(): 0;
+                    double netTransfer = transferIn - transferOut;
+                    double income     = current.getTotalIncome();
+
+                    mediator.setValue(new TotalPageData(percent, acctExp, cardExp, netTransfer, transferIn, transferOut, income));
+                }
+            };
+
+            mediator.addSource(currentSummaryLive, v -> update.run());
+            if (lastSummaryLive != currentSummaryLive) {
+                mediator.addSource(lastSummaryLive, v -> update.run());
+            }
+            mediator.addSource(cardExpLive,        v -> update.run());
+            mediator.addSource(acctExpLive,        v -> update.run());
+            mediator.addSource(transferLive,       v -> update.run());
+            mediator.addSource(transferInLive,     v -> update.run());
+            mediator.addSource(transferOutLive,    v -> update.run());
+
+            return mediator;
+        });
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum>> getBankTotals() {
+        return Transformations.switchMap(dateRange, range -> Transformations.map(
+                repository.getTransactionsInRange(range.start, range.end), transactions -> {
+                    java.util.Map<String, Double> totals = new java.util.TreeMap<>();
+                    if (transactions != null) for (Transaction t : transactions) {
+                        String bank = t.getBankName() == null || t.getBankName().isEmpty() ? "Unknown" : t.getBankName();
+                        totals.put(bank, totals.getOrDefault(bank, 0.0) + (com.example.spendtracker.util.TransferDirection.isIncoming(t) ? t.getAmount() : -t.getAmount()));
+                    }
+                    java.util.List<com.example.spendtracker.data.local.dao.TransactionDao.CategorySum> rows = new java.util.ArrayList<>();
+                    for (java.util.Map.Entry<String,Double> entry : totals.entrySet()) {
+                        com.example.spendtracker.data.local.dao.TransactionDao.CategorySum row = new com.example.spendtracker.data.local.dao.TransactionDao.CategorySum();
+                        row.category = entry.getKey(); row.total = entry.getValue(); rows.add(row);
+                    }
+                    return rows;
+                }));
+    }
+
+    /** Updates only the transaction type and persists to DB. */
+    public void updateTransactionType(Transaction transaction, String newType) {
+        executor.execute(() -> {
+            String newCategory = "TRANSFER".equals(newType) ? "Transfer" :
+                    "Transfer".equalsIgnoreCase(transaction.getCategory()) ? "Other" : transaction.getCategory();
+            Transaction updated = new Transaction(
+                transaction.getId(), transaction.getAmount(), newCategory,
+                transaction.getDescription(), newType, transaction.getDate(),
+                transaction.getSource(), transaction.getSender(), transaction.getUpiId(),
+                transaction.getReceiverName(), transaction.getBankName(), transaction.getSourceType()
+            );
+            updated.setDirection("TRANSFER".equals(newType) ?
+                    (com.example.spendtracker.util.TransferDirection.isIncoming(transaction) ? "CREDIT" : "DEBIT") :
+                    ("INCOME".equals(newType) ? "CREDIT" : "DEBIT"));
+            updated.setSourceTransactionId(transaction.getSourceTransactionId());
+            updated.setReferenceNumber(transaction.getReferenceNumber());
+            updated.setTimestampPrecision(transaction.getTimestampPrecision());
+            updated.setImportBatchId(transaction.getImportBatchId());
+            updated.setFromAccount(transaction.getFromAccount());
+            updated.setToAccount(transaction.getToAccount());
+            updated.setFees(transaction.getFees());
+            updated.setConfidenceScore(transaction.getConfidenceScore());
+            repository.updateTransaction(updated);
+        });
+    }
+
+    // ── Suspicious Transaction Detection ────────────────────────────────────
+
+    /** Configurable confidence threshold — transactions below this are flagged as suspicious. */
+    private final MutableLiveData<Double> suspiciousThreshold = new MutableLiveData<>(com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD);
+
+    public void setSuspiciousThreshold(double threshold) {
+        suspiciousThreshold.setValue(threshold);
+    }
+
+    public LiveData<Double> getSuspiciousThreshold() {
+        return suspiciousThreshold;
+    }
+
+    /**
+     * Returns all transactions in the current date range that have a confidence score
+     * below the configured threshold — i.e., the model was uncertain about its categorization.
+     */
+    public LiveData<List<Transaction>> getSuspiciousTransactions() {
+        androidx.lifecycle.MediatorLiveData<List<Transaction>> result = new androidx.lifecycle.MediatorLiveData<>();
+        LiveData<List<Transaction>> all = repository.getTransactions();
+        Runnable refresh = () -> {
+            List<Transaction> flagged = new ArrayList<>();
+            double threshold = suspiciousThreshold.getValue() == null ? com.example.spendtracker.util.CategoryPrediction.REVIEW_THRESHOLD : suspiciousThreshold.getValue();
+            if (all.getValue() != null) for (Transaction t : all.getValue()) {
+                if (t.getConfidenceScore() < threshold) flagged.add(t);
+            }
+            result.setValue(flagged);
+        };
+        result.addSource(all, ignored -> refresh.run());
+        result.addSource(suspiciousThreshold, ignored -> refresh.run());
+        return result;
+    }
+
+    /** Returns suspicious transactions grouped by date, using the same grouped structure as Daily view. */
+    public LiveData<List<GroupedTransactionAdapter.ListItem>> getGroupedSuspiciousTransactions() {
+        return Transformations.map(getSuspiciousTransactions(), transactions -> {
+            List<GroupedTransactionAdapter.ListItem> items = new ArrayList<>();
+            if (transactions == null || transactions.isEmpty()) return items;
+
+            Map<Long, List<Transaction>> grouped = new LinkedHashMap<>();
+            for (Transaction t : transactions) {
+                long tDay = getStartOfDay(t.getDate());
+                if (!grouped.containsKey(tDay)) grouped.put(tDay, new ArrayList<>());
+                grouped.get(tDay).add(t);
+            }
+
+            for (Map.Entry<Long, List<Transaction>> entry : grouped.entrySet()) {
+                double income = 0, expense = 0, transfer = 0;
+                for (Transaction t : entry.getValue()) {
+                    boolean isTransfer = "TRANSFER".equals(t.getType()) || "Transfer".equalsIgnoreCase(t.getCategory());
+                    if (isTransfer) transfer += t.getAmount();
+                    else if ("INCOME".equals(t.getType())) income += t.getAmount();
+                    else if ("EXPENSE".equals(t.getType())) expense += t.getAmount();
+                }
+                items.add(new GroupedTransactionAdapter.HeaderItem(entry.getKey(), income, expense, transfer));
+                for (Transaction t : entry.getValue()) {
+                    items.add(new GroupedTransactionAdapter.TransactionItem(t));
+                }
+            }
+            return items;
+        });
+    }
+
+    public static class TotalPageData {
+        public final int comparedPercent;
+        public final double accountExpenses;
+        public final double cardExpenses;
+        public final double transfers;
+        public final double transferIncoming;
+        public final double transferOutgoing;
+        public final double income;
+
+        public TotalPageData(int comparedPercent, double accountExpenses, double cardExpenses, double transfers, double transferIncoming, double transferOutgoing, double income) {
+            this.comparedPercent = comparedPercent;
+            this.accountExpenses = accountExpenses;
+            this.cardExpenses = cardExpenses;
+            this.transfers = transfers;
+            this.transferIncoming = transferIncoming;
+            this.transferOutgoing = transferOutgoing;
+            this.income = income;
+        }
+    }
+}

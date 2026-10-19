@@ -1,0 +1,167 @@
+package com.example.spendtracker.ui.transaction;
+
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Transformations;
+import androidx.lifecycle.ViewModel;
+import com.example.spendtracker.domain.model.Transaction;
+import com.example.spendtracker.domain.repository.SecurityRepository;
+import com.example.spendtracker.domain.repository.TransactionRepository;
+import dagger.hilt.android.lifecycle.HiltViewModel;
+import java.util.List;
+import javax.inject.Inject;
+
+@HiltViewModel
+public class TransactionViewModel extends ViewModel {
+    private final TransactionRepository repository;
+    private final SecurityRepository securityRepository;
+    private final MutableLiveData<String> categoryTypeFilter = new MutableLiveData<>("EXPENSE");
+    private final LiveData<List<String>> categoriesByType;
+    private final LiveData<List<String>> incomeCategories;
+    private final LiveData<List<String>> expenseCategories;
+    private final MutableLiveData<DeletionResult> deletionResult = new MutableLiveData<>();
+
+    public static final class DeletionResult {
+        public final int count;
+        public final String error;
+        public final Integer undoId;
+        DeletionResult(int count, String error, Integer undoId) {
+            this.count = count;
+            this.error = error;
+            this.undoId = undoId;
+        }
+    }
+
+    public LiveData<DeletionResult> getDeletionResult() { return deletionResult; }
+    public void consumeDeletionResult() { deletionResult.setValue(null); }
+    public void deleteTransactions(List<Transaction> transactions) {
+        java.util.List<Integer> ids = new java.util.ArrayList<>();
+        for (Transaction transaction : transactions) if (transaction.getId() > 0) ids.add(transaction.getId());
+        if (ids.isEmpty()) return;
+        repository.deleteTransactions(ids, (count, error) -> deletionResult.postValue(
+                new DeletionResult(count, error, ids.size() == 1 ? ids.get(0) : null)));
+    }
+    public void restoreTransaction(int id) { repository.restoreTransaction(id); }
+
+    @Inject
+    public TransactionViewModel(TransactionRepository repository, SecurityRepository securityRepository) {
+        this.repository = repository;
+        this.securityRepository = securityRepository;
+        this.categoriesByType = Transformations.switchMap(categoryTypeFilter, repository::getCategoriesByType);
+        this.incomeCategories = repository.getCategoriesByType("INCOME");
+        this.expenseCategories = repository.getCategoriesByType("EXPENSE");
+    }
+
+    public LiveData<Boolean> isPrivacyModeEnabled() {
+        return securityRepository.isPrivacyModeEnabled();
+    }
+
+    public String formatAmount(double amount) {
+        return securityRepository.maskAmount(amount);
+    }
+
+    public String maskPII(String value) {
+        return securityRepository.maskPII(value);
+    }
+
+    private final MutableLiveData<String> saveResult = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> saving = new MutableLiveData<>(false);
+    public LiveData<String> getSaveResult() { return saveResult; }
+    public LiveData<Boolean> isSaving() { return saving; }
+    public void consumeSaveResult() { saveResult.setValue(null); }
+    public void saveTransaction(Transaction transaction) {
+        if (Boolean.TRUE.equals(saving.getValue())) return;
+        saving.setValue(true);
+        repository.saveTransaction(transaction, true, error -> {
+            saving.postValue(false);
+            saveResult.postValue(error == null ? "" : error);
+        });
+    }
+
+    public void addTransaction(Transaction transaction) {
+        repository.addConfirmedTransaction(transaction);
+    }
+
+    public void updateTransaction(Transaction transaction) {
+        repository.updateConfirmedTransaction(transaction);
+    }
+
+    public void deleteTransaction(Transaction transaction) {
+        repository.deleteTransaction(transaction);
+    }
+
+    public LiveData<Transaction> getTransaction(int id) {
+        return repository.getTransactionById(id);
+    }
+
+    public LiveData<List<String>> getCategories() {
+        return repository.getCategories();
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.entity.CategoryEntity>> getCategoryEntities() {
+        return repository.getCategoryEntities();
+    }
+
+    public void saveCategory(com.example.spendtracker.data.local.entity.CategoryEntity category) {
+        repository.saveCategory(category);
+    }
+
+    public void setCategoryTypeFilter(String type) {
+        categoryTypeFilter.setValue(type);
+    }
+
+    public LiveData<List<String>> getCategoriesByType() {
+        return categoriesByType;
+    }
+
+    public LiveData<List<String>> getCategoriesByType(String type) {
+        setCategoryTypeFilter(type);
+        return categoriesByType;
+    }
+
+    public LiveData<List<String>> getIncomeCategories() {
+        return incomeCategories;
+    }
+
+    public LiveData<List<String>> getExpenseCategories() {
+        return expenseCategories;
+    }
+
+    public void addCategory(String name, String type) {
+        repository.addCategory(name, type);
+    }
+
+    public void deleteCategory(String name) {
+        repository.deleteCategory(name);
+    }
+
+    public void deleteCategory(int id) { repository.deleteCategory(id); }
+
+    public void renameCategory(String oldName, String newName) {
+        repository.renameCategory(oldName, newName);
+    }
+
+    public LiveData<List<Transaction>> getTransactions() {
+        return repository.getTransactions();
+    }
+
+    public LiveData<List<Transaction>> getTransactionsInRange(long start, long end) {
+        return repository.getTransactionsInRange(start, end);
+    }
+
+    public LiveData<List<com.example.spendtracker.data.local.dao.TransactionDao.AccountSummary>> getUniqueAccounts() {
+        return repository.getUniqueAccounts();
+    }
+
+    public LiveData<List<Transaction>> getAccountHistory(String accountId, long start, long end) {
+        return repository.getAccountHistory(accountId, start, end);
+    }
+
+    public void markAsRead(String accountName) {
+        new Thread(() -> repository.markAsRead(accountName)).start();
+    }
+
+    public LiveData<List<String>> getUniqueContacts() {
+        return repository.getUniqueContacts();
+    }
+}

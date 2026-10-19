@@ -1,0 +1,257 @@
+<resources>
+    <string name="previous_year">Previous year</string>
+    <string name="next_year">Next year</string>
+    <string name="previous_month">Previous month</string>
+    <string name="next_month">Next month</string>
+    <string name="reveal_private_amounts">Authenticate to show amounts</string>
+    <string name="category_review_title">Please check this transaction’s category</string>
+    <string name="category_review_body">A transaction needs your review. Tap to correct or confirm its category.</string>
+    <string name="correct_category">Correct category</string>
+    <string name="sms_received_time">Received %1$s</string>
+    <string name="app_name">TrackMint</string>
+    <string name="action_go">Go</string>
+    <string name="baking_title">Baking with Gemini</string>
+    <string name="label_prompt">Prompt</string>
+    <string name="prompt_placeholder">Provide a recipe for the baked goods in the image</string>
+    <string name="image1_description">Cupcake</string>
+    <string name="image2_description">Cookies</string>
+    <string name="image3_description">Cake</string>
+    <string name="results_placeholder">(Results will appear here)</string>
+
+    <string name="title_settings">Settings</string>
+    <string name="version_info">Version 1.3.0</string>
+    <string name="ad_placeholder">Ad Placeholder</string>
+    <string name="label_configuration">Configuration</string>
+    <string name="label_ledger">Ledger</string>
+    <string name="label_message_caching">Message Caching</string>
+    <string name="label_calcbox">CalcBox</string>
+    <string name="label_analytics">Analytics</string>
+    <string name="label_advanced_analytics">Advanced Analytics</string>
+    <string name="label_backup">Backup</string>
+    <string name="label_feedback">Feedback</string>
+    <string name="label_help">Help</string>
+    <string name="label_recommend">Recommend</string>
+    <string name="coming_soon">%s coming soon</string>
+
+    <!-- Transaction Group -->
+    <string name="tab_transaction_group">Transaction Group</string>
+    <string name="title_transaction_group">Transaction Group</string>
+    <string name="title_create_group">Create Transaction Group</string>
+    <string name="title_edit_group">Edit Transaction Group</string>
+    <string name="hint_group_name">Group Name (e.g., Jaipur Trip)</string>
+    <string name="label_start_date">Start Date</string>
+    <string name="label_end_date">End Date</string>
+    <string name="label_categories">Categories</string>
+    <string name="error_group_name_required">Group name is required</string>
+    <string name="error_start_date_required">Start date is required</string>
+    <string name="error_end_date_required">End date is required</string>
+    <string name="error_end_before_start">End date must not be earlier than start date</string>
+    <string name="error_categories_required">Select at least one category</string>
+    <string name="btn_save_group">Save Group</string>
+    <string name="btn_delete_group">Delete Group</string>
+    <string name="msg_group_created">Transaction Group created</string>
+    <string name="msg_group_updated">Transaction Group updated</string>
+    <string name="msg_group_deleted">Transaction Group deleted</string>
+    <string name="label_transactions_count">%d transactions</string>
+
+    <!-- Search -->
+    <string name="hint_search_transactions">Search transactions…</string>
+    <string name="hint_search_accounts">Search accounts…</string>
+    <string name="content_desc_search">Search</string>
+
+    <!-- Calculator -->
+    <string name="title_calculator">Calculator</string>
+    <string name="tab_normal">Normal</string>
+    <string name="tab_emi">EMI</string>
+    <string name="tab_loan">Loan</string>
+    <string name="label_principal">Principal / Loan Amount (₹)</string>
+    <string name="label_interest_rate">Annual Interest Rate (%)</string>
+    <string name="label_tenure">Tenure</string>
+    <string name="label_months">Months</string>
+    <string name="label_years">Years</string>
+    <string name="label_monthly_emi">Monthly EMI</string>
+    <string name="label_total_interest">Total Interest</string>
+    <string name="label_total_payment">Total Payment</string>
+    <string name="label_processing_fee">Processing Fee (%)</string>
+    <string name="label_down_payment">Down Payment (₹)</string>
+    <string name="label_loan_type">Loan Type</string>
+    <string name="loan_personal">Personal Loan</string>
+    <string name="loan_car">Car Loan</string>
+    <string name="loan_home">Home Loan</string>
+    <string name="disclaimer_calculator">Note: These calculations are estimates based on reducing-balance EMI formula. Actual bank terms may vary.</string>
+
+    <!-- Backup -->
+    <string name="title_backup">Backup</string>
+    <string name="label_enable_auto_backup">Daily phone backups</string>
+    <string name="label_last_backup">Last Backup</string>
+    <string name="label_backup_status">Backup Status</string>
+    <string name="label_backup_now">Backup Now</string>
+    <string name="label_restore_backup">Restore Backup</string>
+    <string name="label_google_drive">Google Drive</string>
+    <string name="label_connect_drive">Connect Google Drive</string>
+    <string name="label_disconnect_drive">Disconnect Google Drive</string>
+    <string name="msg_drive_reason">Google Drive access is required to upload backups you explicitly create. Only the minimum required permissions are requested.</string>
+    <string name="msg_backup_success">Backup completed successfully</string>
+    <string name="msg_backup_failed">Backup failed: %s</string>
+    <string name="msg_restore_success">Restore completed successfully</string>
+    <string name="msg_restore_failed">Restore failed: %s</string>
+    <string name="msg_auto_backup_enabled">Daily phone backup enabled; Android controls scheduling</string>
+    <string name="msg_auto_backup_disabled">Auto backup disabled</string>
+    <string name="label_never">Never</string>
+    <string name="label_backup_ready">Ready</string>
+
+    <!-- Trash -->
+    <string name="title_trash">Trash Bin</string>
+    <string name="label_trash">Trash Bin</string>
+    <string name="msg_transaction_deleted">Transaction moved to trash</string>
+    <string name="msg_transaction_restored">Transaction restored</string>
+    <string name="msg_permanently_deleted">Transaction permanently deleted</string>
+    <string name="dialog_permanent_delete_title">Permanently Delete?</string>
+    <string name="dialog_permanent_delete_msg">This action cannot be undone. The transaction will be permanently removed.</string>
+    <string name="btn_restore">Restore</string>
+    <string name="btn_delete_permanently">Delete Permanently</string>
+    <string name="label_deleted_on">Deleted on %s</string>
+    <string name="empty_trash">Trash is empty</string>
+
+    <string name="add_category">Add Category</string>
+    <string name="content_desc_add_category">Add new category</string>
+    <string name="add_group">Add Group</string>
+    <string name="content_desc_add_group">Add new group</string>
+    <string name="select_transaction">Select transaction</string>
+    <string name="select_all">Select all</string>
+    <string name="select_all_shown_transactions">Select all transactions in the current daily view</string>
+    <string name="delete_selected">Delete</string>
+    <string name="cancel_selection">Cancel selection</string>
+    <string name="selection_count">%1$d selected</string>
+    <string name="delete_selected_title">Delete selected transactions?</string>
+    <string name="delete_selected_message">Move these %1$d selected transactions to Trash? Select all includes the transactions in the current daily view. You can restore them from Trash.</string>
+    <string name="batch_deleted">%1$d transactions moved to Trash</string>
+    <string name="delete_failed">Could not delete transactions. Please try again.</string>
+    <string name="undo">Undo</string>
+
+    <!-- Premium -->
+    <string name="title_premium">TrackMint Premium</string>
+    <string name="premium_subtitle">Unlock more while keeping your financial processing on your device.</string>
+    <string name="premium_analytics">Advanced Analytics</string>
+    <string name="premium_monthly">Monthly</string>
+    <string name="premium_yearly">Yearly</string>
+    <string name="premium_lifetime">Lifetime</string>
+    <string name="premium_once">Once</string>
+    <string name="premium_benefits">✓ Advanced Analytics\n✓ PDF Statement Import\n✓ Excel Export\n✓ Advanced Reports\n✓ Smart Alerts\n✓ Advanced Categorization\n✓ Transaction Groups</string>
+    <string name="premium_per_month">per month</string>
+    <string name="premium_per_year">per year</string>
+    <string name="premium_pdf_import">PDF Statement Import</string>
+    <string name="premium_excel_export">Excel Export</string>
+    <string name="premium_reports">Advanced Reports</string>
+    <string name="premium_alerts">Smart Alerts</string>
+    <string name="premium_categorization">Advanced Categorization</string>
+    <string name="premium_groups">Transaction Groups</string>
+    <string name="premium_continue">Continue</string>
+    <string name="premium_restore">Restore Purchases</string>
+    <string name="premium_maybe_later">Maybe Later</string>
+    <string name="premium_loading">Loading available plans…</string>
+    <string name="premium_unavailable">Premium plans are not configured yet. Please try again later.</string>
+    <string name="premium_locked">%1$s is a Premium feature.</string>
+    <string name="premium_pending">Your purchase is pending. Premium will unlock once Google Play confirms it.</string>
+    <string name="premium_purchase_cancelled">Purchase cancelled.</string>
+    <string name="premium_purchase_complete">Premium is now active.</string>
+    <string name="premium_purchase_failed">Purchase could not be completed. Please try again.</string>
+    <string name="premium_restore_complete">Purchases restored.</string>
+
+    <!-- Help and support -->
+    <string name="title_help">Help &amp; FAQs</string>
+    <string name="hint_search_help">Search help</string>
+    <string name="label_all">All</string>
+    <string name="help_empty">No help topics match your search.</string>
+    <string name="help_load_error">Help content could not be loaded.</string>
+    <string name="help_online_heading">Didn’t find what you need?</string>
+    <string name="help_online">Visit Online Help Center</string>
+    <string name="send_feedback">Send Feedback</string>
+    <string name="report_problem">Report a Problem</string>
+    <string name="suggest_feature">Suggest a Feature</string>
+    <string name="online_service_unavailable">This online service is not configured yet. Your offline TrackMint features are still available.</string>
+    <string name="browser_unavailable">No browser is available to open this link.</string>
+    <string name="daily_activity_title">Daily activity</string>
+    <string name="daily_activity_subtitle">Total money moved on each day</string>
+    <string name="daily_activity_hint">Pull down for daily totals</string>
+    <string name="daily_activity_empty">No transactions in this period yet.</string>
+    <string name="daily_activity_close">Close daily activity chart</string>
+    <string name="daily_stream_title">Your activity</string>
+    <string name="monthly_pulse_title">MONTHLY REVIEW</string>
+    <string name="monthly_pulse_subtitle">Your year, month by month</string>
+    <string name="total_overview_title">Financial overview</string>
+    <string name="total_overview_subtitle">Every account. One clear picture.</string>
+    <string name="internet_required">Internet connection is required for this feature. Your offline TrackMint features are still available.</string>
+    <string name="rate_spendtracker">Rate TrackMint</string>
+    <string name="share_spendtracker">Share TrackMint</string>
+    <string name="share_message">I’ve been using TrackMint to track expenses privately on my device.\n\nTry TrackMint:</string>
+    <string name="share_chooser">Share TrackMint</string>
+    <string name="share_unavailable">No app is available to share TrackMint.</string>
+    <string name="store_unavailable">Google Play is not available on this device.</string>
+
+    <!-- Privacy -->
+    <string name="title_privacy_offline">Privacy &amp; Offline</string>
+    <string name="privacy_intro">TrackMint is designed to keep core financial processing on this device.</string>
+    <string name="privacy_on_device">ON THIS DEVICE</string>
+    <string name="privacy_online">OPTIONAL ONLINE SERVICES</string>
+    <string name="privacy_local_items">✓ Transaction processing\n✓ SMS parsing\n✓ Categorization\n✓ Spending analytics\n✓ On-device category learning\n✓ Charts and reports</string>
+    <string name="privacy_online_items">○ Razorpay payments\n○ Google Play rating\n○ Online Help and feedback\n○ Android backup and chosen backup folders</string>
+    <string name="privacy_note">Using an online service does not move your transaction processing to a TrackMint server. Financial data can be copied through exports, phone backups you configure, and Android backup when enabled in your device settings.</string>
+
+    <!-- More -->
+    <string name="more_privacy_security">Privacy &amp; Security</string>
+    <string name="more_data">Data</string>
+    <string name="more_help_support">Help &amp; Support</string>
+    <string name="more_support_app">Support TrackMint</string>
+    <string name="more_premium">Premium</string>
+    <string name="more_about">About</string>
+    <string name="more_privacy_offline">Privacy &amp; Offline</string>
+    <string name="more_import_statement">Import Statement</string>
+    <string name="more_export_data">Export Data</string>
+    <string name="more_backup">Backup</string>
+    <string name="more_app_version">App version %1$s</string>
+    <string name="more_licenses">Open-source Licenses</string>
+    <string name="show_daily_chart">Show daily chart</string>
+    <string name="daily_chart_explanation">Income + expenses + transfers · one bar per day</string>
+    <string name="spending_strip_title">7-DAY SPENDING</string>
+    <string name="spending_chart_title">Last 7 days</string>
+    <string name="spending_chart_subtitle">Expenses only · one point per day</string>
+    <string name="close_spending_chart">Close spending chart</string>
+    <string name="spending_strip_accessibility">%1$s. Open spending chart</string>
+    <string name="chart_private">Chart hidden in Privacy Mode</string>
+    <string name="month_net">Net balance</string>
+    <string name="month_income">Income</string>
+    <string name="month_expense">Expenses</string>
+    <string name="month_expand">Show weeks</string>
+    <string name="month_collapse">Hide weeks</string>
+    <string name="summary_balance">NET CASH FLOW</string>
+    <string name="summary_transfer">Transfers</string>
+    <string name="summary_income">Income</string>
+    <string name="summary_expense">Expenses</string>
+    <string name="chart_action">Chart</string>
+    <string name="prediction_title">Prediction Insights · All time</string>
+    <string name="prediction_loading">Prediction Insights · All time\nLoading local history…</string>
+    <string name="prediction_insufficient">Not enough data yet</string>
+    <string name="prediction_compact">Prediction Insights · All time · %1$d predictions\n%2$s · Details ›</string>
+    <string name="prediction_detail">%1$d recorded predictions\n%2$d reviewed · %3$d awaiting review\n\n%4$s\n\nAccuracy and retained %% = original predictions matching the latest confirmed category ÷ reviewed predictions. Corrected %% is the remainder. Unverified predictions are excluded.\n\nAll time covers active transactions with recorded prediction history. Older rows lack that history and cannot be evaluated. Save a category to confirm or correct it; importing alone does not confirm it.</string>
+    <plurals name="merchant_category_count"><item quantity="one">%d category</item><item quantity="other">%d categories</item></plurals>
+    <string name="summary_compact_balance">Net</string>
+    <string name="chart_day_night_title">Day vs Night</string>
+    <string name="chart_day_night_hours">Day: 6 am–6 pm · Night: 6 pm–6 am</string>
+    <string name="chart_day_label">Day</string>
+    <string name="chart_night_label">Night</string>
+    <string name="chart_weekday_weekend_title">Weekend vs Weekday</string>
+    <string name="chart_week_summary">%1$s spent · %2$s · expenses only</string>
+    <string name="activity_period">This period</string>
+    <string name="activity_week">7-day expenses</string>
+    <string name="chart_bars">Bars</string>
+    <string name="chart_line">Line</string>
+    <string name="premium_free_title">Free · ₹0</string>
+    <string name="premium_free_description">Track income and expenses, organize transactions, and view your daily spending. No payment or sign-in required.</string>
+    <string name="premium_continue_free">Continue with Free</string>
+    <string name="sms_disclosure_title">Track new transactions from SMS?</string>
+    <string name="sms_disclosure_message">TrackMint reads incoming SMS and checks messages received after tracking is enabled to find financial transactions and bill reminders, including while the app is closed. Message processing happens on your device. Older messages are not automatically imported. You can use manual tracking without SMS access.</string>
+    <string name="sms_enable">Enable SMS tracking</string>
+    <string name="sms_manual">Use manual tracking</string>
+    <string name="free_plan_title">Your Free plan</string>
+</resources>

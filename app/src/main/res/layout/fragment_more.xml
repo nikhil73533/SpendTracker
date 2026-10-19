@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/dark_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header Section -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/text_settings_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/title_settings"
+                android:textColor="@color/white"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/text_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/text_settings_title"
+                android:text="@string/version_info"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </RelativeLayout>
+
+        <LinearLayout android:id="@+id/card_profile" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical"
+            android:padding="16dp" android:layout_marginBottom="16dp" android:background="@color/dark_surface"
+            android:clickable="true" android:focusable="true" android:contentDescription="Edit profile">
+            <TextView android:id="@+id/profile_initials" android:layout_width="56dp" android:layout_height="56dp"
+                android:background="@drawable/bg_profile_circle" android:gravity="center" android:textSize="22sp"
+                android:textStyle="bold" android:textColor="@color/white" />
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:orientation="vertical" android:layout_marginStart="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Profile"
+                    android:textColor="@color/white" android:textStyle="bold" android:textSize="18sp" />
+                <TextView android:id="@+id/profile_summary" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary" android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
+        <!-- Ad Placeholder -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="@color/dark_surface"
+            app:cardCornerRadius="8dp"
+            app:strokeWidth="0dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/ad_placeholder"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Grid of Widgets -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:alignmentMode="alignMargins"
+            android:columnCount="3">
+
+            <!-- Item 1: Trash Bin -->
+            <LinearLayout
+                android:id="@+id/card_configuration"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_trash"
+                    android:src="@drawable/ic_symbol_delete" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_trash" />
+            </LinearLayout>
+
+            <!-- Item 2: Ledger -->
+            <LinearLayout
+                android:id="@+id/card_ledger"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_ledger"
+                    android:src="@drawable/ic_symbol_ledger" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_ledger" />
+            </LinearLayout>
+
+
+
+            <!-- Item 4: CalcBox -->
+            <LinearLayout
+                android:id="@+id/card_calcbox"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_calcbox"
+                    android:src="@drawable/ic_symbol_calculator" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_calcbox" />
+            </LinearLayout>
+
+            <!-- Item 4: Premium -->
+            <LinearLayout
+                android:id="@+id/card_premium"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/title_premium"
+                    android:src="@drawable/ic_symbol_premium" />
+                <TextView style="@style/SettingsWidgetLabelStyle" android:text="@string/title_premium" />
+            </LinearLayout>
+
+            <!-- Item 5: Advanced Analytics -->
+            <LinearLayout
+                android:id="@+id/card_advanced_analytics"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_advanced_analytics"
+                    android:src="@drawable/ic_symbol_bar_chart" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_advanced_analytics" />
+            </LinearLayout>
+
+            <!-- Item 6: Backup -->
+            <LinearLayout
+                android:id="@+id/card_backup"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_backup"
+                    android:src="@drawable/ic_symbol_backup" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_backup" />
+            </LinearLayout>
+
+            <!-- Item 7: Feedback -->
+            <LinearLayout
+                android:id="@+id/card_feedback"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_feedback"
+                    android:src="@drawable/ic_symbol_feedback" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_feedback" />
+            </LinearLayout>
+
+            <!-- Item 8: Help -->
+            <LinearLayout
+                android:id="@+id/card_help"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_help"
+                    android:src="@drawable/ic_symbol_help" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_help" />
+            </LinearLayout>
+
+            <!-- Item 9: Recommend -->
+            <LinearLayout
+                android:id="@+id/card_recommend"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/label_recommend"
+                    android:src="@drawable/ic_symbol_share" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/label_recommend" />
+            </LinearLayout>
+
+            <!-- Item 10: Bill Alerts -->
+            <LinearLayout
+                android:id="@+id/card_bill_alerts"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Bill Alerts"
+                    android:src="@drawable/ic_symbol_bill"
+                    app:tint="@color/brand_secondary" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="Bill Alerts" />
+            </LinearLayout>
+
+
+
+            <!-- Item 11: Bulk Ingestion -->
+            <LinearLayout
+                android:id="@+id/card_bulk_ingestion"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+
+                <ImageView
+                    style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="Bulk Ingestion"
+                    android:src="@drawable/ic_symbol_import" />
+
+                <TextView
+                    style="@style/SettingsWidgetLabelStyle"
+                    android:text="Bulk Ingestion" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_privacy_offline"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/more_privacy_offline"
+                    android:src="@drawable/ic_symbol_privacy" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/more_privacy_offline" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_report_problem"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/report_problem"
+                    android:src="@drawable/ic_symbol_problem" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/report_problem" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_suggest_feature"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/suggest_feature"
+                    android:src="@drawable/ic_symbol_suggest" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/suggest_feature" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_online_help"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/help_online"
+                    android:src="@drawable/ic_symbol_online_help" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/help_online" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/card_rate"
+                style="@style/SettingsWidgetItemStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1">
+                <ImageView style="@style/SettingsWidgetIconStyle"
+                    android:contentDescription="@string/rate_spendtracker"
+                    android:src="@drawable/ic_symbol_rating" />
+                <TextView style="@style/SettingsWidgetLabelStyle"
+                    android:text="@string/rate_spendtracker" />
+            </LinearLayout>
+
+        </GridLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

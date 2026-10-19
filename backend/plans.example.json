@@ -1,0 +1,18 @@
+{
+  "monthly": {
+    "provider_plan_id": "plan_REPLACE",
+    "amount": 9900
+  },
+  "quarterly": {
+    "provider_plan_id": "plan_REPLACE",
+    "amount": 14900
+  },
+  "six_monthly": {
+    "provider_plan_id": "plan_REPLACE",
+    "amount": 29900
+  },
+  "yearly": {
+    "provider_plan_id": "plan_REPLACE",
+    "amount": 49900
+  }
+}

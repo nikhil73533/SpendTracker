@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "670489774777",
+    "project_id": "com-example-spendtracker-de53c",
+    "storage_bucket": "com-example-spendtracker-de53c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:670489774777:android:ca91b1fcca79d551592968",
+        "android_client_info": {
+          "package_name": "com.example.spendtracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5BVL1LvqGMn1dEYZMD6G1cwQkJJmr_hk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

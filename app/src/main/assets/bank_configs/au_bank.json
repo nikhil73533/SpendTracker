@@ -1,0 +1,15 @@
+{
+  "bankName": "AU Bank",
+  "patterns": [
+    {
+      "name": "Account Debit",
+      "regex": "(?i)(?:Dr|Debited)\\s+(?:INR|Rs\\.?)\\s*([\\d,.]+)\\s+-\\s+AU A/c\\s+\\w+\\s+([\\d-A-Za-z-]+)\\s+UPI/DR/(\\d+)/([^/]+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "upiGroup": 3,
+      "receiverGroup": 4,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    }
+  ]
+}

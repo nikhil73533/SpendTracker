@@ -1,0 +1,23 @@
+- `[x]` **Fix 1: Navigation Widget Re-rendering**
+    - `[x]` Updated `DashboardViewModel` to handle tab switching programmatically.
+    - `[x]` Updated `DashboardFragment` to observe and apply tab switching.
+- `[x]` **Fix 2 & 3: Calendar Navigation & Re-rendering**
+    - `[x]` Updated `DashboardViewModel` with `selectedTab` and navigation logic.
+    - `[x]` Updated `DashboardFragment` to handle tab switching.
+    - `[x]` Updated `CalendarFragment` to trigger navigation to Daily view on date click.
+    - `[x]` Fixed month persistence in `DashboardViewModel.setFilter`.
+- `[x]` **Fix 4, 5, 6, 8: Charts Improvements**
+    - `[x]` Implemented horizontal swipe navigation in `ChartsFragment`.
+    - `[x]` Updated `ChartsFragment` to hide expense-specific charts in Income view.
+    - `[x]` Added legend/stats list for Source Pie Chart in Expense view.
+    - `[x]` Ensured all secondary charts (Bank, Source, Weekend) observe granularity changes.
+- `[x]` **Fix 7: Month Selection Propagation**
+    - `[x]` Refactored `DashboardViewModel.getCalendarDays` to be reactive to `dateRange` changes using `switchMap`.
+- `[x]` **New Feature 9: Receiver/Sender Recommendations**
+    - `[x]` Added `getUniqueContacts` query to `TransactionDao`.
+    - `[x]` Updated `TransactionRepository` and `TransactionRepositoryImpl`.
+    - `[x]` Updated `TransactionViewModel` to expose contacts.
+    - `[x]` Updated `fragment_transaction_form.xml` to use `AutoCompleteTextView`.
+    - `[x]` Updated `TransactionFormFragment` to set up recommendation adapters.
+- `[x]` **Verification & Testing**
+    - `[x]` Changes reviewed for stability and regression.

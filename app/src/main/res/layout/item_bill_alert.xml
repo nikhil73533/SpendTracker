@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp" app:cardCornerRadius="16dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="16dp">
+        <TextView android:id="@+id/tv_bill_name" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" />
+        <TextView android:id="@+id/tv_bill_amount" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="22sp" android:paddingVertical="8dp" />
+        <TextView android:id="@+id/tv_bill_due" android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/bill_progress" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginVertical="12dp"
+            android:max="100" app:trackThickness="6dp" app:trackCornerRadius="3dp" />
+        <TextView android:id="@+id/tv_bill_countdown" android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_review"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="Review" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_paid"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="Paid" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_delete"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+                android:text="Delete" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

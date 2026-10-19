@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dashboard_brand_primary">#E6E6E6</color>
+    <color name="dashboard_brand_on_primary">#000000</color>
+    <color name="dashboard_brand_primary_container">#303030</color>
+    <color name="dashboard_brand_on_primary_container">#EFE3D0</color>
+    <color name="dashboard_brand_secondary">#C3B8A9</color>
+    <color name="dashboard_brand_accent">#CAB5DA</color>
+    <color name="dashboard_income_blue">#A7CEB2</color>
+    <color name="dashboard_expense_red">#F0ABA4</color>
+    <color name="dashboard_brand_transfer">#C8BED8</color>
+    <color name="dashboard_dark_background">#000000</color>
+    <color name="dashboard_dark_surface">#121212</color>
+    <color name="dashboard_dark_surface_variant">#202020</color>
+    <color name="dashboard_dark_outline">#47443E</color>
+    <color name="dashboard_text_primary">#F4F1EB</color>
+    <color name="dashboard_text_secondary">#BDB8AF</color>
+    <color name="dashboard_brand_on_error">#381514</color>
+</resources>

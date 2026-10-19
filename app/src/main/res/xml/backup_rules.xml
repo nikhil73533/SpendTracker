@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- PinchBackupAgent requires encryption OR device transfer before making this snapshot.
+         XML requireFlags combines bits with AND, so enforce the alternative in the agent. -->
+    <include domain="file" path="reinstall-payload/" />
+</full-backup-content>

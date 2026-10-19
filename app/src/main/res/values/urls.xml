@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Central support site for online help and the privacy-conscious feedback form. -->
+    <string name="help_center_url">https://project-4pli0.vercel.app/</string>
+    <string name="feedback_url">https://project-4pli0.vercel.app/</string>
+    <string name="privacy_policy_url"></string>
+    <string name="terms_url"></string>
+</resources>

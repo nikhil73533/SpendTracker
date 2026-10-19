@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.prediction.domain.service.ColdStartBenchmarkTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-09-19T09:07:21.971Z" hostname="nikhil-gupta" time="0.371">
+  <properties/>
+  <testcase name="coldStartClearsSixtyPercentOnDocumentedDevelopmentCorpus" classname="com.example.prediction.domain.service.ColdStartBenchmarkTest" time="0.363"/>
+  <system-out><![CDATA[Cold start: 58/76 correct (76.3%); assigned 58; precision 100.0%; legacy top-label 10/76; legacy auto-assignment 0%.
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

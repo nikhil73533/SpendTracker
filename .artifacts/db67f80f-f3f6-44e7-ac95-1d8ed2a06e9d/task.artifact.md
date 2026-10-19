@@ -1,0 +1,42 @@
+# Tasks
+
+- [x] **1. Charts & Trends**
+    - [x] Update `fragment_charts.xml` for Pie Chart size (200dp)
+    - [x] Modify `ChartsFragment.java`:
+        - [x] Filter out 0% categories in Pie Chart
+        - [x] Adjust Pie Chart label positioning and offsets
+        - [x] Update Trend Chart labels for Weekly granularity
+        - [x] Ensure instant refresh on Tab selection
+    - [x] Modify `ChartsViewModel.java`:
+        - [x] Implement historical context (Previous 2 + Current) for trends
+        - [x] Fix `moveNext/movePrev` for all granularities
+- [x] **2. Dashboard & Navigation**
+    - [x] Update `DashboardViewModel.java`:
+        - [x] Fix `moveNext/movePrev` for month/year navigation
+        - [x] Update `DateRange` logic for dynamic headers
+    - [x] Update `DashboardFragment.java`:
+        - [x] Ensure header TextView updates correctly
+        - [x] Handle back navigation from category breakdown
+- [x] **3. Category Management**
+    - [x] Update `TransactionFormFragment.java`:
+        - [x] Implement Category CRUD in the dropdown/dialog
+    - [x] Update `MoreFragment.java`:
+        - [x] Remove "Manage Categories" button
+- [x] **4. Excel Export**
+    - [x] Update `DashboardFragment.java`:
+        - [x] Fix `exportToExcel` pipeline (data, formatting, sharing)
+- [x] **5. Accounts & Chat History**
+    - [x] Update `TransactionDao.java`:
+        - [x] Add unique sender/receiver query
+        - [x] Add account history query
+    - [x] Update `AccountsFragment.java`:
+        - [x] Implement unique sender/receiver list
+    - [x] Create `AccountHistoryFragment.java` & layout:
+        - [x] Implement chat-style UI
+        - [x] Implement header summary and date filter
+- [x] **6. Verification**
+    - [x] Verify Chart labels and data consistency
+    - [x] Verify Dashboard navigation
+    - [x] Verify Category CRUD
+    - [x] Verify Excel export file
+    - [x] Verify Account history chat view

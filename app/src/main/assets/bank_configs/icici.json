@@ -1,0 +1,46 @@
+{
+  "bankName": "ICICI",
+  "patterns": [
+    {
+      "name": "Account NEFT Credit",
+      "regex": "(?:ICICI?\\s+BANK\\s+)?(?:Acct|Account|A/c)\\s+([X*\\d]+)\\s+(?:has\\s+been\\s+)?credited\\s+(?:with\\s+)?(?:INR|Rs\\.?)\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+on\\s+([\\dA-Za-z/-]+)\\.\\s*Info\\s+(?:NEFT|RTGS)-[A-Z]+-([A-Z0-9]+)-(.+?)(?=\\.?(?:AVAILABLE|AVL)\\s+BAL|$)",
+      "accountGroup": 1,
+      "amountGroup": 2,
+      "dateGroup": 3,
+      "upiGroup": 4,
+      "receiverGroup": 5,
+      "type": "INCOME",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Credit Card Debit",
+      "regex": "ICICI Bank Credit Card .*? debited for (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+) for (?:UPI-(\\d+)-)?([^.]+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "upiGroup": 3,
+      "receiverGroup": 4,
+      "type": "EXPENSE",
+      "sourceType": "Credit Card"
+    },
+    {
+      "name": "Account Debit",
+      "regex": "ICICI Bank Acct .*? debited for (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+);\\s*([^;]+)\\s+credited.*?UPI:(\\d+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "receiverGroup": 3,
+      "upiGroup": 4,
+      "type": "EXPENSE",
+      "sourceType": "Account"
+    },
+    {
+      "name": "Account Credit",
+      "regex": "Acct .*? credited with (?:INR|Rs\\.?)\\s*([\\d,.]+) on ([\\d-A-Za-z-]+) from ([^.]+)\\.\\s*UPI:(\\d+)",
+      "amountGroup": 1,
+      "dateGroup": 2,
+      "receiverGroup": 3,
+      "upiGroup": 4,
+      "type": "INCOME",
+      "sourceType": "Account"
+    }
+  ]
+}
