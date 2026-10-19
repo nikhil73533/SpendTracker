@@ -1,4 +1,4 @@
-// All variants now share com.app.pinch. These legacy tests may replace records.
+// All variants now share com.pinchtrack.app. These legacy tests may replace records.
 if (gradle.startParameter.projectProperties['disposableDeviceTests'] != 'true') {
     throw new GradleException('Run these tests only on a disposable device with -PdisposableDeviceTests=true; they share the real app ID.')
 }

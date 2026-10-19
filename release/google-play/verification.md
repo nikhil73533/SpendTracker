@@ -1,8 +1,8 @@
 # Build verification — 19 October 2026
 
-- Final Play preview APK and Play release AAB built successfully.
+- Rebuild required after changing the application ID to `com.pinchtrack.app`; the earlier artifacts were for `com.app.pinch`.
 - 821 unit tests passed: 0 failures, 0 errors, 0 skipped. Includes five new backup authentication tests and existing fresh-SMS-window tests.
-- Installed package ID: `com.app.pinch`; version 1.0.1 (2); target API 36; minimum API 26.
+- Verify the installed package ID is `com.pinchtrack.app`; version 1.0.1 (2); target API 36; minimum API 26.
 - Merged Play manifest enables the protected backup agent and excludes Razorpay activities/startup components and Play Billing permission.
 - APK 16 KB ZIP alignment check passed; all four bundled arm64/x86_64 native libraries have ELF load alignment of at least 16 KB.
 - Unit checks include valid backup round trip, random salt/nonce output, wrong password, tampering, truncation and invalid format.

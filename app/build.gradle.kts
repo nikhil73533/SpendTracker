@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.app.pinch"
+        applicationId = "com.pinchtrack.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 2

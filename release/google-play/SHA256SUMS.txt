@@ -1,2 +1,1 @@
-9c74610155abd2c123c4d43f3f3ef102b86f2d9158764a3ccf2f6007e7837f90  TrackMint-com.app.pinch-1.0.1-UNSIGNED.aab
-d29ae879bafb05e5df18abd7c77f62d335f429fbe478c39cfe1b787f3463731b  TrackMint-com.app.pinch-1.0.1-preview.apk
+# Generate this file after building the new com.pinchtrack.app AAB and preview APK.

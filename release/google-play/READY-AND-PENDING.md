@@ -2,8 +2,7 @@
 
 ## Built and included
 
-- `TrackMint-com.app.pinch-1.0.1-UNSIGNED.aab`: optimized Play bundle, package `com.app.pinch`, version code 2, target API 36. **Requires upload-key signing before Play upload.**
-- `TrackMint-com.app.pinch-1.0.1-preview.apk`: separately available installable test APK with the same app ID and free checkout-disabled behavior. It uses a development signature; it is not the Play upload artifact.
+- A new bundle and preview APK for `com.pinchtrack.app` must be built before Play upload. The older artifacts named `com.app.pinch` are obsolete and must not be uploaded.
 - Store icon (512 × 512), feature graphic (1024 × 500), short/full descriptions, privacy-policy HTML, reviewer instructions and submission guide.
 - First-run SMS tracking starts with new messages; no historical inbox import.
 - Free Play launch with checkout disabled.

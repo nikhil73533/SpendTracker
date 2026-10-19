@@ -4,14 +4,14 @@ Prepared 19 October 2026. Logo and banner are excluded because they are already 
 
 Business name: **TrackMint**
 Support email: **ng1200821@gmail.com**
-App package: **com.app.pinch**
+App package: **com.pinchtrack.app**
 Launch plan: **Free, with checkout disabled**
 
 ## Files and listing information
 
 | Item | Status | What remains |
 | --- | --- | --- |
-| Android App Bundle (.aab) | Built, unsigned | Sign `TrackMint-com.app.pinch-1.0.1-UNSIGNED.aab` using the correct upload key. The development APK is for testing, not Play upload. |
+| Android App Bundle (.aab) | Rebuild required | Build a new unsigned bundle for `com.pinchtrack.app`, then sign it using the correct upload key. Do not upload the earlier `com.app.pinch` bundle. |
 | Upload signing key | Not provided/configured | Locate the existing `.jks` or `.keystore` file, key alias and locally stored passwords. See `signing-help.md`. Do not send passwords in chat. |
 | App title | Suggested | Confirm **TrackMint: Expense Tracker**. |
 | Short description | Ready | `short-description.txt` — 76 characters, within the 80-character limit. |
@@ -25,7 +25,7 @@ Launch plan: **Free, with checkout disabled**
 ## Play Console setup and declarations
 
 - [ ] Use your existing Play Console account and complete any outstanding identity, contact or device verification shown on its dashboard.
-- [ ] Create/select the listing intended for **com.app.pinch**. An existing app with a different package ID cannot be updated by this bundle.
+- [ ] Create/select the listing intended for **com.pinchtrack.app**. An existing app with a different package ID cannot be updated by this bundle.
 - [ ] Choose the default language, app type, **Finance** category and appropriate tags.
 - [ ] Set distribution to **Free** and select the launch countries/regions.
 - [ ] Configure Play App Signing and upload the correctly signed bundle. Confirm version code 2 has not already been used for this package; increase it if necessary.
@@ -53,9 +53,8 @@ Track income and expenses with on-device insights. Enable tracking for new trans
 
 ## Current technical status
 
-- App version: 1.0.1 (version code 2); package com.app.pinch; target API 36.
-- Final APK and unsigned AAB built successfully; 821 unit tests passed.
-- Latest test APK installed successfully on Samsung Galaxy A14 on 19 October 2026.
+- App version: 1.0.1 (version code 2); package com.pinchtrack.app; target API 36.
+- The earlier APK and unsigned AAB were built for `com.app.pinch` and are obsolete after this package-name change. Rebuild and install-test `com.pinchtrack.app` before uploading.
 - The installable APK uses a development signature. It is not a production-signed Play release.
 - Changing package IDs does not transfer old-app records automatically. Keep the old app until any needed data transfer is complete.
 - This checklist does not represent Google Play approval or completed Console declarations.

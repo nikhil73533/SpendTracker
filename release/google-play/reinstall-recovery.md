@@ -1,6 +1,6 @@
-# Reinstall recovery — com.app.pinch
+# Reinstall recovery — com.pinchtrack.app
 
-All consumer build types now use the same application ID, `com.app.pinch`. The Java source namespace remains internal implementation detail. Android's instrumentation runner has its own required test package and is not a second consumer app.
+All consumer build types now use the same application ID, `com.pinchtrack.app`. The Java source namespace remains internal implementation detail. Android's instrumentation runner has its own required test package and is not a second consumer app.
 
 ## Automatic Android recovery
 
@@ -26,9 +26,9 @@ Restore authenticates the complete file, rejects unsupported entries and oversiz
 
 ## Existing installation under the old ID
 
-Changing from `com.example.spendtracker` to `com.app.pinch` creates a different Android app. The new app cannot automatically read the old app's private database or Android backup dataset. Keep the old installation until its records have been transferred using a supported export/recovery process. Legacy encrypted ZIP files without the original encryption key cannot be recovered merely by renaming them.
+Changing from `com.example.spendtracker` to `com.pinchtrack.app` creates a different Android app. The new app cannot automatically read the old app's private database or Android backup dataset. Keep the old installation until its records have been transferred using a supported export/recovery process. Legacy encrypted ZIP files without the original encryption key cannot be recovered merely by renaming them.
 
-This new ID cannot update a Play listing published under the previous ID. Configure the intended Play listing and signing key for `com.app.pinch`.
+This new ID cannot update a Play listing published under the previous ID. Configure the intended Play listing and signing key for `com.pinchtrack.app`.
 
 ## Current verification
 

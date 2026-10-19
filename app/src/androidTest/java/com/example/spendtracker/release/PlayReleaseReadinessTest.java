@@ -36,7 +36,7 @@ public class PlayReleaseReadinessTest {
         // Only run screenshot seeding on an explicitly disposable emulator.
         org.junit.Assume.assumeTrue(android.os.Build.FINGERPRINT.contains("generic") || android.os.Build.MODEL.contains("Emulator") || android.os.Build.MODEL.contains("sdk_gphone"));
         org.junit.Assume.assumeTrue("true".equals(InstrumentationRegistry.getArguments().getString("seedDemoData")));
-        assertEquals("com.app.pinch", context.getPackageName());
+        assertEquals("com.pinchtrack.app", context.getPackageName());
         assertTrue(com.example.spendtracker.BuildConfig.FREE_PLAY_BUILD);
         assertFalse(com.example.spendtracker.BuildConfig.AUTOPAY_ENABLED);
         context.getSharedPreferences("sms_disclosure", 0).edit().putBoolean("shown", true)

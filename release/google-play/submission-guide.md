@@ -10,7 +10,7 @@ Category: Finance. This is personal record keeping, not a lending or payment-tra
 - App bundle: the signed `TrackMint-1.0.1-play.aab` when signing has been completed. Do not upload a debug APK or the direct-distribution Razorpay build.
 - App icon: `assets/app-icon-512.png`, 512 × 512 RGBA PNG.
 - Feature graphic: `assets/feature-graphic-1024x500.png`, 1024 × 500 RGB PNG.
-- Phone screenshots: files in `screenshots/`, to be captured on a disposable emulator using com.app.pinch with fictional sample records; capture is not yet complete. At least two are required.
+- Phone screenshots: files in `screenshots/`, to be captured on a disposable emulator using com.pinchtrack.app with fictional sample records; capture is not yet complete. At least two are required.
 - Short description: `short-description.txt` (76 characters).
 - Full description: `long-description.txt` (under 4,000 characters).
 - Privacy policy: `privacy-policy.html`. Publish this file at a public HTTPS URL you control, then enter that URL in Play Console. A local file is NOT a public policy URL. An offline copy is included inside the Play app under More → Privacy & Offline → Privacy Policy.
@@ -18,7 +18,7 @@ Category: Finance. This is personal record keeping, not a lending or payment-tra
 
 ## Owner actions before submission
 
-1. Confirm this is the correct application ID (`com.app.pinch`) for your Console app. Existing listings must retain their original ID and use an accepted upload certificate. The bundle uses version code 2; if you have already uploaded version 2 or higher, increase the version code before rebuilding.
+1. Confirm this is the correct application ID (`com.pinchtrack.app`) for your Console app. Existing listings must retain their original ID and use an accepted upload certificate. The bundle uses version code 2; if you have already uploaded version 2 or higher, increase the version code before rebuilding.
 2. Use the existing upload key for an existing Play app, or generate and safely back up a new upload key for a first upload. Enroll in Play App Signing as prompted. Never put keys/passwords in Git or the public asset ZIP.
 3. Host the privacy policy and verify the public URL opens without a login. Confirm the policy and listing match the final app and any configured support website.
 4. Complete Data safety using the notes below, the exact SDK versions and actual service configuration. Do not answer “no data collected” simply because financial processing is local.
@@ -56,6 +56,6 @@ Do not guess final yes/no answers for Data safety, ads, content rating or financ
 Sources checked on 17 October 2026. Recheck Console notices when uploading.
 
 ## Package identity and recovery
-All build types use `com.app.pinch`. This cannot update an existing Play listing under another package ID. Existing old-package data is not automatically accessible to the new package. Keep the old app until records have been safely transferred. Test runners use the required separate instrumentation package; they are not another consumer app.
+All build types use `com.pinchtrack.app`. This cannot update an existing Play listing under another package ID. Existing old-package data is not automatically accessible to the new package. Keep the old app until records have been safely transferred. Test runners use the required separate instrumentation package; they are not another consumer app.
 
 See `reinstall-recovery.md` for setup, limits and verification.
