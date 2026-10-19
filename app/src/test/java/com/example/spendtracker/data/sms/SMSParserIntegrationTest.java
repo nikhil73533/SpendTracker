@@ -62,7 +62,7 @@ public class SMSParserIntegrationTest {
         assertNotNull(t);
         assertEquals(148.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("AU Bank", t.getBankName());
+        assertEquals("AU BANK", t.getBankName());
     }
 
     // =========================================================================

@@ -88,7 +88,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for AU Bank debit", t);
         assertEquals(148.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("AU Bank", t.getBankName());
+        assertEquals("AU BANK", t.getBankName());
     }
 
     @Test
@@ -184,7 +184,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for Axis debit", t);
         assertEquals(750.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("Axis", t.getBankName());
+        assertEquals("AXIS", t.getBankName());
     }
 
     @Test
@@ -211,7 +211,7 @@ public class SMSParserTest {
         assertNotNull("Expected non-null transaction for Kotak debit", t);
         assertEquals(450.0, t.getAmount(), 0.001);
         assertEquals("EXPENSE", t.getType());
-        assertEquals("Kotak", t.getBankName());
+        assertEquals("KOTAK", t.getBankName());
     }
 
     // =========================================================================
@@ -379,12 +379,12 @@ public class SMSParserTest {
 
     @Test
     public void testExtractBank_ICICI() {
-        assertEquals("ICICI Bank", parser.extractBank("icici bank account debited"));
+        assertEquals("ICICI", parser.extractBank("icici bank account debited"));
     }
 
     @Test
     public void testExtractBank_HDFC() {
-        assertEquals("HDFC Bank", parser.extractBank("hdfc bank upi debited"));
+        assertEquals("HDFC", parser.extractBank("hdfc bank upi debited"));
     }
 
     @Test
@@ -394,12 +394,12 @@ public class SMSParserTest {
 
     @Test
     public void testExtractBank_AUBank() {
-        assertEquals("AU Bank", parser.extractBank("au a/c x3698 debited"));
+        assertEquals("AU BANK", parser.extractBank("au a/c x3698 debited"));
     }
 
     @Test
     public void testExtractBank_Unknown() {
-        assertEquals("Bank", parser.extractBank("some random text without bank name"));
+        assertEquals("BANK", parser.extractBank("some random text without bank name"));
     }
 
     @Test

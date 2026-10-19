@@ -30,6 +30,9 @@ public interface AnalyticsRepository {
     LiveData<RollingAverage> getRollingExpenseAverage(int months);
     LiveData<TransactionVolume> getTransactionVolume(long start, long end, String periodLabel);
     LiveData<List<TimeSeriesPoint>> getIncomeExpenseTrend(long start, long end);
+    LiveData<List<TimeSeriesPoint>> getIncomeExpenseTrend(long start, long end, AnalyticsGranularity granularity);
+    LiveData<com.example.spendtracker.domain.model.analytics.SavingsAnalysis> getSavingsAnalysis(long start, long end, AnalyticsGranularity granularity);
+    LiveData<List<CategoryAnalytics>> getCategoryGrowth(long start, long end, AnalyticsGranularity granularity);
     LiveData<BehaviorAnalytics> getDayNightAnalytics(long start, long end);
     LiveData<BehaviorAnalytics> getTimeOfDayAnalytics(long start, long end);
     LiveData<BehaviorAnalytics> getDayOfWeekAnalytics(long start, long end);

@@ -38,7 +38,16 @@ public class SecurityRepositoryImpl implements SecurityRepository {
             // Privacy mode starts as TRUE for session safety, or persistent?
             // "by default all the ammount ... show ***"
             // Let's keep it TRUE on every app launch for maximum safety.
-            privacyMode.setValue(true);
+            java.io.File recovery = com.example.spendtracker.util.ReinstallRecovery.payload(context);
+            if (com.example.spendtracker.util.ReinstallRecovery.needsKeyImport(context)) {
+                byte[] restoredKey = com.example.spendtracker.util.ReinstallRecovery.readKey(recovery);
+                try {
+                    if (!sharedPreferences.edit().putString(KEY_DB_PASSPHRASE,
+                            android.util.Base64.encodeToString(restoredKey, android.util.Base64.NO_WRAP)).commit())
+                        throw new IOException("Could not save restored database key");
+                    com.example.spendtracker.util.ReinstallRecovery.finishKeyImport(context);
+                } finally { java.util.Arrays.fill(restoredKey, (byte) 0); }
+            }
             
         } catch (GeneralSecurityException | IOException e) {
             // Do not silently replace encrypted storage with insecure preferences.
@@ -58,7 +67,7 @@ public class SecurityRepositoryImpl implements SecurityRepository {
     }
 
     @Override
-    public byte[] getDatabasePassphrase() {
+    public synchronized byte[] getDatabasePassphrase() {
         if (sharedPreferences == null) {
             throw new IllegalStateException("Secure storage is unavailable");
         }
@@ -68,7 +77,8 @@ public class SecurityRepositoryImpl implements SecurityRepository {
             byte[] pass = new byte[32];
             new SecureRandom().nextBytes(pass);
             savedPass = android.util.Base64.encodeToString(pass, android.util.Base64.NO_WRAP);
-            sharedPreferences.edit().putString(KEY_DB_PASSPHRASE, savedPass).apply();
+            if (!sharedPreferences.edit().putString(KEY_DB_PASSPHRASE, savedPass).commit())
+                throw new IllegalStateException("Could not save database key");
         }
         return android.util.Base64.decode(savedPass, android.util.Base64.NO_WRAP);
     }

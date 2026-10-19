@@ -19,13 +19,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp">
+        android:paddingVertical="12dp">
 
-        <ImageButton android:id="@+id/bookmark_transaction" android:layout_width="48dp" android:layout_height="48dp" android:padding="14dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_symbol_bookmark" android:contentDescription="Bookmark transaction" app:tint="@color/text_secondary" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent"/>
+        <ImageButton android:id="@+id/bookmark_transaction" android:layout_width="48dp" android:layout_height="48dp" android:padding="14dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_symbol_bookmark" android:contentDescription="Bookmark transaction" app:tint="@color/text_secondary" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toBottomOf="@id/tv_category" app:layout_constraintBottom_toBottomOf="parent"/>
         <ImageButton android:id="@+id/share_receipt" android:layout_width="48dp" android:layout_height="48dp"
             android:src="@drawable/ic_symbol_share" android:contentDescription="Share PDF receipt"
             android:padding="14dp" android:scaleType="fitCenter" android:background="?attr/selectableItemBackgroundBorderless" app:tint="@color/dashboard_text_secondary"
-            app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tv_category" app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/bookmark_transaction" />
         <ImageView
             android:id="@+id/iv_category_icon"
@@ -43,7 +43,8 @@
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_marginStart="12dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="0dp"
             android:background="@drawable/bg_daily_category_dropdown"
             android:clickable="true"
             android:drawableEnd="@drawable/ic_symbol_expand"
@@ -54,8 +55,9 @@
             android:gravity="center_vertical"
             android:maxLines="1"
             android:minWidth="96dp"
-            android:paddingStart="12dp"
+            android:paddingStart="10dp"
             android:paddingEnd="8dp"
+            android:paddingVertical="4dp"
             android:textColor="@color/dashboard_text_secondary"
             android:textSize="12sp"
             app:layout_constraintEnd_toStartOf="@id/tv_time"
@@ -79,14 +81,16 @@
             android:layout_height="wrap_content"
             android:textColor="@color/dashboard_text_secondary"
             android:textSize="10sp"
-            app:layout_constraintEnd_toStartOf="@id/share_receipt"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/tv_category"
+            app:layout_constraintBottom_toBottomOf="@id/tv_category"
             tools:text="10:30 AM" />
 
         <TextView
             android:id="@+id/tv_receiver"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="1"

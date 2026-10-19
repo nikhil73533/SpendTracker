@@ -31,7 +31,8 @@ public final class PremiumState {
 
     public boolean hasPremiumAccess(long now) {
         if (status == Status.LIFETIME) return true;
-        if (status != Status.ACTIVE || purchaseType != PremiumPurchaseType.SUBSCRIPTION) return false;
+        if (status != Status.ACTIVE || (purchaseType != PremiumPurchaseType.SUBSCRIPTION
+                && purchaseType != PremiumPurchaseType.PREPAID)) return false;
         if (expiresAt > 0L) return now < expiresAt;
         return lastVerifiedAt > 0L && now - lastVerifiedAt <= SUBSCRIPTION_OFFLINE_GRACE_MS;
     }

@@ -23,7 +23,8 @@ import org.json.JSONObject;
 public class AutoPayActivity extends AppCompatActivity implements PaymentResultWithDataListener {
     @Inject AutoPayManager manager;
     private boolean checkoutOpened;
-    private String subscription;
+    private String checkoutReference;
+    private String purchaseType;
     private TextView status;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -33,20 +34,32 @@ public class AutoPayActivity extends AppCompatActivity implements PaymentResultW
         int padding = (int) (24 * getResources().getDisplayMetrics().density);
         layout.setPadding(padding, padding, padding, padding);
         status = new TextView(this);
-        status.setText("Preparing secure AutoPay…");
+        status.setText("Preparing secure checkout…");
         layout.addView(status);
         Button back = new Button(this); back.setText("Back to plans");
         back.setOnClickListener(v -> finish()); layout.addView(back);
         setContentView(layout);
-        if (!manager.configured()) { status.setText("AutoPay setup is not complete yet."); return; }
+        if (!manager.configured()) { status.setText("Payment setup is not complete yet."); return; }
         manager.message().observe(this, status::setText);
         Checkout.preload(getApplicationContext());
         if (savedInstanceState != null) {
             checkoutOpened = savedInstanceState.getBoolean("opened");
-            subscription = savedInstanceState.getString("subscription");
-            status.setText("Return to plans and use Check status to recover your subscription.");
+            checkoutReference = savedInstanceState.getString("checkout_reference");
+            purchaseType = savedInstanceState.getString("purchase_type");
+            status.setText("Return to plans and use Check status to recover your payment.");
             return; // Recreating an Activity must not reopen checkout.
         }
+        manager.loadConfiguration((configuration, error) -> {
+            if (error != null || isFinishing() || isDestroyed()) return;
+            if (manager.usesTestIdentity()) {
+                manager.prepareTestSession((session, sessionError) -> {
+                    if (sessionError == null && !isFinishing() && !isDestroyed()) continueAction();
+                });
+            } else beginSignIn();
+        });
+    }
+
+    private void beginSignIn() {
         GoogleSignIn.getClient(this, manager.signInOptions()).silentSignIn().addOnCompleteListener(task -> {
             if (isFinishing() || isDestroyed()) return;
             if (task.isSuccessful()) authenticated(task.getResult());
@@ -64,6 +77,9 @@ public class AutoPayActivity extends AppCompatActivity implements PaymentResultW
     private void authenticated(GoogleSignInAccount account) {
         try { manager.signedIn(account); }
         catch (Exception error) { manager.failure(error); return; }
+        continueAction();
+    }
+    private void continueAction() {
         manager.refreshAll((result, error) -> {
             if (error != null || isFinishing() || isDestroyed()) return;
             String action = getIntent().getStringExtra("action");
@@ -82,51 +98,49 @@ public class AutoPayActivity extends AppCompatActivity implements PaymentResultW
             if (plan.productId.equals(getIntent().getStringExtra("plan"))) selected = plan;
         }
         if (selected == null) { status.setText("Plan unavailable. Return to plans and reload prices."); return; }
-        final PremiumPlan plan = selected;
-        new MaterialAlertDialogBuilder(this).setTitle("Approve " + plan.title + " AutoPay")
-                .setMessage(plan.price + " — " + plan.period
-                        + "\n\nNo free trial. Access starts after the first full payment is confirmed. You can stop future debits using Cancel renewal. Any refund revokes access for that payment's period."
-                        + "\n\nReview Terms, Privacy and Support on the paywall before continuing.")
-                .setNegativeButton("Back", (d, w) -> finish())
-                .setPositiveButton("Continue to Razorpay", (d, w) -> manager.create(plan.productId, (attempt, error) -> {
-                    if (error != null || isFinishing() || isDestroyed()) return;
-                    if (!attempt.optBoolean("checkout_allowed")) { manager.refreshAll((v, e) -> { if (e == null) finish(); }); return; }
-                    java.text.NumberFormat money = java.text.NumberFormat.getCurrencyInstance(new java.util.Locale("en", "IN"));
-                    String reservedPrice = money.format(attempt.optLong("amount") / 100.0);
-                    if (!"INR".equals(attempt.optString("currency")) || attempt.optLong("amount") <= 0) {
-                        status.setText("Unable to confirm this subscription's price. Please contact support."); return;
-                    }
-                    if (!reservedPrice.equals(plan.price)) {
-                        new MaterialAlertDialogBuilder(this).setTitle("Resume earlier subscription?")
-                                .setMessage("Your saved " + plan.title + " subscription renews at " + reservedPrice
-                                        + ". This differs from the current catalog price. Continue only if you want this saved subscription.")
-                                .setNegativeButton("Back", (dialog, which) -> finish())
-                                .setPositiveButton("Continue at " + reservedPrice, (dialog, which) -> openCheckout(attempt, plan)).show();
-                    } else openCheckout(attempt, plan);
-                })).show();
+        final PremiumPlan selectedPlan = selected;
+        manager.create(selectedPlan.productId, "one_time", (attempt, error) -> {
+            if (error != null || isFinishing() || isDestroyed()) return;
+            if (!attempt.optBoolean("checkout_allowed")) {
+                manager.refreshAll((v, e) -> { if (e == null) finish(); });
+                return;
+            }
+            if (!"INR".equals(attempt.optString("currency")) || attempt.optLong("amount") <= 0) {
+                status.setText("Unable to confirm this payment price. Please contact support.");
+                return;
+            }
+            openCheckout(attempt, selectedPlan);
+        });
     }
     private void openCheckout(JSONObject attempt, PremiumPlan plan) {
         if (checkoutOpened || isFinishing() || isDestroyed()) return;
         try {
-            subscription = attempt.getString("subscription_id");
+            purchaseType = attempt.getString("purchase_type");
             Checkout checkout = new Checkout();
             checkout.setKeyID(attempt.getString("key_id"));
-            JSONObject options = new JSONObject().put("subscription_id", subscription)
-                    .put("name", "TrackMint").put("description", plan.title + " premium subscription")
+            JSONObject options = new JSONObject().put("name", "TrackMint")
+                    .put("description", "one_time".equals(purchaseType)
+                            ? plan.title + " prepaid premium" : plan.title + " premium AutoPay")
                     .put("theme", new JSONObject().put("color", "#1B7A66"));
+            if (!"one_time".equals(purchaseType)) throw new IllegalStateException("Expected a one-time order");
+            checkoutReference = attempt.getString("order_id");
+            PaymentCheckoutOptions.configure(options, checkoutReference,
+                    attempt.getLong("amount"), attempt.getString("currency"));
             checkoutOpened = true;
             checkout.open(this, options);
         } catch (Exception failure) { manager.failure(failure); }
     }
     @Override protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
-        out.putBoolean("opened", checkoutOpened); out.putString("subscription", subscription);
+        out.putBoolean("opened", checkoutOpened);
+        out.putString("checkout_reference", checkoutReference);
+        out.putString("purchase_type", purchaseType);
     }
     @Override public void onPaymentSuccess(String paymentId, PaymentData data) {
         try {
-            // SDK's subscription ID is compared against the server-stored ID by the backend.
             JSONObject evidence = new JSONObject().put("razorpay_payment_id", paymentId)
-                    .put("razorpay_subscription_id", subscription).put("razorpay_signature", data.getSignature());
+                    .put("razorpay_signature", data.getSignature());
+            evidence.put("razorpay_order_id", checkoutReference);
             manager.verify(evidence, (value, error) -> { if (error == null) finish(); });
         } catch (Exception error) { manager.failure(error); }
     }

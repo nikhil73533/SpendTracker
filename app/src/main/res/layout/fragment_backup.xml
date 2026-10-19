@@ -19,6 +19,7 @@
             style="@style/Widget.MaterialComponents.Toolbar.Primary" />
     </com.google.android.material.appbar.AppBarLayout>
 
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -42,7 +43,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Local Backup"
+                    android:text="Phone backup files"
                     android:textColor="@color/white"
                     android:textSize="18sp"
                     android:textStyle="bold"
@@ -83,10 +84,18 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="-8dp"
                     android:layout_marginBottom="16dp"
-                    android:text="Each backup includes the local finance database and the on-device category prediction model."
+                    android:text="Choose a folder such as Documents/Pinch. Protected copies of your records and learning model stay there after uninstall. After reinstall, tap Restore Backup, select a saved file and enter its password. Daily backups run when Android allows background work."
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_choose_folder"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Choose backup folder" />
+                <TextView android:id="@+id/tv_backup_message"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary" android:accessibilityLiveRegion="polite" />
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -128,7 +137,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/label_google_drive"
+                    android:text="Automatic recovery after reinstall"
                     android:textColor="@color/white"
                     android:textSize="18sp"
                     android:textStyle="bold"
@@ -137,7 +146,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/msg_drive_reason"
+                    android:text="With Android backup and a screen lock enabled, Android can restore the last completed backup when you reinstall with the same Google account. Backups are not immediate and have a 25 MB limit. Keep a phone backup as well. Android backup is separate from the daily phone backup switch above."
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"
                     android:layout_marginBottom="16dp" />
@@ -146,9 +155,10 @@
                     android:id="@+id/btn_connect_drive"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/label_connect_drive"
+                    android:text="Open Android backup settings"
                     android:backgroundTint="#4CAF50" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
+    </ScrollView>
 </LinearLayout>

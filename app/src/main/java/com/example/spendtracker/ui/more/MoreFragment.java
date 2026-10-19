@@ -25,6 +25,9 @@ public class MoreFragment extends Fragment {
     @Inject
     com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
+    @Inject
+    com.example.spendtracker.domain.repository.SecurityRepository securityRepository;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -39,15 +42,16 @@ public class MoreFragment extends Fragment {
         refreshProfile();
         binding.cardProfile.setOnClickListener(v -> com.example.spendtracker.ui.settings.ProfileEditor.show(requireContext(), this::refreshProfile));
         binding.cardLedger.setOnClickListener(v -> safeNavigate(view, R.id.accountsFragment));
-        binding.cardAdvancedAnalytics.setOnClickListener(v -> requireFeature(
-                com.example.spendtracker.billing.PremiumFeature.ADVANCED_ANALYTICS,
-                () -> safeNavigate(view, R.id.action_moreFragment_to_advancedAnalyticsFragment)));
+        // These cards are navigation affordances.  Gating them here made the cards appear
+        // unresponsive to free users, even though each destination can present its own
+        // upgrade state where an action actually needs premium access.
+        binding.cardAdvancedAnalytics.setOnClickListener(v ->
+                safeNavigate(view, R.id.action_moreFragment_to_advancedAnalyticsFragment));
         binding.cardConfiguration.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_trashFragment));
 
         binding.cardCalcbox.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_calculatorFragment));
-        binding.cardBackup.setOnClickListener(v -> requireFeature(
-                com.example.spendtracker.billing.PremiumFeature.BACKUP,
-                () -> safeNavigate(view, R.id.action_moreFragment_to_backupFragment)));
+        binding.cardBackup.setOnClickListener(v ->
+                safeNavigate(view, R.id.action_moreFragment_to_backupFragment));
         binding.cardFeedback.setOnClickListener(v -> new android.app.AlertDialog.Builder(requireContext())
                 .setTitle("Feedback")
                 .setItems(new String[]{"Send feedback", "Report a problem", "Suggest a feature", "Rate the app"}, (dialog, which) -> {
@@ -64,13 +68,11 @@ public class MoreFragment extends Fragment {
                     else openOnlineHelp();
                 }).show());
         binding.cardRecommend.setOnClickListener(v -> shareApp());
-        binding.cardBillAlerts.setOnClickListener(v -> requireFeature(
-                com.example.spendtracker.billing.PremiumFeature.BILL_DETECTION,
-                () -> safeNavigate(view, R.id.action_moreFragment_to_billAlertsFragment)));
+        binding.cardBillAlerts.setOnClickListener(v ->
+                safeNavigate(view, R.id.action_moreFragment_to_billAlertsFragment));
 
-        binding.cardBulkIngestion.setOnClickListener(v -> requireFeature(
-                com.example.spendtracker.billing.PremiumFeature.PDF_IMPORT,
-                () -> safeNavigate(view, R.id.action_moreFragment_to_pdfIngestionFragment)));
+        binding.cardBulkIngestion.setOnClickListener(v ->
+                safeNavigate(view, R.id.action_moreFragment_to_pdfIngestionFragment));
         binding.cardPrivacyOffline.setOnClickListener(v -> safeNavigate(view, R.id.action_moreFragment_to_privacyOfflineFragment));
         binding.cardReportProblem.setOnClickListener(v -> openFeedback(FeedbackManager.Type.PROBLEM));
         binding.cardSuggestFeature.setOnClickListener(v -> openFeedback(FeedbackManager.Type.FEATURE));

@@ -370,9 +370,9 @@ public class SMSParser {
     /** Identifies the bank name from message content (lowercase body). */
     String extractBank(String lowerBody) {
         for (String[] entry : BANK_KEYWORDS) {
-            if (lowerBody.contains(entry[0])) return entry[1];
+            if (lowerBody.contains(entry[0])) return standardizeBankName(entry[1]);
         }
-        return "Bank";
+        return "BANK";
     }
 
     /**
@@ -380,39 +380,7 @@ public class SMSParser {
      * E.g. "ICICI Bank" → "ICICI", "State Bank of India" → "SBI".
      */
     static String standardizeBankName(String raw) {
-        if (raw == null || raw.trim().isEmpty()) return raw;
-        String lower = raw.trim().toLowerCase();
-        // Order matters: more specific first
-        if (lower.contains("state bank"))     return "SBI";
-        if (lower.contains("icici"))           return "ICICI";
-        if (lower.contains("hdfc"))            return "HDFC";
-        if (lower.contains("axis"))            return "Axis";
-        if (lower.contains("kotak"))           return "Kotak";
-        if (lower.contains("sbi"))             return "SBI";
-        if (lower.contains("pnb"))             return "PNB";
-        if (lower.contains("union bank"))      return "Union Bank";
-        if (lower.contains("bank of baroda"))  return "Bank of Baroda";
-        if (lower.contains("bob"))             return "Bank of Baroda";
-        if (lower.contains("yes bank"))        return "Yes Bank";
-        if (lower.contains("yesb"))            return "Yes Bank";
-        if (lower.contains("canara"))          return "Canara";
-        if (lower.contains("idbi"))            return "IDBI";
-        if (lower.contains("indusind"))        return "IndusInd";
-        if (lower.contains("federal"))         return "Federal";
-        if (lower.contains("rbl"))             return "RBL";
-        if (lower.contains("au bank"))         return "AU Bank";
-        if (lower.contains("au small"))        return "AU Bank";
-        if (lower.contains("bajaj"))           return "Bajaj Finance";
-        if (lower.contains("amazon pay"))      return "Amazon Pay";
-        if (lower.contains("airtel payments")) return "Airtel Payments";
-        if (lower.contains("jio payments"))    return "Jio Payments";
-        if (lower.contains("paytm"))           return "Paytm";
-        if (lower.contains("phonepe"))         return "PhonePe";
-        if (lower.contains("one card") || lower.contains("onecard")) return "OneCard";
-        if (lower.contains("slice"))           return "Slice";
-        if (lower.contains("navi"))            return "Navi";
-        // Already a short token — return as-is
-        return raw.trim();
+        return new com.example.spendtracker.data.sms.normalization.BankNormalizer().normalize(raw);
     }
 
     /** Determines whether the source is a Credit Card, Wallet, UPI, or Account. */

@@ -2,193 +2,88 @@ package com.example.spendtracker.ui.settings;
 
 import android.app.Application;
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
-import androidx.work.ExistingPeriodicWorkPolicy;
-import androidx.work.PeriodicWorkRequest;
-import androidx.work.WorkManager;
+import android.net.Uri;
+import androidx.lifecycle.*;
+import androidx.work.*;
 import com.example.spendtracker.di.MainDatabase;
 import com.example.spendtracker.data.local.database.SpendTrackerDatabase;
-import com.example.spendtracker.util.BackupArchive;
-import com.example.spendtracker.util.DriveBackupClient;
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInClient;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.common.api.ApiException;
-import com.google.android.gms.common.api.Scope;
-import com.google.android.gms.tasks.Task;
+import com.example.spendtracker.domain.repository.SecurityRepository;
+import com.example.spendtracker.util.*;
 import dagger.hilt.android.lifecycle.HiltViewModel;
-import java.io.File;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.concurrent.*;
 import javax.inject.Inject;
 
 @HiltViewModel
 public class BackupViewModel extends ViewModel {
-
     private final Application context;
-    private final MutableLiveData<Long> lastBackupTime = new MutableLiveData<>(0L);
-    private final MutableLiveData<Boolean> isAutoBackupEnabled = new MutableLiveData<>(false);
-    private final MutableLiveData<String> driveAccountEmail = new MutableLiveData<>("");
-    private final MutableLiveData<String> driveStatus = new MutableLiveData<>("");
     private final SharedPreferences prefs;
     private final SpendTrackerDatabase database;
-    private final ExecutorService backupExecutor = Executors.newSingleThreadExecutor();
-    private final MutableLiveData<String> backupStatus = new MutableLiveData<>("");
+    private final SecurityRepository security;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final MutableLiveData<Long> lastBackupTime = new MutableLiveData<>(0L);
+    private final MutableLiveData<Boolean> autoBackup = new MutableLiveData<>(false);
+    private final MutableLiveData<String> status = new MutableLiveData<>("");
+    private final MutableLiveData<Boolean> restoreReady = new MutableLiveData<>(false);
+    private final MutableLiveData<Boolean> busy = new MutableLiveData<>(false);
 
-    /** Scope for Google Drive appdata folder access only (minimal permissions). */
-    private static final String DRIVE_APPDATA_SCOPE = DriveBackupClient.APPDATA_SCOPE;
-
-    @Inject
-    public BackupViewModel(Application context, @MainDatabase SpendTrackerDatabase database) {
-        this.context = context;
-        this.database = database;
+    @Inject public BackupViewModel(Application context, @MainDatabase SpendTrackerDatabase database, SecurityRepository security) {
+        this.context = context; this.database = database; this.security = security;
         prefs = context.getSharedPreferences("backup_prefs", Context.MODE_PRIVATE);
-        loadPrefs();
+        lastBackupTime.setValue(prefs.getLong("last_backup_time", 0));
+        autoBackup.setValue(prefs.getBoolean("auto_backup_enabled", false));
     }
-
-    private void loadPrefs() {
-        lastBackupTime.setValue(prefs.getLong("last_backup_time", 0L));
-        isAutoBackupEnabled.setValue(prefs.getBoolean("auto_backup_enabled", false));
-        String savedEmail = prefs.getString("drive_account_email", "");
-        driveAccountEmail.setValue(savedEmail);
-
-        // Check if there's an already signed-in account on app restart
-        GoogleSignInAccount lastAccount = GoogleSignIn.getLastSignedInAccount(context);
-        if (lastAccount != null && lastAccount.getEmail() != null) {
-            if (GoogleSignIn.hasPermissions(lastAccount, new Scope(DRIVE_APPDATA_SCOPE))) {
-                driveAccountEmail.setValue(lastAccount.getEmail());
-                prefs.edit().putString("drive_account_email", lastAccount.getEmail()).apply();
-                driveStatus.setValue("Connected");
-            } else {
-                // Has account but missing Drive scope — will need re-auth
-                driveStatus.setValue("Re-authentication required");
-            }
-        }
-    }
-
     public LiveData<Long> getLastBackupTime() { return lastBackupTime; }
-    public LiveData<Boolean> getIsAutoBackupEnabled() { return isAutoBackupEnabled; }
-    public LiveData<String> getDriveAccountEmail() { return driveAccountEmail; }
-    public LiveData<String> getDriveStatus() { return driveStatus; }
-    public LiveData<String> getBackupStatus() { return backupStatus; }
-
+    public LiveData<Boolean> getIsAutoBackupEnabled() { return autoBackup; }
+    public LiveData<String> getBackupStatus() { return status; }
+    public LiveData<Boolean> getRestoreReady() { return restoreReady; }
+    public LiveData<Boolean> getBusy() { return busy; }
+    public boolean hasFolder() { return PhoneBackup.configured(context); }
     public void setAutoBackupEnabled(boolean enabled) {
+        if (enabled && !hasFolder()) {
+            status.setValue("Tap Backup Now to choose a folder and password first.");
+            autoBackup.setValue(false); return;
+        }
         prefs.edit().putBoolean("auto_backup_enabled", enabled).apply();
-        isAutoBackupEnabled.setValue(enabled);
-
-        if (enabled) {
-            PeriodicWorkRequest backupWork = new PeriodicWorkRequest.Builder(BackupWorker.class, 1, TimeUnit.DAYS).build();
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork("daily_backup", ExistingPeriodicWorkPolicy.KEEP, backupWork);
-        } else {
-            WorkManager.getInstance(context).cancelUniqueWork("daily_backup");
-        }
+        autoBackup.setValue(enabled);
+        if (enabled) WorkManager.getInstance(context).enqueueUniquePeriodicWork("daily_backup",
+                ExistingPeriodicWorkPolicy.KEEP, new PeriodicWorkRequest.Builder(BackupWorker.class, 1, TimeUnit.DAYS).build());
+        else WorkManager.getInstance(context).cancelUniqueWork("daily_backup");
     }
-
+    public void configure(Uri folder, char[] password) {
+        busy.setValue(true);
+        executor.execute(() -> {
+            try { PhoneBackup.configure(context, folder, password); save(); }
+            catch (Exception error) { status.postValue("Backup setup failed. Choose a writable folder and try again."); }
+            finally { Arrays.fill(password, '\0'); busy.postValue(false); }
+        });
+    }
     public void backupNow() {
-        backupStatus.setValue("Creating encrypted backup…");
-        backupExecutor.execute(() -> {
-            try {
-                File archive = BackupArchive.create(context, database);
-                if (DriveBackupClient.isConnected(context)) {
-                    DriveBackupClient.upload(context, archive);
-                    backupStatus.postValue("Backup saved locally and in your private Google Drive app data");
-                } else {
-                    backupStatus.postValue("Backup saved locally. Connect Google Drive to add cloud copies.");
-                }
-                long now = System.currentTimeMillis();
-                prefs.edit().putLong("last_backup_time", now).apply();
-                lastBackupTime.postValue(now);
-            } catch (Exception e) {
-                android.util.Log.e("BackupViewModel", "Backup failed", e);
-                backupStatus.postValue("Backup failed. " + (e.getMessage() == null ? "Try again." : e.getMessage()));
-            }
+        busy.setValue(true); status.setValue("Saving a protected copy…");
+        executor.execute(() -> {
+            try { save(); } catch (Exception error) { status.postValue("Backup failed. Check free space and select the folder again if access was removed."); }
+            finally { busy.postValue(false); }
         });
     }
-
-    public boolean restoreNow() {
-        // Safe restore: copy to cache and let DatabaseModule handle it on next start
-        File backupZip = BackupArchive.latest(context);
-        if (backupZip == null) backupZip = new File(context.getExternalFilesDir(null), "backup.zip");
-        return BackupArchive.stageRestore(context, backupZip);
+    private void save() throws Exception {
+        byte[] key = security.getDatabasePassphrase();
+        try { PhoneBackup.save(context, database, key); }
+        finally { Arrays.fill(key, (byte) 0); }
+        lastBackupTime.postValue(prefs.getLong("last_backup_time", 0));
+        status.postValue("Backup saved in your chosen folder. Keep your password to recover it after reinstall.");
     }
-
-    // ── Google Drive Authentication ──────────────────────────────────────────
-
-    /**
-     * Builds the Google Sign-In intent with Drive appdata scope.
-     * Signs out first to force account picker and avoid stale token issues.
-     */
-    public Intent getGoogleSignInIntent(Context activityContext) {
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(new Scope(DRIVE_APPDATA_SCOPE))
-            .build();
-        GoogleSignInClient client = GoogleSignIn.getClient(activityContext, gso);
-        // Sign out first to force fresh account picker & avoid cached stale tokens
-        client.signOut();
-        driveStatus.postValue("Connecting...");
-        return client.getSignInIntent();
-    }
-
-    /**
-     * Handles the result from Google Sign-In ActivityResultLauncher.
-     * Extracts the account email, validates scope grants, and persists state.
-     */
-    public void handleSignInResult(Intent data) {
-        try {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            GoogleSignInAccount account = task.getResult(ApiException.class);
-            if (account != null && account.getEmail() != null) {
-                // Verify the Drive scope was actually granted
-                if (account.getGrantedScopes() != null
-                        && account.getGrantedScopes().contains(new Scope(DRIVE_APPDATA_SCOPE))) {
-                    String email = account.getEmail();
-                    prefs.edit().putString("drive_account_email", email).apply();
-                    driveAccountEmail.postValue(email);
-                    driveStatus.postValue("Connected as " + email);
-                } else {
-                    driveStatus.postValue("Drive permission not granted. Please try again.");
-                    driveAccountEmail.postValue("");
-                }
-            } else {
-                driveStatus.postValue("Sign-in succeeded but no email found");
-                driveAccountEmail.postValue("");
-            }
-        } catch (ApiException e) {
-            String errorMsg;
-            switch (e.getStatusCode()) {
-                case 12501: errorMsg = "Sign-in cancelled"; break;
-                case 12502: errorMsg = "Sign-in currently in progress"; break;
-                case 7:     errorMsg = "Network error. Check connectivity."; break;
-                case 8:     errorMsg = "Internal error. Please try again."; break;
-                case 10:    errorMsg = "Developer configuration error (check SHA-1 and OAuth setup)"; break;
-                default:    errorMsg = "Sign-in failed (code: " + e.getStatusCode() + ")"; break;
-            }
-            android.util.Log.w("BackupViewModel", "Google Sign-In failed: code=" + e.getStatusCode(), e);
-            driveStatus.postValue(errorMsg);
-            driveAccountEmail.postValue("");
-        }
-    }
-
-    /**
-     * Disconnects the Google Drive account and clears persisted state.
-     */
-    public void disconnectDrive(Context activityContext) {
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(new Scope(DRIVE_APPDATA_SCOPE))
-            .build();
-        GoogleSignInClient client = GoogleSignIn.getClient(activityContext, gso);
-        client.revokeAccess().addOnCompleteListener(task -> {
-            prefs.edit().remove("drive_account_email").apply();
-            driveAccountEmail.postValue("");
-            driveStatus.postValue("Disconnected");
+    public void restore(Uri document, char[] password) {
+        busy.setValue(true); status.setValue("Checking backup…");
+        executor.execute(() -> {
+            try (InputStream input = context.getContentResolver().openInputStream(document)) {
+                if (input == null) throw new java.io.IOException("Cannot open backup");
+                ReinstallRecovery.stagePortable(context, input, password);
+                restoreReady.postValue(true);
+            } catch (Exception error) { status.postValue("Restore failed. Check the password and backup file. Current records have not changed."); }
+            finally { Arrays.fill(password, '\0'); busy.postValue(false); }
         });
     }
+    @Override protected void onCleared() { executor.shutdown(); }
 }

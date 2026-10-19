@@ -8,12 +8,13 @@ import com.example.spendtracker.billing.PremiumRepository;
 import org.junit.Test;
 
 public class FeatureGateTest {
-    @Test public void preservesExistingFeaturesUntilStoreIsConfigured() {
+    @Test public void routesFreeUserToLockEvenWhenStoreConfigurationIsUnavailable() {
         PremiumRepository repository = mock(PremiumRepository.class);
         when(repository.isStoreConfigured()).thenReturn(false);
+        when(repository.hasAccess(PremiumFeature.PDF_IMPORT)).thenReturn(false);
         int[] result = {0};
         new FeatureGate(repository).require(PremiumFeature.PDF_IMPORT, () -> result[0] = 1, () -> result[0] = 2);
-        assertEquals(1, result[0]);
+        assertEquals(2, result[0]);
     }
 
     @Test public void routesConfiguredFreeUserToLock() {

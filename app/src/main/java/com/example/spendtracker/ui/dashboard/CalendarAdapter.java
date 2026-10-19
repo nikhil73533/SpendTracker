@@ -8,6 +8,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.spendtracker.R;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
@@ -15,7 +16,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
     public interface CalendarFormatter {
         String formatAmount(double amount);
     }
-    private final List<CalendarDay> days;
+    private final List<CalendarDay> days = new ArrayList<>();
     private final OnDayClickListener listener;
     private final CalendarFormatter formatter;
 
@@ -54,10 +55,24 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         }
     }
 
-    public CalendarAdapter(List<CalendarDay> days, OnDayClickListener listener, CalendarFormatter formatter) {
-        this.days = days;
+    public CalendarAdapter(OnDayClickListener listener, CalendarFormatter formatter) {
         this.listener = listener;
         this.formatter = formatter;
+        setHasStableIds(true);
+    }
+
+    /** Updates existing cells instead of replacing the RecyclerView adapter on month slides. */
+    public void submit(List<CalendarDay> next) {
+        int oldSize = days.size();
+        days.clear();
+        if (next != null) days.addAll(next);
+        if (oldSize == days.size()) notifyItemRangeChanged(0, days.size());
+        else notifyDataSetChanged();
+    }
+
+    @Override public long getItemId(int position) {
+        CalendarDay day = days.get(position);
+        return day.timestamp == 0 ? Long.MIN_VALUE + position : day.timestamp;
     }
 
     @NonNull
@@ -99,12 +114,12 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.ViewHo
         public void bind(CalendarDay day, OnDayClickListener listener) {
             tvDay.setText(String.valueOf(day.day));
 
-            Calendar cal = Calendar.getInstance();
-            cal.setTimeInMillis(day.timestamp);
-
             Calendar today = Calendar.getInstance();
-            boolean isToday = today.get(Calendar.YEAR) == cal.get(Calendar.YEAR) &&
-                              today.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR);
+            today.set(Calendar.HOUR_OF_DAY, 0);
+            today.set(Calendar.MINUTE, 0);
+            today.set(Calendar.SECOND, 0);
+            today.set(Calendar.MILLISECOND, 0);
+            boolean isToday = day.timestamp == today.getTimeInMillis();
 
             if (isToday) {
                 tvDay.setBackgroundResource(R.drawable.calendar_day_bg);

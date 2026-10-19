@@ -37,6 +37,8 @@ public class TotalSummaryFragment extends Fragment {
     @Inject
     com.example.spendtracker.ui.premium.FeatureGate featureGate;
 
+    @Inject com.example.spendtracker.domain.repository.TransactionRepository transactionRepository;
+
     private FragmentDashboardTotalBinding binding;
     private DashboardViewModel viewModel;
     private TransactionViewModel transactionViewModel;
@@ -111,63 +113,38 @@ public class TotalSummaryFragment extends Fragment {
     }
 
     private void exportToExcel() {
-        transactionViewModel.getTransactions().observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
-            @Override
-            public void onChanged(List<Transaction> transactions) {
+        final android.content.Context context = requireContext().getApplicationContext();
+        final boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
+        final LiveData<List<Transaction>> source = transactionViewModel.getTransactions();
+        source.observe(getViewLifecycleOwner(), new androidx.lifecycle.Observer<List<Transaction>>() {
+            @Override public void onChanged(List<Transaction> transactions) {
+                source.removeObserver(this);
                 if (transactions == null || transactions.isEmpty()) {
-                    Toast.makeText(requireContext(), "No data to export", Toast.LENGTH_SHORT).show();
-                    return;
+                    Toast.makeText(context, "No data to export", Toast.LENGTH_SHORT).show(); return;
                 }
-                transactionViewModel.getTransactions().removeObserver(this);
-
-                try {
-                    File exportDirectory = requireContext().getExternalFilesDir("exports");
-                    if (exportDirectory == null || (!exportDirectory.exists() && !exportDirectory.mkdirs())) {
-                        throw new java.io.IOException("Export storage is unavailable");
+                new Thread(() -> {
+                    try {
+                        File directory = context.getExternalFilesDir("exports");
+                        if (directory == null || (!directory.exists() && !directory.mkdirs()))
+                            throw new java.io.IOException("Export storage is unavailable");
+                        File file = File.createTempFile("SpendTracker_", ".xlsx", directory);
+                        try (FileOutputStream output = new FileOutputStream(file)) {
+                            com.example.spendtracker.util.ExcelExportWriter.write(output, transactionRepository.getTransactionsSync(), masked, java.time.ZoneId.systemDefault());
+                        }
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                            if (!isAdded() || binding == null) return;
+                            Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", file);
+                            Intent intent = new Intent(Intent.ACTION_SEND).setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                            intent.putExtra(Intent.EXTRA_STREAM, uri);
+                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            intent.setClipData(android.content.ClipData.newRawUri("SpendTracker export", uri));
+                            startActivity(Intent.createChooser(intent, "Share Excel File"));
+                        });
+                    } catch (Exception error) {
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                                Toast.makeText(context, "Excel export failed. Please try again.", Toast.LENGTH_LONG).show());
                     }
-                    File file = new File(exportDirectory, "TrackMint_Export.xlsx");
-                    FileOutputStream out = new FileOutputStream(file);
-
-                    try (Workbook workbook = new Workbook(out, "TrackMint", "1.0")) {
-                        Worksheet sheet = workbook.newWorksheet("Transactions");
-
-                        // Header row
-                        String[] headers = {"Date", "Category", "Description", "Amount", "Type", "Source", "Receiver/Sender", "UPI ID"};
-                        for (int i = 0; i < headers.length; i++) {
-                            sheet.value(0, i, headers[i]);
-                        }
-
-                        int rowNum = 1;
-                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-                        boolean masked = Boolean.TRUE.equals(viewModel.isPrivacyModeEnabled().getValue());
-
-                        for (Transaction t : transactions) {
-                            sheet.value(rowNum, 0, sdf.format(new Date(t.getDate())));
-                            sheet.value(rowNum, 1, t.getCategory());
-                            sheet.value(rowNum, 2, masked ? transactionViewModel.maskPII(t.getDescription()) : t.getDescription());
-                            if (masked) sheet.value(rowNum, 3, "***");
-                            else sheet.value(rowNum, 3, t.getAmount());
-                            sheet.value(rowNum, 4, t.getType());
-                            sheet.value(rowNum, 5, t.getSource());
-                            String contact = "INCOME".equals(t.getType()) ? t.getSender() : t.getReceiverName();
-                            sheet.value(rowNum, 6, masked ? transactionViewModel.maskPII(contact) : contact);
-                            sheet.value(rowNum, 7, masked ? transactionViewModel.maskPII(t.getUpiId()) : t.getUpiId());
-                            rowNum++;
-                        }
-                    } // workbook.close() called here; flushes and closes 'out'
-
-                    Intent intent = new Intent(Intent.ACTION_SEND);
-                    intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                    Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
-                    intent.putExtra(Intent.EXTRA_STREAM, uri);
-                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    intent.setClipData(android.content.ClipData.newRawUri("TrackMint export", uri));
-                    startActivity(Intent.createChooser(intent, "Share Excel File"));
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    Toast.makeText(requireContext(), "Export failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
+                }).start();
             }
         });
     }

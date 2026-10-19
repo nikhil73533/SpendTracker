@@ -140,9 +140,9 @@
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1">
                 <ImageView style="@style/SettingsWidgetIconStyle"
-                    android:contentDescription="Premium"
+                    android:contentDescription="@string/title_premium"
                     android:src="@drawable/ic_symbol_premium" />
-                <TextView style="@style/SettingsWidgetLabelStyle" android:text="Premium" />
+                <TextView style="@style/SettingsWidgetLabelStyle" android:text="@string/title_premium" />
             </LinearLayout>
 
             <!-- Item 5: Advanced Analytics -->

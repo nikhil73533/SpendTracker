@@ -1,0 +1,9 @@
+gradle.beforeProject { project ->
+    if (project.path == ':app') project.plugins.withId('com.android.application') {
+        project.androidComponents.finalizeDsl { android ->
+            android.testBuildType = 'playPreview'
+            android.sourceSets.getByName('androidTest').java.setSrcDirs(['src/androidTest/java/com/example/spendtracker/release'])
+            android.defaultConfig.testInstrumentationRunnerArguments['class'] = 'com.example.spendtracker.release.ReinstallRecoveryDeviceTest'
+        }
+    }
+}

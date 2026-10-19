@@ -64,6 +64,20 @@ public class TransactionViewModel extends ViewModel {
         return securityRepository.maskPII(value);
     }
 
+    private final MutableLiveData<String> saveResult = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> saving = new MutableLiveData<>(false);
+    public LiveData<String> getSaveResult() { return saveResult; }
+    public LiveData<Boolean> isSaving() { return saving; }
+    public void consumeSaveResult() { saveResult.setValue(null); }
+    public void saveTransaction(Transaction transaction) {
+        if (Boolean.TRUE.equals(saving.getValue())) return;
+        saving.setValue(true);
+        repository.saveTransaction(transaction, true, error -> {
+            saving.postValue(false);
+            saveResult.postValue(error == null ? "" : error);
+        });
+    }
+
     public void addTransaction(Transaction transaction) {
         repository.addConfirmedTransaction(transaction);
     }

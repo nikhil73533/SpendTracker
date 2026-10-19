@@ -33,12 +33,26 @@ public class PaywallFragment extends Fragment {
 
     @Override public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        if (com.example.spendtracker.BuildConfig.FREE_PLAY_BUILD) {
+            binding.premiumClose.setTitle(R.string.free_plan_title);
+            binding.premiumClose.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
+            binding.premiumFree.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
+            binding.premiumProgress.setVisibility(View.GONE);
+            binding.premiumStatus.setVisibility(View.GONE);
+            binding.premiumPlans.setVisibility(View.GONE);
+            binding.premiumContinue.setVisibility(View.GONE);
+            binding.premiumRestore.setVisibility(View.GONE);
+            binding.premiumLater.setVisibility(View.GONE);
+            return;
+        }
         PaywallViewModel viewModel = new ViewModelProvider(this).get(PaywallViewModel.class);
         adapter = new PremiumPlanAdapter(() -> {
             if (autoPayEnabled()) renderAutoPay();
             else if (binding != null) binding.premiumContinue.setEnabled(adapter != null && adapter.selected() != null);
         });
         binding.premiumPlans.setLayoutManager(new LinearLayoutManager(requireContext()));
+        binding.premiumPlans.setNestedScrollingEnabled(false);
+        binding.premiumPlans.setItemAnimator(null);
         binding.premiumPlans.setAdapter(adapter);
         binding.premiumClose.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         binding.premiumContinue.setOnClickListener(v -> {
@@ -50,8 +64,15 @@ public class PaywallFragment extends Fragment {
             viewModel.restore();
             Toast.makeText(requireContext(), R.string.premium_loading, Toast.LENGTH_SHORT).show();
         });
+        binding.premiumFree.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         binding.premiumLater.setOnClickListener(v -> Navigation.findNavController(v).navigateUp());
-        viewModel.getPlans().observe(getViewLifecycleOwner(), adapter::submit);
+        // AutoPay owns its own server catalog. Observing the Play Billing catalog here
+        // replaced the Razorpay choices (often with just the monthly product).
+        if (autoPayEnabled()) {
+            autoPay.plans().observe(getViewLifecycleOwner(), adapter::submit);
+        } else {
+            viewModel.getPlans().observe(getViewLifecycleOwner(), adapter::submit);
+        }
         viewModel.getBillingState().observe(getViewLifecycleOwner(), state -> renderState(state));
         viewModel.getPurchaseEvent().observe(getViewLifecycleOwner(), event -> showPurchaseEvent(event));
         if (autoPayEnabled()) {
@@ -61,7 +82,8 @@ public class PaywallFragment extends Fragment {
             autoPay.busy().observe(getViewLifecycleOwner(), value -> renderAutoPay());
             autoPay.cancellable().observe(getViewLifecycleOwner(), value -> renderAutoPay());
         }
-        viewModel.refresh();
+        if (autoPayEnabled()) autoPay.refresh();
+        else viewModel.refresh();
     }
 
     private void renderState(BillingManager.State state) {
@@ -84,15 +106,17 @@ public class PaywallFragment extends Fragment {
         boolean busy = Boolean.TRUE.equals(autoPay.busy().getValue());
         binding.premiumProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         binding.premiumStatus.setVisibility(View.VISIBLE);
-        binding.premiumStatus.setText(autoPay.configured() ? autoPay.message().getValue() : "AutoPay setup is not complete yet.");
-        binding.premiumContinue.setEnabled(autoPay.configured() && !busy);
+        binding.premiumStatus.setText(autoPay.configured() ? autoPay.message().getValue() : "Payment setup is not complete yet.");
+        binding.premiumContinue.setEnabled(autoPay.configured() && !busy
+                && (adapter == null || adapter.selected() == null || autoPay.checkoutAvailable()));
         binding.premiumContinue.setText(adapter != null && adapter.selected() != null ? R.string.autopay_continue : R.string.autopay_sign_in);
         binding.premiumRestore.setEnabled(autoPay.configured() && !busy);
         binding.autopayCancel.setVisibility(Boolean.TRUE.equals(autoPay.cancellable().getValue()) ? View.VISIBLE : View.GONE);
         binding.autopayCancel.setEnabled(!busy);
         org.json.JSONObject catalog = autoPay.catalog();
         if (catalog != null) {
-            android.text.SpannableStringBuilder links = new android.text.SpannableStringBuilder("Auto-renewing subscription. No free trial. ");
+            android.text.SpannableStringBuilder links = new android.text.SpannableStringBuilder(
+                    "Pay once for the selected period. No automatic renewal. UPI, cards, net banking and other enabled payment methods are offered by Razorpay. ");
             addBillingLink(links, "Terms", catalog.optString("terms_url"));
             addBillingLink(links, "Privacy", catalog.optString("privacy_url"));
             addBillingLink(links, "Support", catalog.optString("support_url"));

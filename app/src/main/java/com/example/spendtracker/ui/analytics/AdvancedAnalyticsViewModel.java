@@ -19,6 +19,7 @@ import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
 import com.example.spendtracker.domain.model.analytics.FinancialInsight;
 import com.example.spendtracker.domain.model.analytics.AnalyticsGranularity;
 import com.example.spendtracker.domain.repository.AnalyticsRepository;
+import com.example.spendtracker.domain.repository.SecurityRepository;
 import com.example.spendtracker.data.local.entity.TransactionEntity;
 import java.util.Calendar;
 import java.util.List;
@@ -37,6 +38,7 @@ import androidx.lifecycle.MediatorLiveData;
 public class AdvancedAnalyticsViewModel extends ViewModel {
 
     private final AnalyticsRepository analyticsRepository;
+    private final SecurityRepository securityRepository;
     private final LiveData<com.example.spendtracker.domain.model.PredictionInsights> predictionInsights;
 
     public LiveData<com.example.spendtracker.domain.model.PredictionInsights> getPredictionInsights() { return predictionInsights; }
@@ -51,6 +53,7 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
 
     // LiveData streams derived from the date range
     private final LiveData<AnalyticsSummary> financialOverview;
+    private final LiveData<com.example.spendtracker.domain.model.analytics.SavingsAnalysis> savingsAnalysis;
     private final LiveData<List<TimeSeriesPoint>> monthlyExpenseTrend;
     private final LiveData<List<TimeSeriesPoint>> transactionFrequency;
     private final LiveData<List<CategoryAnalytics>> expenseCategoryAnalytics;
@@ -76,9 +79,12 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     private final LiveData<List<FinancialInsight>> financialInsights;
     private final LiveData<ForecastResult> spendingForecast;
     @Inject
-    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository, com.example.spendtracker.domain.repository.TransactionRepository transactions) {
+    public AdvancedAnalyticsViewModel(AnalyticsRepository analyticsRepository,
+                                      com.example.spendtracker.domain.repository.TransactionRepository transactions,
+                                      SecurityRepository securityRepository) {
         predictionInsights = Transformations.map(transactions.getTransactions(), com.example.spendtracker.domain.model.PredictionInsights::from);
         this.analyticsRepository = analyticsRepository;
+        this.securityRepository = securityRepository;
         // Initialise default date range – start of the current month to now.
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.DAY_OF_MONTH, 1);
@@ -95,13 +101,14 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
         // Reactive streams – recompute whenever start or end changes
         // -----------------------------------------------------------
         financialOverview = combineDates((s, e) -> analyticsRepository.getFinancialOverview(s, e - 1));
+        savingsAnalysis = combineDatesAndGranularity(analyticsRepository::getSavingsAnalysis);
         monthlyExpenseTrend = combineDates((s, e) -> analyticsRepository.getMonthlyTrend(s, e - 1, "EXPENSE"));
         transactionFrequency = combineDatesAndGranularity((s, e, g) -> analyticsRepository.getTransactionFrequency(s, e, g));
         expenseCategoryAnalytics = combineDates((s, e) -> analyticsRepository.getExpenseCategoryAnalytics(s, e));
         topTransactions = combineDates((s, e) -> analyticsRepository.getTopTransactions(s, e - 1, 5));
         
         transactionVolume = combineDates((s, e) -> analyticsRepository.getTransactionVolume(s, e - 1, "Current Period"));
-        incomeExpenseTrend = combineDates((s, e) -> analyticsRepository.getIncomeExpenseTrend(s, e - 1));
+        incomeExpenseTrend = combineDatesAndGranularity(analyticsRepository::getIncomeExpenseTrend);
         dayNightAnalytics = combineDates((s, e) -> analyticsRepository.getDayNightAnalytics(s, e - 1));
         timeOfDayAnalytics = combineDates((s, e) -> analyticsRepository.getTimeOfDayAnalytics(s, e - 1));
         dayOfWeekAnalytics = combineDates((s, e) -> analyticsRepository.getDayOfWeekAnalytics(s, e - 1));
@@ -111,7 +118,7 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
         
         merchantAnalytics = combineDates((s, e) -> analyticsRepository.getMerchantAnalytics(s, e - 1));
         recurringMerchants = combineDates((s, e) -> analyticsRepository.getRecurringMerchants());
-        categoryGrowth = combineDates((s, e) -> analyticsRepository.getCategoryGrowth(s, e - 1));
+        categoryGrowth = combineDatesAndGranularity(analyticsRepository::getCategoryGrowth);
         spendingConcentration = combineDates((s, e) -> analyticsRepository.getSpendingConcentration(s, e - 1));
         largeTransactionAnalysis = combineDates((s, e) -> analyticsRepository.getLargeTransactionAnalysis(s, e - 1, 5000.0));
         unusualTransactions = combineDates((s, e) -> analyticsRepository.getUnusualTransactions(s, e - 1));
@@ -147,6 +154,8 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     // Public accessors for the UI
     // ---------------------------------------------------
     public LiveData<AnalyticsSummary> getFinancialOverview() { return financialOverview; }
+    public LiveData<com.example.spendtracker.domain.model.analytics.SavingsAnalysis> getSavingsAnalysis() { return savingsAnalysis; }
+    public LiveData<AnalyticsGranularity> getGranularity() { return granularity; }
     public LiveData<List<TimeSeriesPoint>> getMonthlyExpenseTrend() { return monthlyExpenseTrend; }
     public LiveData<List<TimeSeriesPoint>> getTransactionFrequency() { return transactionFrequency; }
     public LiveData<List<CategoryAnalytics>> getExpenseCategoryAnalytics() { return expenseCategoryAnalytics; }
@@ -171,11 +180,14 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
 
     public LiveData<List<FinancialInsight>> getFinancialInsights() { return financialInsights; }
     public LiveData<ForecastResult> getSpendingForecast() { return spendingForecast; }
+    public LiveData<Boolean> isPrivacyModeEnabled() { return securityRepository.isPrivacyModeEnabled(); }
+    public void setPrivacyModeEnabled(boolean enabled) { securityRepository.setPrivacyModeEnabled(enabled); }
     // ---------------------------------------------------
     // Date range setters (called by UI when user selects a new period)
     // ---------------------------------------------------
     public long getStartDate() { return dateRange.getValue().start; }
     public long getEndDate() { return dateRange.getValue().end; }
+    public LiveData<?> getDateRange() { return dateRange; }
     public void setDateRange(long start, long end) {
         if (end <= start) return;
         DateRange current = dateRange.getValue();
@@ -183,6 +195,46 @@ public class AdvancedAnalyticsViewModel extends ViewModel {
     }
     public void setStartDate(long value) { setDateRange(value, getEndDate()); }
     public void setEndDate(long value) { setDateRange(getStartDate(), value); }
-    public void setGranularity(AnalyticsGranularity value) { granularity.setValue(value); }
+    /**
+     * The chips are analytics windows, not merely a chart display preference.  Keeping the
+     * range in the same state stream makes every card and chart refresh from the same window.
+     */
+    public void setGranularity(AnalyticsGranularity value) {
+        if (value == null) return;
+        granularity.setValue(value);
+        Calendar calendar = Calendar.getInstance();
+        DateRange current = dateRange.getValue();
+        long anchor = current == null ? System.currentTimeMillis()
+                : Math.min(System.currentTimeMillis(), Math.max(current.start, current.end - 1));
+        calendar.setTimeInMillis(anchor);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        long start;
+        switch (value) {
+            case DAY:
+                start = calendar.getTimeInMillis();
+                calendar.add(Calendar.DAY_OF_MONTH, 1);
+                break;
+            case WEEK:
+                calendar.add(Calendar.DAY_OF_MONTH, -6);
+                start = calendar.getTimeInMillis();
+                calendar.add(Calendar.DAY_OF_MONTH, 7);
+                break;
+            case YEAR:
+                calendar.set(Calendar.DAY_OF_YEAR, 1);
+                start = calendar.getTimeInMillis();
+                calendar.add(Calendar.YEAR, 1);
+                break;
+            case MONTH:
+            default:
+                calendar.set(Calendar.DAY_OF_MONTH, 1);
+                start = calendar.getTimeInMillis();
+                calendar.add(Calendar.MONTH, 1);
+                break;
+        }
+        setDateRange(start, calendar.getTimeInMillis());
+    }
 }
   

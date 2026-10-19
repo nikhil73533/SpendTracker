@@ -16,6 +16,7 @@ public class CalendarFragment extends Fragment {
 
     private FragmentDashboardCalendarBinding binding;
     private DashboardViewModel viewModel;
+    private CalendarAdapter calendarAdapter;
 
     @Nullable
     @Override
@@ -28,6 +29,13 @@ public class CalendarFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(requireParentFragment()).get(DashboardViewModel.class);
+        calendarAdapter = new CalendarAdapter(day -> {
+            viewModel.setCalendarFilter(day.timestamp, new java.text.SimpleDateFormat("dd MMMM yyyy", java.util.Locale.getDefault()).format(new java.util.Date(day.timestamp)));
+            viewModel.selectTab(0);
+        }, amount -> viewModel.formatAmount(amount));
+        binding.rvCalendar.setHasFixedSize(true);
+        binding.rvCalendar.setItemAnimator(null);
+        binding.rvCalendar.setAdapter(calendarAdapter);
 
         observeViewModel();
     }
@@ -35,12 +43,9 @@ public class CalendarFragment extends Fragment {
     private void observeViewModel() {
         viewModel.getCalendarDays().observe(getViewLifecycleOwner(), days -> {
             if (days != null) {
-                CalendarAdapter calendarAdapter = new CalendarAdapter(days, day -> {
-                    // Navigate to Daily transactions for the selected date
-                    viewModel.setCalendarFilter(day.timestamp, new java.text.SimpleDateFormat("dd MMMM yyyy", java.util.Locale.getDefault()).format(new java.util.Date(day.timestamp)));
-                    viewModel.selectTab(0);
-                }, amount -> viewModel.formatAmount(amount));
-                binding.rvCalendar.setAdapter(calendarAdapter);
+                // Keep the adapter and its recycled cells while the month changes.
+                // Replacing the adapter forced a complete layout during each slide.
+                calendarAdapter.submit(days);
             }
         });
         

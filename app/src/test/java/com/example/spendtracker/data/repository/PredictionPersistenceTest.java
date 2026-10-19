@@ -12,8 +12,10 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class PredictionPersistenceTest {
+    @org.junit.Rule public androidx.arch.core.executor.testing.InstantTaskExecutorRule main = new androidx.arch.core.executor.testing.InstantTaskExecutorRule();
     @Test public void explicitCorrectionPreservesOriginalPredictionEvenWhenFormCreatesNewObject() {
         TransactionDao dao = mock(TransactionDao.class);
+        when(dao.getAllTransactions()).thenReturn(new androidx.lifecycle.MutableLiveData<>(java.util.Collections.emptyList()));
         Context context = mock(Context.class);
         TransactionEntity saved = new TransactionEntity(); saved.id = 5; saved.category = "Food";
         saved.predictedCategory = "Food"; saved.confidenceScore = .95; saved.bookmarked = true;
@@ -31,6 +33,7 @@ public class PredictionPersistenceTest {
     }
     @Test public void automatedRefreshCannotConfirmOrReplaceOriginalPrediction() {
         TransactionDao dao = mock(TransactionDao.class);
+        when(dao.getAllTransactions()).thenReturn(new androidx.lifecycle.MutableLiveData<>(java.util.Collections.emptyList()));
         TransactionEntity saved = new TransactionEntity(); saved.id = 5; saved.predictedCategory = "Food";
         when(dao.getTransactionByIdSync(5)).thenReturn(saved);
         TransactionRepositoryImpl repo = new TransactionRepositoryImpl(mock(Context.class), dao, mock(TransactionDao.class),

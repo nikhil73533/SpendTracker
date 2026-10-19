@@ -21,6 +21,8 @@ import com.example.spendtracker.domain.model.analytics.BehaviorAnalytics;
 import com.example.spendtracker.domain.model.analytics.ForecastResult;
 import com.example.spendtracker.domain.model.analytics.MerchantAnalytics;
 import com.example.spendtracker.domain.model.analytics.AnomalyTransaction;
+import com.example.spendtracker.domain.model.analytics.SpendingConcentration;
+import com.example.spendtracker.domain.model.analytics.LargeTransactionSummary;
 import com.google.android.material.datepicker.MaterialDatePicker;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.data.BarData;
@@ -50,8 +52,17 @@ public class AdvancedAnalyticsFragment extends Fragment {
     private BehaviorAnalytics currentDayNight;
     private ForecastResult currentForecast;
     private List<MerchantAnalytics> currentMerchants = new ArrayList<>();
+    private List<MerchantAnalytics> currentRecurringMerchants = new ArrayList<>();
+    private List<CategoryAnalytics> currentCategoryGrowth = new ArrayList<>();
     private List<AnomalyTransaction> currentAnomalies = new ArrayList<>();
+    private SpendingConcentration currentConcentration;
+    private LargeTransactionSummary currentLargeTransactions;
+    private BehaviorAnalytics currentTimeOfDay;
+    private BehaviorAnalytics currentDayOfWeek;
+    private BehaviorAnalytics currentWeekdayWeekend;
+    private ForecastResult currentVelocity;
     private String selectedPeriod = "Monthly";
+    private com.example.spendtracker.domain.model.analytics.SavingsAnalysis currentSavings;
 
     @Nullable
     @Override
@@ -64,7 +75,10 @@ public class AdvancedAnalyticsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         viewModel = new ViewModelProvider(this).get(AdvancedAnalyticsViewModel.class);
+        initialiseScreen();
+    }
 
+    private void initialiseScreen() {
         adapter = new AnalyticsSectionAdapter();
         binding.rvAnalyticsSections.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(getContext()));
         binding.rvAnalyticsSections.setAdapter(adapter);
@@ -79,16 +93,57 @@ public class AdvancedAnalyticsFragment extends Fragment {
             @Override public void onNothingSelected() { }
         });
         binding.btnReviewPredictions.setOnClickListener(v -> openPredictions(2));
+        binding.btnPrivacy.setOnClickListener(v -> {
+            if (!isLocked()) { viewModel.setPrivacyModeEnabled(true); return; }
+            com.example.spendtracker.util.BiometricHelper.authenticate(requireActivity(),
+                    new com.example.spendtracker.util.BiometricHelper.BiometricCallback() {
+                        @Override public void onSuccess() { viewModel.setPrivacyModeEnabled(false); }
+                        @Override public void onError(String error) { }
+                    });
+        });
         observeViewModel();
+        viewModel.isPrivacyModeEnabled().observe(getViewLifecycleOwner(), locked -> {
+            binding.btnPrivacy.setText(isLocked() ? "Show values" : "Hide values");
+            if (isLocked()) maskScreen();
+            else {
+                for (com.github.mikephil.charting.charts.Chart<?> chart : new com.github.mikephil.charting.charts.Chart<?>[]{
+                        binding.trendChart, binding.volumeChart, binding.categoryFrequencyChart, binding.predictionChart})
+                    chart.setNoDataText("No transactions in this period");
+                for (Runnable render : privateRenderers) render.run();
+            }
+        });
+    }
+
+    private final List<Runnable> privateRenderers = new ArrayList<>();
+    private boolean isLocked() { return !Boolean.FALSE.equals(viewModel.isPrivacyModeEnabled().getValue()); }
+    private <T> void observePrivate(androidx.lifecycle.LiveData<T> source, androidx.lifecycle.Observer<T> renderer) {
+        privateRenderers.add(() -> { if (source.getValue() != null) renderer.onChanged(source.getValue()); });
+        source.observe(getViewLifecycleOwner(), value -> { if (!isLocked()) renderer.onChanged(value); });
+    }
+    private void maskScreen() {
+        for (android.widget.TextView value : new android.widget.TextView[]{binding.tvTotalIncome,
+                binding.tvTotalExpense, binding.tvNetBalance, binding.tvTotalTransfer, binding.tvAverageDailyTransactions,
+                binding.tvSelectedPeriodTotal, binding.predictionCount, binding.predictionAccuracy, binding.predictionReview})
+            value.setText("***");
+        for (com.github.mikephil.charting.charts.Chart<?> chart : new com.github.mikephil.charting.charts.Chart<?>[]{
+                binding.trendChart, binding.volumeChart, binding.categoryFrequencyChart, binding.predictionChart}) {
+            chart.clear(); chart.setNoDataText("Values hidden"); chart.invalidate();
+        }
+        adapter.submitList(java.util.Collections.singletonList(new AnalyticsSectionAdapter.CardItem("Private analytics", "***")));
     }
 
     private void openPredictions(int outcome) {
+        if (isLocked()) return;
         if (outcome < 0 || outcome > 2) return;
         Bundle args = new Bundle(); args.putInt("outcome", outcome);
         androidx.navigation.Navigation.findNavController(requireView()).navigate(com.example.spendtracker.R.id.predictionTransactionsFragment, args);
     }
 
     private void setupFilters() {
+        AnalyticsGranularity retained = viewModel.getGranularity().getValue();
+        binding.chipGroupGranularity.check(retained == AnalyticsGranularity.DAY ? binding.chipDaily.getId()
+                : retained == AnalyticsGranularity.WEEK ? binding.chipWeekly.getId()
+                : retained == AnalyticsGranularity.YEAR ? binding.chipAnnual.getId() : binding.chipMonthly.getId());
         binding.chipGroupGranularity.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == binding.chipDaily.getId()) {
                 viewModel.setGranularity(AnalyticsGranularity.DAY);
@@ -103,7 +158,13 @@ public class AdvancedAnalyticsFragment extends Fragment {
                 viewModel.setGranularity(AnalyticsGranularity.YEAR);
                 selectedPeriod = "Yearly";
             }
+        });
+        viewModel.getGranularity().observe(getViewLifecycleOwner(), value -> {
+            selectedPeriod = value == AnalyticsGranularity.DAY ? "Daily" : value == AnalyticsGranularity.WEEK
+                    ? "Weekly" : value == AnalyticsGranularity.YEAR ? "Yearly" : "Monthly";
             binding.tvSelectedPeriodLabel.setText(selectedPeriod + " transactions");
+            binding.tvMoneyFlowTitle.setText("Money in and out · " + selectedPeriod);
+            renderInsightSections();
         });
 
         java.text.SimpleDateFormat date = new java.text.SimpleDateFormat("d MMM yyyy", Locale.getDefault());
@@ -111,6 +172,14 @@ public class AdvancedAnalyticsFragment extends Fragment {
                 + date.format(new java.util.Date(viewModel.getEndDate() - 1)));
         binding.btnDateFilter.setOnClickListener(v -> showDateRangePicker());
         binding.toolbar.setNavigationOnClickListener(v -> requireActivity().onBackPressed());
+        viewModel.getDateRange().observe(getViewLifecycleOwner(), ignored -> {
+            if (binding == null) return;
+            currentSavings = null;
+            currentCategoryGrowth = new ArrayList<>();
+            renderInsightSections();
+            binding.btnDateFilter.setText(date.format(new java.util.Date(viewModel.getStartDate())) + " – "
+                    + date.format(new java.util.Date(viewModel.getEndDate() - 1)));
+        });
     }
 
     private void showDateRangePicker() {
@@ -177,7 +246,11 @@ public class AdvancedAnalyticsFragment extends Fragment {
     }
 
     private void observeViewModel() {
-        viewModel.getPredictionInsights().observe(getViewLifecycleOwner(), stats -> {
+        observePrivate(viewModel.getSavingsAnalysis(), value -> {
+            currentSavings = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getPredictionInsights(), stats -> {
             binding.predictionCount.setText(stats.predicted + " predictions\n" + stats.evaluated + " reviewed");
             binding.predictionAccuracy.setText(stats.evaluated == 0 ? "Not enough data yet"
                     : String.format(Locale.getDefault(), "%.1f%% accuracy", stats.accuracy()));
@@ -210,7 +283,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
             binding.predictionChart.notifyDataSetChanged();
             binding.predictionChart.invalidate();
         });
-        viewModel.getFinancialOverview().observe(getViewLifecycleOwner(), summary -> {
+        observePrivate(viewModel.getFinancialOverview(), summary -> {
             if (summary != null) {
                 binding.tvTotalIncome.setText(formatAmount(summary.getTotalIncome()));
                 binding.tvTotalExpense.setText(formatAmount(summary.getTotalExpense()));
@@ -221,7 +294,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
             }
         });
 
-        viewModel.getIncomeExpenseTrend().observe(getViewLifecycleOwner(), trend -> {
+        observePrivate(viewModel.getIncomeExpenseTrend(), trend -> {
             if (trend != null && !trend.isEmpty()) {
                 List<Entry> incomeEntries = new ArrayList<>();
                 List<Entry> expenseEntries = new ArrayList<>();
@@ -245,7 +318,7 @@ public class AdvancedAnalyticsFragment extends Fragment {
             }
         });
 
-        viewModel.getTransactionFrequency().observe(getViewLifecycleOwner(), points -> {
+        observePrivate(viewModel.getTransactionFrequency(), points -> {
             if (points == null || points.isEmpty()) {
                 binding.volumeChart.clear();
                 binding.volumeChart.invalidate();
@@ -265,42 +338,74 @@ public class AdvancedAnalyticsFragment extends Fragment {
             binding.volumeChart.invalidate();
         });
 
-        viewModel.getTransactionVolume().observe(getViewLifecycleOwner(), volume -> {
+        observePrivate(viewModel.getTransactionVolume(), volume -> {
             if (volume == null) return;
             binding.tvSelectedPeriodTotal.setText(String.format(Locale.getDefault(), "%d", volume.getTotalCount()));
             binding.tvSelectedPeriodLabel.setText(selectedPeriod + " transactions");
         });
 
-        viewModel.getExpenseCategoryAnalytics().observe(getViewLifecycleOwner(), categories -> {
+        observePrivate(viewModel.getExpenseCategoryAnalytics(), categories -> {
             currentCategories = categories == null ? new ArrayList<>() : new ArrayList<>(categories);
             renderCategoryFrequency(categories);
             renderInsightSections();
         });
-        viewModel.getFinancialInsights().observe(getViewLifecycleOwner(), insights -> {
+        observePrivate(viewModel.getFinancialInsights(), insights -> {
             currentInsights = insights == null ? new ArrayList<>() : new ArrayList<>(insights);
             renderInsightSections();
         });
-        viewModel.getMonthOverMonthComparison().observe(getViewLifecycleOwner(), comparison -> {
+        observePrivate(viewModel.getMonthOverMonthComparison(), comparison -> {
             currentComparison = comparison;
             renderInsightSections();
         });
-        viewModel.getRollingExpenseAverage().observe(getViewLifecycleOwner(), rollingAverage -> {
+        observePrivate(viewModel.getRollingExpenseAverage(), rollingAverage -> {
             currentRollingAverage = rollingAverage;
             renderInsightSections();
         });
-        viewModel.getDayNightAnalytics().observe(getViewLifecycleOwner(), value -> {
+        observePrivate(viewModel.getDayNightAnalytics(), value -> {
             currentDayNight = value;
             renderInsightSections();
         });
-        viewModel.getSpendingForecast().observe(getViewLifecycleOwner(), value -> {
+        observePrivate(viewModel.getSpendingForecast(), value -> {
             currentForecast = value;
             renderInsightSections();
         });
-        viewModel.getMerchantAnalytics().observe(getViewLifecycleOwner(), value -> {
+        observePrivate(viewModel.getMerchantAnalytics(), value -> {
             currentMerchants = value == null ? new ArrayList<>() : new ArrayList<>(value);
             renderInsightSections();
         });
-        viewModel.getUnusualTransactions().observe(getViewLifecycleOwner(), value -> {
+        observePrivate(viewModel.getRecurringMerchants(), value -> {
+            currentRecurringMerchants = value == null ? new ArrayList<>() : new ArrayList<>(value);
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getCategoryGrowth(), value -> {
+            currentCategoryGrowth = value == null ? new ArrayList<>() : new ArrayList<>(value);
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getSpendingConcentration(), value -> {
+            currentConcentration = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getLargeTransactionAnalysis(), value -> {
+            currentLargeTransactions = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getTimeOfDayAnalytics(), value -> {
+            currentTimeOfDay = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getDayOfWeekAnalytics(), value -> {
+            currentDayOfWeek = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getWeekdayWeekendAnalytics(), value -> {
+            currentWeekdayWeekend = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getSpendingVelocity(), value -> {
+            currentVelocity = value;
+            renderInsightSections();
+        });
+        observePrivate(viewModel.getUnusualTransactions(), value -> {
             currentAnomalies = value == null ? new ArrayList<>() : new ArrayList<>(value);
             renderInsightSections();
         });
@@ -310,10 +415,11 @@ public class AdvancedAnalyticsFragment extends Fragment {
         LineDataSet set = new LineDataSet(entries, label);
         set.setColor(ContextCompat.getColor(requireContext(), color));
         set.setCircleColor(ContextCompat.getColor(requireContext(), color));
-        set.setDrawCircles(true);
+        // A trend should read as a continuous in/out line, not disconnected dots.
+        set.setDrawCircles(entries.size() == 1);
         set.setDrawValues(false);
-        set.setLineWidth(2f);
-        set.setMode(LineDataSet.Mode.LINEAR);
+        set.setLineWidth(2.5f);
+        set.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
         return set;
     }
 
@@ -340,7 +446,43 @@ public class AdvancedAnalyticsFragment extends Fragment {
     }
 
     private void renderInsightSections() {
+        if (binding == null || adapter == null) return;
+        if (isLocked()) { maskScreen(); return; }
         List<AnalyticsSectionAdapter.SectionItem> items = new ArrayList<>();
+        if (currentSavings != null) {
+            items.add(new AnalyticsSectionAdapter.HeaderItem("Savings insights"));
+            if (!currentSavings.hasCurrentCashFlow()) {
+                items.add(new AnalyticsSectionAdapter.CardItem("No recorded income or expenses", "Add income and expenses to see savings insights for this period."));
+            } else {
+                double surplus = currentSavings.current.getNetBalance();
+                items.add(new AnalyticsSectionAdapter.CardItem(surplus < 0 ? "Recorded deficit" : "Recorded surplus",
+                        formatAmount(Math.abs(surplus)) + (surplus < 0 ? " more spent than earned." : " left after expenses.")
+                                + " Transfers excluded; this is not your bank savings balance."));
+                items.add(new AnalyticsSectionAdapter.CardItem("Savings rate", currentSavings.hasSavingsRate()
+                        ? String.format(Locale.getDefault(), "%.1f%% of recorded income", currentSavings.savingsRate())
+                        : "Unavailable — no positive income recorded in this period."));
+                if (currentSavings.hasSavingsRate()) {
+                    items.add(new AnalyticsSectionAdapter.CardItem("Income spent", String.format(Locale.getDefault(),
+                            "%.1f%% of recorded income went to expenses", currentSavings.expenseRatio())));
+                }
+                if (currentSavings.hasPreviousCashFlow()) {
+                    double change = currentSavings.surplusChange();
+                    items.add(new AnalyticsSectionAdapter.CardItem("Surplus change", formatAmount(Math.abs(change))
+                            + (change >= 0 ? " higher" : " lower") + " than " + comparisonDates()));
+                    if (currentSavings.hasRateComparison()) {
+                        items.add(new AnalyticsSectionAdapter.CardItem("Savings rate change", String.format(Locale.getDefault(),
+                                "%+.1f percentage points vs %s", currentSavings.rateChangePoints(), comparisonDates())));
+                    }
+                } else {
+                    items.add(new AnalyticsSectionAdapter.CardItem("Savings comparison", "No recorded income or expenses in " + comparisonDates()));
+                }
+                if (currentSavings.current.getTotalExpense() > 0) {
+                    items.add(new AnalyticsSectionAdapter.CardItem("What if you spent 10% less?",
+                            formatAmount(currentSavings.current.getTotalExpense() * 0.1)
+                                    + " more could remain this period, with income unchanged. Illustration only."));
+                }
+            }
+        }
         if (!currentCategories.isEmpty()) {
             items.add(new AnalyticsSectionAdapter.HeaderItem("Top Expense Categories"));
             int limit = Math.min(currentCategories.size(), 5);
@@ -382,6 +524,41 @@ public class AdvancedAnalyticsFragment extends Fragment {
                         formatAmount(merchant.getTotalAmount()) + " across " + merchant.getTransactionCount() + " payments"));
             }
         }
+        addBehaviorPeak(items, "Time patterns", "Highest-spend time", currentTimeOfDay);
+        addBehaviorPeak(items, "Weekly patterns", "Highest-spend day", currentDayOfWeek);
+        addBehaviorPeak(items, "Weekday vs weekend", "Higher-spend period", currentWeekdayWeekend);
+        if (currentVelocity != null) {
+            items.add(new AnalyticsSectionAdapter.HeaderItem("Pace comparison"));
+            items.add(new AnalyticsSectionAdapter.CardItem("Compared with last month",
+                    formatAmount(currentVelocity.getDailyRate()) + " per day · " + currentVelocity.getVelocityInsight()));
+        }
+        if (currentConcentration != null && !currentConcentration.getTopContributors().isEmpty()) {
+            items.add(new AnalyticsSectionAdapter.HeaderItem("Spending concentration"));
+            SpendingConcentration.Contributor top = currentConcentration.getTopContributors().get(0);
+            items.add(new AnalyticsSectionAdapter.CardItem(top.getName(), String.format(Locale.getDefault(),
+                    "%s · %.1f%% of expenses", formatAmount(top.getAmount()), top.getPercentage())));
+        }
+        if (!currentCategoryGrowth.isEmpty()) {
+            items.add(new AnalyticsSectionAdapter.HeaderItem(selectedPeriod + " category trends"));
+            for (CategoryAnalytics growth : currentCategoryGrowth) {
+                items.add(new AnalyticsSectionAdapter.CardItem(growth.getCategoryName(), String.format(Locale.getDefault(),
+                        "%s · %s", formatAmount(growth.getTotalAmount()), growth.hasGrowthData()
+                                ? String.format(Locale.getDefault(), "%+.1f%% vs %s", growth.getGrowthPercent(), comparisonDates())
+                                : "No prior spending — percentage unavailable")));
+            }
+        }
+        if (!currentRecurringMerchants.isEmpty()) {
+            MerchantAnalytics merchant = currentRecurringMerchants.get(0);
+            items.add(new AnalyticsSectionAdapter.HeaderItem("Recurring payments"));
+            items.add(new AnalyticsSectionAdapter.CardItem(merchant.getMerchantName(), merchant.getTransactionCount()
+                    + " payments recorded"));
+        }
+        if (currentLargeTransactions != null && currentLargeTransactions.getCount() > 0) {
+            items.add(new AnalyticsSectionAdapter.HeaderItem("Large expenses"));
+            items.add(new AnalyticsSectionAdapter.CardItem(currentLargeTransactions.getCount() + " above "
+                    + formatAmount(currentLargeTransactions.getThreshold()), formatAmount(currentLargeTransactions.getTotalAmount())
+                    + " total in this window"));
+        }
         if (!currentAnomalies.isEmpty()) {
             items.add(new AnalyticsSectionAdapter.HeaderItem("Review Activity"));
             items.add(new AnalyticsSectionAdapter.CardItem("Unusual transactions", currentAnomalies.size()
@@ -395,6 +572,16 @@ public class AdvancedAnalyticsFragment extends Fragment {
             }
         }
         adapter.submitList(items);
+    }
+
+    private void addBehaviorPeak(List<AnalyticsSectionAdapter.SectionItem> items, String heading,
+                                 String label, BehaviorAnalytics analytics) {
+        if (analytics == null || analytics.getHighestSpendingSegment() == null) return;
+        BehaviorAnalytics.Segment peak = analytics.getHighestSpendingSegment();
+        if (peak.getTransactionCount() == 0) return;
+        items.add(new AnalyticsSectionAdapter.HeaderItem(heading));
+        items.add(new AnalyticsSectionAdapter.CardItem(label, peak.getLabel() + " · "
+                + formatAmount(peak.getTotalAmount()) + " across " + peak.getTransactionCount() + " payments"));
     }
 
     /** Shows every anomaly for the selected period and lets the user open its transaction. */
@@ -442,9 +629,18 @@ public class AdvancedAnalyticsFragment extends Fragment {
         return String.format(Locale.getDefault(), "₹ %.0f", amount);
     }
 
+    private String comparisonDates() {
+        com.example.spendtracker.domain.model.analytics.ComparisonWindow window =
+                com.example.spendtracker.domain.model.analytics.ComparisonWindow.previous(
+                        viewModel.getStartDate(), viewModel.getEndDate(), viewModel.getGranularity().getValue());
+        java.text.SimpleDateFormat date = new java.text.SimpleDateFormat("d MMM yyyy", Locale.getDefault());
+        return date.format(new java.util.Date(window.start)) + " – " + date.format(new java.util.Date(window.end - 1));
+    }
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        privateRenderers.clear();
         binding = null;
     }
 }

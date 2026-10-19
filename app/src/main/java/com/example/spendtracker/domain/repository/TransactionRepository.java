@@ -10,6 +10,8 @@ public interface TransactionRepository {
     LiveData<List<Transaction>> getTransactions();
     LiveData<List<Transaction>> getTransactionsInRange(long start, long end);
     void addTransaction(Transaction transaction);
+    void saveTransaction(Transaction transaction, boolean confirmed, SaveCallback callback);
+    interface SaveCallback { void onComplete(String error); }
     void importTransactions(List<Transaction> transactions, ImportCallback callback);
     void updateTransaction(Transaction transaction);
     void setBookmarked(int id, boolean value);

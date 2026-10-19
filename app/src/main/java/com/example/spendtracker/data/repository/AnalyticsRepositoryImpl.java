@@ -87,6 +87,21 @@ public class AnalyticsRepositoryImpl implements AnalyticsRepository {
     }
 
     @Override
+    public LiveData<List<TimeSeriesPoint>> getIncomeExpenseTrend(long start, long end, AnalyticsGranularity granularity) {
+        return observe(() -> analyticsService.getIncomeExpenseTrend(start, end, granularity));
+    }
+
+    @Override
+    public LiveData<com.example.spendtracker.domain.model.analytics.SavingsAnalysis> getSavingsAnalysis(long start, long end, AnalyticsGranularity granularity) {
+        return observe(() -> database.runInTransaction(() -> analyticsService.getSavingsAnalysis(start, end, granularity)));
+    }
+
+    @Override
+    public LiveData<List<CategoryAnalytics>> getCategoryGrowth(long start, long end, AnalyticsGranularity granularity) {
+        return observe(() -> database.runInTransaction(() -> analyticsService.getCategoryGrowth(start, end, granularity)));
+    }
+
+    @Override
     public LiveData<BehaviorAnalytics> getDayNightAnalytics(long start, long end) {
         return observe(() -> analyticsService.getDayNightAnalytics(start, end));
     }

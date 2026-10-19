@@ -3,6 +3,7 @@ package com.example.spendtracker.billing;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import java.util.List;
+import dagger.Lazy;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -11,45 +12,57 @@ import javax.inject.Singleton;
 public class PremiumRepository implements BillingManager.Listener {
     private final com.example.spendtracker.billing.autopay.AutoPayManager autoPay;
     private final EntitlementCache cache;
-    private final BillingManager billingManager;
+    private final Lazy<BillingManager> playBilling;
+    private boolean playBillingListenerAttached;
     private final MutableLiveData<PremiumState> premiumState;
     private final MutableLiveData<PurchaseEvent> purchaseEvent = new MutableLiveData<>(PurchaseEvent.NONE);
 
     @Inject
-    public PremiumRepository(EntitlementCache cache, BillingManager billingManager,
+    public PremiumRepository(EntitlementCache cache, Lazy<BillingManager> playBilling,
                              com.example.spendtracker.billing.autopay.AutoPayManager autoPay) {
         this.autoPay = autoPay;
         this.cache = cache;
-        this.billingManager = billingManager;
+        this.playBilling = playBilling;
         PremiumState initial = cache.read();
         if (!initial.hasPremiumAccess(System.currentTimeMillis()) && initial.status == PremiumState.Status.ACTIVE) {
             initial = new PremiumState(PremiumState.Status.EXPIRED, initial.productId, initial.purchaseType,
                     initial.purchaseTokenHash, initial.lastVerifiedAt, initial.expiresAt);
         }
         premiumState = new MutableLiveData<>(initial);
-        billingManager.setListener(this);
     }
 
-    public LiveData<PremiumState> getPremiumState() { return useAutoPay() ? autoPay.premium() : premiumState; }
-    public LiveData<BillingManager.State> getBillingState() { return useAutoPay() ? autoPay.state() : billingManager.getState(); }
-    public LiveData<List<PremiumPlan>> getPlans() { return useAutoPay() ? autoPay.plans() : billingManager.getPlans(); }
-    public LiveData<PurchaseEvent> getPurchaseEvent() { return useAutoPay() ? autoPay.events() : purchaseEvent; }
+    /** The direct-distribution build never calls this, so Play Billing is not initialized. */
+    private synchronized BillingManager playBilling() {
+        BillingManager manager = playBilling.get();
+        if (!playBillingListenerAttached) {
+            manager.setListener(this);
+            playBillingListenerAttached = true;
+        }
+        return manager;
+    }
+
+    public LiveData<PremiumState> getPremiumState() { if (freePlay()) return new MutableLiveData<>(PremiumState.free()); return useAutoPay() ? autoPay.premium() : premiumState; }
+    public LiveData<BillingManager.State> getBillingState() { if (freePlay()) return new MutableLiveData<>(BillingManager.State.READY); return useAutoPay() ? autoPay.state() : playBilling().getState(); }
+    public LiveData<List<PremiumPlan>> getPlans() { if (freePlay()) return new MutableLiveData<>(java.util.Collections.emptyList()); return useAutoPay() ? autoPay.plans() : playBilling().getPlans(); }
+    public LiveData<PurchaseEvent> getPurchaseEvent() { if (freePlay()) return purchaseEvent; return useAutoPay() ? autoPay.events() : purchaseEvent; }
 
     public boolean hasAccess(PremiumFeature feature) {
+        if (freePlay()) return true;
         if (useAutoPay()) return autoPay.hasAccess();
         PremiumState current = premiumState.getValue();
         return current != null && current.hasPremiumAccess(System.currentTimeMillis());
     }
 
-    /** Before the owner configures Play products, preserve all existing local functionality. */
-    public boolean isStoreConfigured() { return useAutoPay() || billingManager.isStoreConfigured(); }
+    public boolean isStoreConfigured() { if (freePlay()) return false; return useAutoPay() || playBilling().isStoreConfigured(); }
 
+    private boolean freePlay() { return com.example.spendtracker.BuildConfig.FREE_PLAY_BUILD; }
     private boolean useAutoPay() { return com.example.spendtracker.BuildConfig.AUTOPAY_ENABLED; }
-    public void refreshEntitlement() { if (useAutoPay()) autoPay.refresh(); else billingManager.connect(); }
-    public void restorePurchases() { if (useAutoPay()) autoPay.refresh(); else billingManager.refreshPurchases(); }
+    public void refreshEntitlement() { if (freePlay()) return; if (useAutoPay()) autoPay.refresh(); else playBilling().connect(); }
+    public void restorePurchases() { if (freePlay()) return; if (useAutoPay()) autoPay.refresh(); else playBilling().refreshPurchases(); }
     public void purchase(android.app.Activity activity, PremiumPlan plan) {
+        if (freePlay()) return;
         if (useAutoPay()) autoPay.launch(activity, "buy", plan.productId);
-        else billingManager.launchPurchase(activity, plan);
+        else playBilling().launchPurchase(activity, plan);
     }
 
     @Override public void onVerifiedPurchase(BillingProductConfig.ProductSpec spec, String purchaseToken) {

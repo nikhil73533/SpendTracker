@@ -82,7 +82,7 @@
 
     <!-- Backup -->
     <string name="title_backup">Backup</string>
-    <string name="label_enable_auto_backup">Enable Auto Backup</string>
+    <string name="label_enable_auto_backup">Daily phone backups</string>
     <string name="label_last_backup">Last Backup</string>
     <string name="label_backup_status">Backup Status</string>
     <string name="label_backup_now">Backup Now</string>
@@ -95,7 +95,7 @@
     <string name="msg_backup_failed">Backup failed: %s</string>
     <string name="msg_restore_success">Restore completed successfully</string>
     <string name="msg_restore_failed">Restore failed: %s</string>
-    <string name="msg_auto_backup_enabled">Daily auto backup enabled (scheduled ~4:00 AM)</string>
+    <string name="msg_auto_backup_enabled">Daily phone backup enabled; Android controls scheduling</string>
     <string name="msg_auto_backup_disabled">Auto backup disabled</string>
     <string name="label_never">Never</string>
     <string name="label_backup_ready">Ready</string>
@@ -195,8 +195,8 @@
     <string name="privacy_on_device">ON THIS DEVICE</string>
     <string name="privacy_online">OPTIONAL ONLINE SERVICES</string>
     <string name="privacy_local_items">✓ Transaction processing\n✓ SMS parsing\n✓ Categorization\n✓ Spending analytics\n✓ On-device category learning\n✓ Charts and reports</string>
-    <string name="privacy_online_items">○ Google Play Billing\n○ Google Play rating\n○ Online Help and feedback\n○ Optional Google Drive backup</string>
-    <string name="privacy_note">Using an online service does not move your transaction processing to a TrackMint server. Financial data is shared only when you explicitly choose an export or backup flow.</string>
+    <string name="privacy_online_items">○ Razorpay payments\n○ Google Play rating\n○ Online Help and feedback\n○ Android backup and chosen backup folders</string>
+    <string name="privacy_note">Using an online service does not move your transaction processing to a TrackMint server. Financial data can be copied through exports, phone backups you configure, and Android backup when enabled in your device settings.</string>
 
     <!-- More -->
     <string name="more_privacy_security">Privacy &amp; Security</string>
@@ -246,4 +246,12 @@
     <string name="activity_week">7-day expenses</string>
     <string name="chart_bars">Bars</string>
     <string name="chart_line">Line</string>
+    <string name="premium_free_title">Free · ₹0</string>
+    <string name="premium_free_description">Track income and expenses, organize transactions, and view your daily spending. No payment or sign-in required.</string>
+    <string name="premium_continue_free">Continue with Free</string>
+    <string name="sms_disclosure_title">Track new transactions from SMS?</string>
+    <string name="sms_disclosure_message">TrackMint reads incoming SMS and checks messages received after tracking is enabled to find financial transactions and bill reminders, including while the app is closed. Message processing happens on your device. Older messages are not automatically imported. You can use manual tracking without SMS access.</string>
+    <string name="sms_enable">Enable SMS tracking</string>
+    <string name="sms_manual">Use manual tracking</string>
+    <string name="free_plan_title">Your Free plan</string>
 </resources>

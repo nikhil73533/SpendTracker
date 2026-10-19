@@ -24,8 +24,10 @@ import com.example.spendtracker.billing.PremiumFeature;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.inject.Inject;
@@ -40,6 +42,15 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private final PremiumRepository premiumRepository;
     private final com.example.spendtracker.data.local.database.SpendTrackerDatabase database;
     private final ExecutorService executorService;
+    /** One mapped in-memory snapshot is shared by the dashboard and all of its child widgets. */
+    private final LiveData<List<Transaction>> allTransactionsCache;
+    /** Short-lived navigation windows (month, year, account drill-down) reuse their Room mapping. */
+    private final Map<String, LiveData<List<Transaction>>> rangeTransactionCache =
+            new LinkedHashMap<String, LiveData<List<Transaction>>>(16, .75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, LiveData<List<Transaction>>> eldest) {
+                    return size() > 12;
+                }
+            };
 
     /**
      * Canonical bank-name normalization table.
@@ -48,33 +59,33 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     private static final String[][] BANK_NORMALIZATION = {
         {"icici",    "ICICI"},
         {"hdfc",     "HDFC"},
-        {"axis",     "Axis"},
-        {"kotak",    "Kotak"},
+        {"axis",     "AXIS"},
+        {"kotak",    "KOTAK"},
         {"sbi",      "SBI"},
         {"state bank", "SBI"},
         {"pnb",      "PNB"},
-        {"union bank", "Union Bank"},
-        {"bank of baroda", "Bank of Baroda"},
-        {"bob",      "Bank of Baroda"},
-        {"yes bank", "Yes Bank"},
-        {"yesb",     "Yes Bank"},
-        {"canara",   "Canara"},
+        {"union bank", "UNION BANK"},
+        {"bank of baroda", "BANK OF BARODA"},
+        {"bob",      "BANK OF BARODA"},
+        {"yes bank", "YES BANK"},
+        {"yesb",     "YES BANK"},
+        {"canara",   "CANARA"},
         {"idbi",     "IDBI"},
-        {"indusind", "IndusInd"},
-        {"federal",  "Federal"},
+        {"indusind", "INDUSIND"},
+        {"federal",  "FEDERAL"},
         {"rbl",      "RBL"},
-        {"au bank",  "AU Bank"},
-        {"au small", "AU Bank"},
-        {"bajaj",    "Bajaj Finance"},
-        {"paytm",    "Paytm"},
-        {"phonepe",  "PhonePe"},
-        {"amazon pay","Amazon Pay"},
-        {"airtel payments","Airtel Payments"},
-        {"jio payments","Jio Payments"},
-        {"onecard",  "OneCard"},
-        {"one card", "OneCard"},
-        {"slice",    "Slice"},
-        {"navi",     "Navi"},
+        {"au bank",  "AU BANK"},
+        {"au small", "AU BANK"},
+        {"bajaj",    "BAJAJ FINANCE"},
+        {"paytm",    "PAYTM"},
+        {"phonepe",  "PHONEPE"},
+        {"amazon pay","AMAZON PAY"},
+        {"airtel payments","AIRTEL PAYMENTS"},
+        {"jio payments","JIO PAYMENTS"},
+        {"onecard",  "ONECARD"},
+        {"one card", "ONECARD"},
+        {"slice",    "SLICE"},
+        {"navi",     "NAVI"},
     };
 
     @Inject
@@ -95,6 +106,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         this.repeatedAlertDao = repeatedAlertDao;
         this.premiumRepository = premiumRepository;
         this.executorService = Executors.newSingleThreadExecutor();
+        this.allTransactionsCache = mapTransactions(transactionDao.getAllTransactions());
         // Normalize existing bank names & categories in the background on first run
         executorService.execute(() -> {
             normalizeBankNamesOnce();
@@ -115,7 +127,7 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         for (String[] entry : BANK_NORMALIZATION) {
             if (lower.contains(entry[0])) return entry[1];
         }
-        return raw.trim();
+        return raw.trim().toUpperCase(Locale.ROOT);
     }
 
     /** One-time background migration: normalizes bankName for all existing rows. */
@@ -184,21 +196,28 @@ public class TransactionRepositoryImpl implements TransactionRepository {
 
     @Override
     public LiveData<List<Transaction>> getTransactions() {
-        return Transformations.map(transactionDao.getAllTransactions(), entities -> {
-            List<Transaction> transactions = new ArrayList<>();
-            for (TransactionEntity entity : entities) {
-                transactions.add(mapToDomain(entity));
-            }
-            return transactions;
-        });
+        return allTransactionsCache;
     }
 
     @Override
     public LiveData<List<Transaction>> getTransactionsInRange(long start, long end) {
-        return Transformations.map(transactionDao.getTransactionsInRange(start, end), entities -> {
+        String key = start + ":" + end;
+        synchronized (rangeTransactionCache) {
+            LiveData<List<Transaction>> cached = rangeTransactionCache.get(key);
+            if (cached != null) return cached;
+            LiveData<List<Transaction>> mapped = mapTransactions(transactionDao.getTransactionsInRange(start, end));
+            rangeTransactionCache.put(key, mapped);
+            return mapped;
+        }
+    }
+
+    private LiveData<List<Transaction>> mapTransactions(LiveData<List<TransactionEntity>> source) {
+        return Transformations.map(source, entities -> {
             List<Transaction> transactions = new ArrayList<>();
-            for (TransactionEntity entity : entities) {
-                transactions.add(mapToDomain(entity));
+            if (entities != null) {
+                for (TransactionEntity entity : entities) {
+                    transactions.add(mapToDomain(entity));
+                }
             }
             return transactions;
         });
@@ -218,11 +237,34 @@ public class TransactionRepositoryImpl implements TransactionRepository {
         addTransaction(transaction, true);
     }
 
+    @Override public void saveTransaction(Transaction transaction, boolean confirmed, SaveCallback callback) {
+        if (transaction.getId() > 0) updateTransaction(transaction, confirmed, callback);
+        else addTransaction(transaction, confirmed, callback);
+    }
+
     private void addTransaction(Transaction transaction, boolean confirmed) {
+        addTransaction(transaction, confirmed, error -> {
+            if (error != null) android.util.Log.w("Transactions", error);
+        });
+    }
+
+    private void addTransaction(Transaction transaction, boolean confirmed, SaveCallback callback) {
         executorService.execute(() -> {
+            boolean committed = false;
+            try {
+            if (transaction.getSourceTransactionId() != null && transactionDao.countBySourceId(transaction.getSourceTransactionId()) > 0) {
+                callback.onComplete(null);
+                return;
+            }
+            if (transaction.getSourceTransactionId() != null && transaction.getSourceTransactionId().startsWith("sms:")
+                    && transactionDao.countLegacySms(transaction.getDescription(), transaction.getAmount(), transaction.getType(),
+                        transaction.getDate() - 60000, transaction.getDate() + 60000) > 0) {
+                callback.onComplete(null);
+                return;
+            }
             if (!premiumRepository.hasAccess(PremiumFeature.ADVANCED_REPORTS)
                     && transactionDao.getLifetimeTransactionCountSync() >= 200) {
-                android.widget.Toast.makeText(context, "Free plan limit reached: upgrade for unlimited transactions.", android.widget.Toast.LENGTH_LONG).show();
+                callback.onComplete("Free plan limit reached: upgrade for unlimited transactions.");
                 return;
             }
             if (confirmed) {
@@ -242,12 +284,23 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                 }
             }
             
-            long newId = transactionDao.insertTransaction(entity);
+            long newId = transactionDao.insertTransactionsIgnore(java.util.Collections.singletonList(entity)).get(0);
+            committed = true;
+            callback.onComplete(null);
+            if (newId <= 0) return;
+            entity.id = (int) newId;
             if (newId > 0) {
                 Transaction saved = mapToDomain(entity);
                 com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, null, saved, (int) newId);
             }
-            clonedTransactionDao.insertTransaction(entity); // Mirror to cloned database
+            // The primary encrypted database is the source of truth.  A damaged or stale
+            // recovery copy must never turn a successfully saved manual transaction into
+            // an uncaught background exception (and an apparent app crash).
+            try {
+                clonedTransactionDao.insertTransaction(entity);
+            } catch (RuntimeException cloneError) {
+                android.util.Log.w("Transactions", "Recovery copy sync failed after save", cloneError);
+            }
             if (confirmed && newId > 0) learnConfirmed(transaction, (int) newId);
 
             // Evaluate category budget range and trigger warning notifications if exceeded
@@ -279,6 +332,10 @@ public class TransactionRepositoryImpl implements TransactionRepository {
                         break; // Only create one alert for the most recent match
                     }
                 }
+            }
+            } catch (RuntimeException error) {
+                android.util.Log.e("Transactions", "Transaction save failed", error);
+                if (!committed) callback.onComplete("Could not save the transaction. Please try again.");
             }
         });
     }
@@ -370,9 +427,17 @@ public class TransactionRepositoryImpl implements TransactionRepository {
     }
 
     private void updateTransaction(Transaction transaction, boolean confirmed) {
+        updateTransaction(transaction, confirmed, error -> {
+            if (error != null) android.util.Log.w("Transactions", error);
+        });
+    }
+
+    private void updateTransaction(Transaction transaction, boolean confirmed, SaveCallback callback) {
         executorService.execute(() -> {
+            boolean committed = false;
+            try {
             TransactionEntity previous = transactionDao.getTransactionByIdSync(transaction.getId());
-            if (previous == null) return;
+            if (previous == null) { callback.onComplete("Transaction no longer exists."); return; }
             transaction.setBookmarked(previous.bookmarked);
             // Form/category edits construct new domain objects. Preserve the original prediction
             // and review evidence on every save; automated refinement must not replace either.
@@ -396,12 +461,18 @@ public class TransactionRepositoryImpl implements TransactionRepository {
             }
             
             transactionDao.updateTransaction(entity);
+            committed = true;
+            callback.onComplete(null);
             com.example.spendtracker.util.CategoryReviewNotifications.onSaved(context, mapToDomain(previous), transaction);
             clonedTransactionDao.updateTransaction(entity); // Mirror to cloned database
             if (confirmed) learnConfirmed(transaction, transaction.getId());
 
             // Evaluate category budget range and trigger warning notifications if exceeded
             BudgetNotificationHelper.checkBudgetAndNotify(context, categoryDao, transactionDao, transaction);
+            } catch (RuntimeException error) {
+                android.util.Log.e("Transactions", "Transaction update failed", error);
+                if (!committed) callback.onComplete("Could not save the transaction. Please try again.");
+            }
         });
     }
 

@@ -8,15 +8,15 @@ import java.util.regex.*;
 /** Conservative bill extraction: unknown dates/amounts require review, never invented. */
 public final class BillMessageParser {
     private static final Pattern BILL = Pattern.compile(
-            "(?i)\\b(bill|payment due|amount due|total due|minimum due|emi|premium|renewal|subscription|recharge expires)\\b");
+            "(?i)\\b(bill|billing|invoice|payment due|amount due|total due|minimum due|emi|premium|renewal|subscription|recharge|plan (?:validity|expires|ends)|credit card statement|membership)\\b");
     private static final Pattern REJECT = Pattern.compile(
-            "(?i)\\b(otp|one.time password|verification code|payment (?:of .{0,40} )?(?:received|successful)|bill paid|paid successfully|no dues|no amount due|pre.approved|cashback offer|win a|congratulations)\\b");
+            "(?i)\\b(otp|one.time password|verification code|payment (?:of .{0,40} )?(?:received|successful)|bill paid|paid successfully|no dues|no amount due|pre.approved|recharge (?:successful|completed)|successfully recharged|special offer|recharge now and get|cashback offer|win a|congratulations)\\b");
     private static final String MONEY = "(?:rs\\.?|inr|₹)\\s*([0-9][0-9,]*(?:\\.\\d{1,2})?)(?!\\d|[.,]\\d)";
     private static final Pattern AMOUNT = Pattern.compile(MONEY, Pattern.CASE_INSENSITIVE);
     private static final Pattern TOTAL = Pattern.compile(
             "(?i)(?:total\\s+(?:amount\\s+)?due|total\\s+(?:bill|outstanding)|bill\\s+amount|amount\\s+(?:due|payable))\\s*(?:is|of|:|-)?\\s*(?:(?:rs\\.?|inr|₹)\\s*)?([0-9][0-9,]*(?:\\.\\d{1,2})?)(?!\\d|[.,]\\d)");
     private static final Pattern DUE = Pattern.compile(
-            "(?i)(?:due\\s*date\\s*(?:is|:|-)?|due\\s+(?:on|by|in)|due|pay(?:able)?\\s+by|before|expires\\s+on)\\s*[:\\-]?\\s*" +
+            "(?i)(?:due\\s*date\\s*(?:is|:|-)?|due\\s+(?:on|by|in)|due|pay(?:able)?\\s+by|before|(?:expires?|expiring|ends?|renews?|renewing)(?:\\s+(?:on|in))?|valid(?:ity)?\\s+(?:till|until|ends?)(?:\\s+on)?|next\\s+(?:payment|billing)\\s+date\\s*(?:is|:)?)\\s*[:\\-]?\\s*" +
             "(today|tomorrow|\\d{1,2}\\s+days?|\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{4}|\\d{2})|\\d{1,2}(?:st|nd|rd|th)?[\\s-]+[A-Za-z]{3,9}(?:[\\s,-]+(?:\\d{4}|\\d{2}))?|\\d{1,2}(?:st|nd|rd|th)?)(?!\\w|[/.-]\\d)");
     private static final Pattern TIME = Pattern.compile("(?i)\\b(?:at|by|before)\\s*(\\d{1,2})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?)\\b|\\b(\\d{1,2}):(\\d{2})\\b");
     private static final Pattern BILLER = Pattern.compile("(?i)\\b(?:bill\\s+(?:from|for)|from|for)\\s+([a-z][a-z0-9 .&'\\-]{2,48}?)(?=\\s+(?:is|of|due|amount|payment|on|by)\\b|[,.]|$)");
@@ -121,6 +121,8 @@ public final class BillMessageParser {
     }
 
     private String parseBiller(String body) {
+        Matcher provider = Pattern.compile("(?i)\\b(netflix|airtel|jio|vi|vodafone|bsnl|spotify|amazon prime|disney hotstar|youtube premium)\\b").matcher(body);
+        if (provider.find()) return provider.group(1);
         Matcher matcher = BILLER.matcher(body);
         if (!matcher.find()) {
             matcher = LEADING_BILLER.matcher(body);

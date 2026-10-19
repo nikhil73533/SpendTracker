@@ -20,5 +20,17 @@ public class PrivacyOfflineFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         ((com.google.android.material.appbar.MaterialToolbar) view.findViewById(R.id.privacy_toolbar))
                 .setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
+        if (com.example.spendtracker.BuildConfig.FREE_PLAY_BUILD) {
+            View policy = view.findViewById(R.id.open_privacy_policy);
+            policy.setVisibility(View.VISIBLE);
+            policy.setOnClickListener(v -> {
+                android.webkit.WebView content = new android.webkit.WebView(requireContext());
+                content.getSettings().setJavaScriptEnabled(false);
+                content.loadUrl("file:///android_asset/privacy-policy-play.html");
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Privacy Policy").setView(content)
+                        .setPositiveButton(android.R.string.ok, (dialog, which) -> content.destroy()).show();
+            });
+        }
     }
 }

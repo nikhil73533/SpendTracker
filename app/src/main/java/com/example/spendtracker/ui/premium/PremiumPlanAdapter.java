@@ -20,9 +20,13 @@ public class PremiumPlanAdapter extends RecyclerView.Adapter<PremiumPlanAdapter.
     public PremiumPlanAdapter(Runnable selectionChanged) { this.selectionChanged = selectionChanged; }
 
     public void submit(List<PremiumPlan> plans) {
+        String selectedId = selected() == null ? null : selected().productId;
         this.plans.clear();
         if (plans != null) this.plans.addAll(plans);
         selectedPosition = this.plans.isEmpty() ? RecyclerView.NO_POSITION : 0;
+        for (int i = 0; i < this.plans.size(); i++) {
+            if (this.plans.get(i).productId.equals(selectedId)) selectedPosition = i;
+        }
         notifyDataSetChanged();
         selectionChanged.run();
     }
@@ -41,6 +45,7 @@ public class PremiumPlanAdapter extends RecyclerView.Adapter<PremiumPlanAdapter.
         holder.price.setText(plan.price);
         holder.period.setText(plan.period);
         holder.card.setChecked(position == selectedPosition);
+        holder.card.setStrokeWidth(position == selectedPosition ? 3 : 0);
         holder.itemView.setOnClickListener(view -> {
             int currentPosition = holder.getAdapterPosition();
             if (currentPosition == RecyclerView.NO_POSITION || selectedPosition == currentPosition) return;

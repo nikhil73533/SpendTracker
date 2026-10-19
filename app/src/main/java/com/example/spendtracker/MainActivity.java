@@ -36,13 +36,20 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, insets) -> {
+            androidx.core.graphics.Insets bars = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                            | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
 
         // Checkpoint the encrypted database without exposing recovery details in logs.
         try {
             byte[] pass = securityRepository.getDatabasePassphrase();
             java.io.File dbFile = getDatabasePath("spend_tracker_db");
             if (dbFile.exists()) {
-                net.sqlcipher.database.SQLiteDatabase db = net.sqlcipher.database.SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), pass, null);
+                net.zetetic.database.sqlcipher.SQLiteDatabase db = net.zetetic.database.sqlcipher.SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), pass, null, null);
                 db.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
                 db.close();
             }
@@ -66,6 +73,22 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if (!allGranted) {
+            android.content.SharedPreferences disclosure = getSharedPreferences("sms_disclosure", MODE_PRIVATE);
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED
+                    && !disclosure.getBoolean("shown", false)) {
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.sms_disclosure_title)
+                        .setMessage(R.string.sms_disclosure_message)
+                        .setPositiveButton(R.string.sms_enable, (dialog, which) -> {
+                            disclosure.edit().putBoolean("shown", true).putBoolean("accepted", true).apply();
+                            checkPermissions();
+                        })
+                        .setNegativeButton(R.string.sms_manual, (dialog, which) ->
+                                disclosure.edit().putBoolean("shown", true).putBoolean("accepted", false).apply())
+                        .show();
+                return;
+            }
+            if (disclosure.getBoolean("shown", false) && !disclosure.getBoolean("accepted", false)) return;
             if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this,
                     Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 getSharedPreferences("bill_ui", MODE_PRIVATE).edit().putBoolean("permission_requested", true).apply();
@@ -79,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
         com.example.spendtracker.data.sms.BillReminderWorker.checkNow(this);
         if (requestCode == SMS_PERMISSION_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted
+                com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
             }
         }
     }
@@ -119,6 +142,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         premiumRepository.refreshEntitlement();
+        com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
     }
 
 }

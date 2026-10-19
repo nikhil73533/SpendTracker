@@ -32,6 +32,8 @@ public class DashboardViewModel extends ViewModel {
 
     private final TransactionRepository repository;
     private final LiveData<List<Transaction>> allTransactions;
+    /** Shared filtered snapshot prevents each dashboard widget rebuilding the same list. */
+    private final LiveData<List<Transaction>> visibleTransactions;
     private final SecurityRepository securityRepository;
     private final BillAlertRepository billAlertRepository;
     private final MutableLiveData<DateRange> dateRange = new MutableLiveData<>();
@@ -67,6 +69,7 @@ public class DashboardViewModel extends ViewModel {
         this.billAlertRepository = billAlertRepository;
         this.predictionService = com.example.spendtracker.util.CategoryPrediction.service(context);
         calendarViewMonthStart = getStartOfMonth(System.currentTimeMillis());
+        visibleTransactions = createVisibleTransactions();
         setFilter(FilterType.DAILY);
     }
 
@@ -203,6 +206,10 @@ public class DashboardViewModel extends ViewModel {
     public LiveData<List<Transaction>> getAllTransactions() { return allTransactions; }
 
     public LiveData<List<Transaction>> getTransactions() {
+        return visibleTransactions;
+    }
+
+    private LiveData<List<Transaction>> createVisibleTransactions() {
         return Transformations.switchMap(dateRange, range -> {
             LiveData<List<Transaction>> baseTxns = null;
             if (range != null) {

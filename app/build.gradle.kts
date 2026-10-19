@@ -16,13 +16,16 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.spendtracker"
+        applicationId = "com.app.pinch"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 2
+        versionName = "1.0.1"
 
-        buildConfigField("boolean", "AUTOPAY_ENABLED", "false")
+        // This application is distributed directly and uses Razorpay for premium billing.
+        // Debug and release share one installable application ID.
+        buildConfigField("boolean", "AUTOPAY_ENABLED", "true")
+        buildConfigField("boolean", "FREE_PLAY_BUILD", "false")
         buildConfigField("String", "BILLING_BASE_URL", billingSetting(
             "billingBaseUrl",
             "https://dwatnipgdvuftwcsgohm.supabase.co/functions/v1/billing-api"
@@ -39,17 +42,19 @@ android {
         }
     }
     buildTypes {
-        create("autopay") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".autopay"
-            matchingFallbacks += listOf("debug")
-            buildConfigField("boolean", "AUTOPAY_ENABLED", "true")
-        }
-        create("autopayRelease") {
+        create("playRelease") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".autopay"
             matchingFallbacks += listOf("release")
-            buildConfigField("boolean", "AUTOPAY_ENABLED", "true")
+            buildConfigField("boolean", "AUTOPAY_ENABLED", "false")
+            buildConfigField("boolean", "FREE_PLAY_BUILD", "true")
+            buildConfigField("String", "BILLING_BASE_URL", "\"\"")
+        }
+        create("playPreview") {
+            initWith(getByName("debug"))
+            matchingFallbacks += listOf("debug")
+            buildConfigField("boolean", "AUTOPAY_ENABLED", "false")
+            buildConfigField("boolean", "FREE_PLAY_BUILD", "true")
+            buildConfigField("String", "BILLING_BASE_URL", "\"\"")
         }
     }
     compileOptions {

@@ -1,0 +1,29 @@
+Understand your everyday spending with TrackMint, a personal money tracker that brings income, expenses and account activity together.
+
+TRACK NEW TRANSACTIONS
+Choose SMS tracking to detect financial transactions from new messages. Tracking starts when you enable it; older inbox messages are not automatically imported. SMS parsing happens on your device. You can decline SMS access and add transactions manually.
+
+KEEP YOUR MONEY ORGANIZED
+Add and edit income and expenses, assign categories, review account activity, bookmark transactions and organize related entries. Browse daily and monthly views to understand where your money goes.
+
+SEE YOUR SPENDING CLEARLY
+Explore charts, category breakdowns and trends. Compare periods, review income and expenses, and use budgets to keep track of your plans.
+
+IMPORT AND EXPORT
+Import supported PDF bank statements, review the extracted transactions, and export reports for your own records. Recognition accuracy depends on the statement format; review imported amounts and categories before relying on them.
+
+TOOLS FOR EVERYDAY USE
+Use bill reminders, account histories, transaction groups and a built-in calculator. Keep control of your records with manual corrections and trash recovery.
+
+YOUR DATA, YOUR CHOICE
+Core financial processing works on your device. Your local transaction database is encrypted. Android backup follows your device backup settings. Phone backups use a folder and password you choose. You control exports and sharing.
+
+NO CHECKOUT IN THIS VERSION
+The Google Play launch version includes its features without a paid checkout. No TrackMint account is required for on-device features. Android cloud recovery uses your own Google account when device backup is enabled.
+
+TrackMint is a personal record-keeping tool. It does not move money or provide banking services.
+
+Support: ng1200821@gmail.com
+
+REINSTALL RECOVERY
+With Android backup enabled, reinstalling can restore your last completed backup. You can also save password-protected copies of records and the learning model to a folder you choose. After reinstall, select a saved file and enter its password. Backup timing and availability depend on Android; keep a phone copy too.

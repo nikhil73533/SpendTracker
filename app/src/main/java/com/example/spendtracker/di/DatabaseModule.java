@@ -22,7 +22,7 @@ import dagger.Provides;
 import dagger.hilt.InstallIn;
 import dagger.hilt.android.qualifiers.ApplicationContext;
 import dagger.hilt.components.SingletonComponent;
-import net.sqlcipher.database.SupportFactory;
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory;
 
 @Module
 @InstallIn(SingletonComponent.class)
@@ -54,14 +54,13 @@ public class DatabaseModule {
         // Migrate unencrypted DB if it exists (checkpointing WAL now included)
         com.example.spendtracker.util.DatabaseEncryptionHelper.migrateIfNecessary(context, "spend_tracker_db", passphrase);
 
-        SupportFactory factory = new SupportFactory(passphrase);
+        SupportOpenHelperFactory factory = new SupportOpenHelperFactory(passphrase);
 
         SpendTrackerDatabase db = Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db")
                 .openHelperFactory(factory)
                 .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
                 .addCallback(SANITIZE_CALLBACK)
-                .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
         
         return db;
@@ -72,14 +71,13 @@ public class DatabaseModule {
     @ClonedDatabase
     public SpendTrackerDatabase provideClonedDatabase(@ApplicationContext Context context, SecurityRepository securityRepository) {
         byte[] passphrase = securityRepository.getDatabasePassphrase();
-        SupportFactory factory = new SupportFactory(passphrase);
+        SupportOpenHelperFactory factory = new SupportOpenHelperFactory(passphrase);
 
         return Room.databaseBuilder(context, SpendTrackerDatabase.class, "spend_tracker_db_cloned")
                 .openHelperFactory(factory)
                 .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .addCallback(com.example.spendtracker.data.local.database.AnalyticsMaterialization.CALLBACK)
                 .addCallback(SANITIZE_CALLBACK)
-                .fallbackToDestructiveMigrationOnDowngrade()
                 .build();
     }
 

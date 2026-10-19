@@ -39,11 +39,11 @@ public class TransactionFormFragment extends Fragment {
 
     /** Known Indian bank names for the Bank Name autocomplete. */
     private static final List<String> KNOWN_BANKS = Arrays.asList(
-        "ICICI Bank", "HDFC Bank", "SBI", "Axis Bank", "Kotak Bank",
-        "Yes Bank", "PNB", "Bank of Baroda", "Union Bank", "Canara Bank",
-        "IDBI Bank", "IndusInd Bank", "Federal Bank", "RBL Bank",
-        "AU Bank", "Bajaj Finance", "Paytm", "PhonePe", "Amazon Pay",
-        "Airtel Payments Bank", "Jio Payments Bank", "OneCard", "Slice", "Navi"
+        "ICICI", "HDFC", "SBI", "AXIS", "KOTAK",
+        "YES BANK", "PNB", "BANK OF BARODA", "UNION BANK", "CANARA",
+        "IDBI", "INDUSIND", "FEDERAL", "RBL",
+        "AU BANK", "BAJAJ FINANCE", "PAYTM", "PHONEPE", "AMAZON PAY",
+        "AIRTEL PAYMENTS", "JIO PAYMENTS", "ONECARD", "SLICE", "NAVI"
     );
 
     /** Source-type options for the Account / Credit Card dropdown. */
@@ -68,6 +68,16 @@ public class TransactionFormFragment extends Fragment {
         }
 
         setupUI();
+        viewModel.isSaving().observe(getViewLifecycleOwner(), saving -> {
+            binding.btnSave.setEnabled(!Boolean.TRUE.equals(saving));
+            binding.btnContinue.setEnabled(!Boolean.TRUE.equals(saving));
+        });
+        viewModel.getSaveResult().observe(getViewLifecycleOwner(), error -> {
+            if (error == null) return;
+            viewModel.consumeSaveResult();
+            if (error.isEmpty()) Navigation.findNavController(requireView()).navigateUp();
+            else Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
+        });
         if (transactionId != -1) {
             android.widget.ImageButton bookmark = binding.bookmarkTransaction;
             bookmark.setVisibility(View.VISIBLE);
@@ -149,9 +159,7 @@ public class TransactionFormFragment extends Fragment {
         if ("TRANSFER".equals(selectedType)) {
             binding.tilCategory.setVisibility(View.GONE);
             binding.layoutTransferFields.setVisibility(View.VISIBLE);
-            String owner = binding.etBankName.getText().toString().trim();
-            if (owner.isEmpty() || "Unknown".equalsIgnoreCase(owner)) owner = com.example.spendtracker.util.UserProfile.load(requireContext()).name;
-            if (owner.isEmpty()) owner = "You";
+            String owner = com.example.spendtracker.util.UserProfile.load(requireContext()).name.trim();
             boolean incoming = "CREDIT".equals(originalDirection);
             if (binding.etFromAccount.getText().toString().trim().isEmpty())
                 binding.etFromAccount.setText(incoming ? binding.etSender.getText() : owner);
@@ -171,17 +179,32 @@ public class TransactionFormFragment extends Fragment {
                 binding.tilSender.setHint("Sender");
                 binding.tilReceiver.setHint("Receiver / your name (optional)");
                 binding.tilCategory.setHint("Income Category");
+                fillProfileName(binding.etReceiver);
             } else {
                 binding.tilSender.setVisibility(View.VISIBLE);
                 binding.tilReceiver.setVisibility(View.VISIBLE);
                 binding.tilSender.setHint("Sender / your name (optional)");
                 binding.tilReceiver.setHint("Receiver / Payee");
                 binding.tilCategory.setHint("Category");
+                fillProfileName(binding.etSender);
             }
 
             // Trigger category update via filter change
             viewModel.setCategoryTypeFilter(selectedType);
         }
+    }
+
+    /** Bank identifiers are account labels, so keep their presentation and stored value stable. */
+    private String normalizedBankName() {
+        String bank = cleanText(binding.etBankName.getText().toString());
+        return bank.isEmpty() ? "" : com.example.spendtracker.data.repository.TransactionRepositoryImpl.standardizeBankName(bank);
+    }
+
+    /** Only the user's side of a transaction is prefilled from their profile. */
+    private void fillProfileName(android.widget.AutoCompleteTextView field) {
+        if (field.getText() != null && field.getText().length() > 0) return;
+        String name = com.example.spendtracker.util.UserProfile.load(requireContext()).name.trim();
+        if (!name.isEmpty()) field.setText(name, false);
     }
 
     private void updateCategoryAdapter(List<String> categories) {
@@ -285,7 +308,7 @@ public class TransactionFormFragment extends Fragment {
             float val = (float) budgets[currentPeriod];
             if (val > maxVal) val = maxVal;
             if (val < 0) val = 0;
-            sliderBudget.setValue(val);
+            sliderBudget.setValue(Math.round(val / step) * step);
         };
 
         Runnable bindPeriodData = () -> {
@@ -349,7 +372,7 @@ public class TransactionFormFragment extends Fragment {
                     int currentPeriod = spinnerPeriod.getSelectedItemPosition();
                     budgets[currentPeriod] = val;
                     if (val <= sliderBudget.getValueTo() && val >= sliderBudget.getValueFrom()) {
-                        sliderBudget.setValue((float) val);
+                        sliderBudget.setValue(Math.round((float) val / sliderBudget.getStepSize()) * sliderBudget.getStepSize());
                     }
                     updateSummary.run();
                 } catch (Exception ignored) {}
@@ -475,6 +498,10 @@ public class TransactionFormFragment extends Fragment {
         catch (NumberFormatException error) { binding.etAmount.setError("Enter a valid amount"); return; }
         if (!Double.isFinite(amount) || amount <= 0) { binding.etAmount.setError("Enter an amount greater than zero"); return; }
         String categoryInput = "TRANSFER".equals(selectedType) ? "Transfer" : binding.actvCategory.getText().toString().trim();
+        // A manually entered transaction does not require the user to create a
+        // category first.  Keep the stored category non-empty so downstream
+        // summaries, predictions, and budget checks have a stable value.
+        if (categoryInput.isEmpty()) categoryInput = "Uncategorized";
         
         String categoryName = categoryInput;
         String categoryEmoji = "";
@@ -486,7 +513,8 @@ public class TransactionFormFragment extends Fragment {
         String description = cleanText(binding.etDescription.getText().toString());
         String sender = cleanText(binding.etSender.getText().toString());
         String receiver = cleanText(binding.etReceiver.getText().toString());
-        String bankName = cleanText(binding.etBankName.getText().toString());
+        String bankName = normalizedBankName();
+        if (!bankName.isEmpty()) binding.etBankName.setText(bankName, false);
         String accountInfo = cleanText(binding.etAccountInfo.getText().toString());
         String sourceType = accountInfo.isEmpty() ? "Manual" : accountInfo;
         String source = bankName.isEmpty() ? "Manual" : bankName + " (" + sourceType + ")";
@@ -534,7 +562,7 @@ public class TransactionFormFragment extends Fragment {
 
         transaction.setDirection("TRANSFER".equals(selectedType) ? originalDirection : "INCOME".equals(selectedType) ? "CREDIT" : "DEBIT");
         if (transactionId == -1) {
-            viewModel.addTransaction(transaction);
+            viewModel.saveTransaction(transaction);
         } else {
             if (existingTransaction != null) {
                 transaction.setSourceTransactionId(existingTransaction.getSourceTransactionId());
@@ -547,10 +575,9 @@ public class TransactionFormFragment extends Fragment {
                 transaction.setStatus(existingTransaction.getStatus());
                 transaction.setDeletedAt(existingTransaction.getDeletedAt());
             }
-            viewModel.updateTransaction(transaction);
+            viewModel.saveTransaction(transaction);
         }
 
-        Navigation.findNavController(requireView()).navigateUp();
     }
 
     @Override
@@ -561,7 +588,9 @@ public class TransactionFormFragment extends Fragment {
     }
 
     private String cleanText(String text) {
-        if (text == null) return "";
-        return text.replaceAll("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]", "").trim();
+        // The previous surrogate-range regular expression is invalid on some Android
+        // regex implementations and throws while the form is being saved.  Text fields
+        // already provide user input as valid Java strings, so preserve them verbatim.
+        return text == null ? "" : text.trim();
     }
 }

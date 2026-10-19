@@ -41,7 +41,7 @@ public class AutoPayManager {
     private final SharedPreferences prefs;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private String token, account, version;
+    private String token, account, runtimeGoogleClientId, authMode;
     private AccessLease lease;
     private boolean refreshing;
     private int operations;
@@ -49,11 +49,13 @@ public class AutoPayManager {
     private final MutableLiveData<BillingManager.State> state = new MutableLiveData<>(BillingManager.State.IDLE);
     private final MutableLiveData<PremiumState> premium = new MutableLiveData<>(PremiumState.free());
     private final MutableLiveData<PurchaseEvent> events = new MutableLiveData<>(PurchaseEvent.NONE);
-    private final MutableLiveData<String> message = new MutableLiveData<>("Sign in to view AutoPay plans and restore purchases.");
+    private final MutableLiveData<String> message = new MutableLiveData<>("Loading Razorpay plans…");
     private final MutableLiveData<Boolean> busy = new MutableLiveData<>(false);
     private final MutableLiveData<Boolean> cancellable = new MutableLiveData<>(false);
     private JSONObject currentSubscription;
     private JSONObject catalog;
+    private SubscriptionCatalog parsedCatalog;
+    public boolean checkoutAvailable() { return parsedCatalog != null && parsedCatalog.checkoutEnabled; }
 
     @Inject public AutoPayManager(@ApplicationContext Context context) {
         this.context = context;
@@ -69,10 +71,20 @@ public class AutoPayManager {
     }
 
     public boolean configured() { return BuildConfig.AUTOPAY_ENABLED && prefs != null
-            && BuildConfig.BILLING_BASE_URL.startsWith("https://") && !BuildConfig.BILLING_GOOGLE_CLIENT_ID.isEmpty(); }
+            && BuildConfig.BILLING_BASE_URL.startsWith("https://"); }
+    private String googleClientId() {
+        return BuildConfig.BILLING_GOOGLE_CLIENT_ID.isEmpty()
+                ? (runtimeGoogleClientId == null ? "" : runtimeGoogleClientId)
+                : BuildConfig.BILLING_GOOGLE_CLIENT_ID;
+    }
+    private boolean identityConfigured() {
+        return "test".equals(authMode) || ("google".equals(authMode) && !googleClientId().isEmpty());
+    }
+    public boolean usesTestIdentity() { return "test".equals(authMode); }
     public GoogleSignInOptions signInOptions() {
+        if (!identityConfigured()) throw new IllegalStateException("Billing sign-in configuration is unavailable");
         return new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(BuildConfig.BILLING_GOOGLE_CLIENT_ID).requestEmail().build();
+                .requestIdToken(googleClientId()).requestEmail().build();
     }
     public LiveData<List<PremiumPlan>> plans() { return plans; }
     public LiveData<BillingManager.State> state() { return state; }
@@ -83,18 +95,27 @@ public class AutoPayManager {
     public LiveData<Boolean> cancellable() { return cancellable; }
     public JSONObject catalog() { return catalog; }
     public boolean hasAccess() {
-        GoogleSignInAccount signedIn = GoogleSignIn.getLastSignedInAccount(context);
-        String current = signedIn == null ? null : "google:" + signedIn.getId();
+        GoogleSignInAccount signedIn = usesTestIdentity() ? null : GoogleSignIn.getLastSignedInAccount(context);
+        String current = usesTestIdentity() ? account : (signedIn == null ? null : "google:" + signedIn.getId());
         return lease != null && lease.allows(current, System.currentTimeMillis(), SystemClock.elapsedRealtime());
     }
     public void launch(Activity activity, String action, String plan) {
-        if (!configured()) { message.setValue("AutoPay is not configured yet."); return; }
+        if (!configured()) { message.setValue("Payments are not configured yet."); return; }
         Intent intent = new Intent(activity, AutoPayActivity.class).putExtra("action", action).putExtra("plan", plan);
         activity.startActivity(intent);
     }
     public void refresh() {
         if (!configured()) { state.setValue(BillingManager.State.CONFIGURATION_MISSING); return; }
         if (refreshing || Boolean.TRUE.equals(busy.getValue())) return;
+        if (!identityConfigured()) {
+            state.setValue(BillingManager.State.CONNECTING);
+            loadConfiguration((value, error) -> { if (error == null) refresh(); });
+            return;
+        }
+        if (usesTestIdentity()) {
+            prepareTestSession((value, error) -> { if (error == null) refreshAll(null); });
+            return;
+        }
         refreshing = true;
         GoogleSignIn.getClient(context, signInOptions()).silentSignIn().addOnCompleteListener(task -> {
             refreshing = false;
@@ -108,7 +129,7 @@ public class AutoPayManager {
                 if (cached != null && cached.getId() != null) loadCachedLease("google:" + cached.getId());
                 plans.setValue(Collections.emptyList());
                 state.setValue(BillingManager.State.READY);
-                message.setValue("Sign in to view plans or restore your AutoPay subscription.");
+                message.setValue("Sign in to view plans or restore your premium access.");
             }
         });
     }
@@ -135,7 +156,9 @@ public class AutoPayManager {
             lease = new AccessLease(next, prefs.getLong("received", 0), prefs.getLong("elapsed", 0),
                     prefs.getLong("server", 0), prefs.getLong("lease", 0), prefs.getLong("expires", 0));
             if (lease.allows(next, System.currentTimeMillis(), SystemClock.elapsedRealtime())) {
-                premium.setValue(new PremiumState(PremiumState.Status.ACTIVE, "razorpay", PremiumPurchaseType.SUBSCRIPTION,
+                PremiumPurchaseType type = "one_time".equals(prefs.getString("access_type", ""))
+                        ? PremiumPurchaseType.PREPAID : PremiumPurchaseType.SUBSCRIPTION;
+                premium.setValue(new PremiumState(PremiumState.Status.ACTIVE, "razorpay", type,
                         "", lease.receivedAt, lease.receivedAt + lease.duration));
             }
         }
@@ -157,26 +180,61 @@ public class AutoPayManager {
         });
     }
     private BillingApi api() { return new BillingApi(BuildConfig.BILLING_BASE_URL); }
+    public void loadConfiguration(Completion completion) {
+        if (identityConfigured()) { completion.complete(new JSONObject(), null); return; }
+        run(() -> api().request("GET", "/config", null, null, null), (value, error) -> {
+            if (error == null) {
+                authMode = value.optString("auth_mode", "");
+                String clientId = value.optString("google_web_client_id", "").trim();
+                if ("google".equals(authMode) && !clientId.endsWith(".apps.googleusercontent.com")) {
+                    error = new IllegalStateException("Billing sign-in configuration is invalid");
+                    failure(error);
+                } else {
+                    runtimeGoogleClientId = clientId;
+                }
+            }
+            if (completion != null) completion.complete(value, error);
+        });
+    }
+    public void prepareTestSession(Completion completion) {
+        if (!usesTestIdentity()) { completion.complete(null, new IllegalStateException("Test billing is unavailable")); return; }
+        String savedToken = prefs.getString("test_token", "");
+        String savedAccount = prefs.getString("test_account", "");
+        if (token == null && !savedToken.isEmpty() && savedAccount.startsWith("test:")) {
+            token = savedToken; account = savedAccount;
+            loadCachedLease(account);
+        }
+        if (token != null && account != null) { completion.complete(new JSONObject(), null); return; }
+        run(() -> api().request("POST", "/test-session", null, new JSONObject(), null), (value, error) -> {
+            if (error == null) {
+                String nextToken = value.optString("token");
+                String nextAccount = value.optString("account_id");
+                if (!nextToken.startsWith("tm_test_") || !nextAccount.startsWith("test:")) {
+                    error = new IllegalStateException("Invalid test billing session");
+                    failure(error);
+                } else if (!prefs.edit().putString("test_token", nextToken).putString("test_account", nextAccount)
+                        .putString("account", nextAccount).commit()) {
+                    error = new IllegalStateException("Cannot save test billing session");
+                    failure(error);
+                } else {
+                    token = nextToken; account = nextAccount;
+                }
+            }
+            if (completion != null) completion.complete(value, error);
+        });
+    }
     public void refreshAll(Completion completion) {
         state.setValue(BillingManager.State.CONNECTING);
         run(() -> new JSONObject().put("catalog", api().request("GET", "/catalog", token, null, null))
                 .put("access", api().request("GET", "/me/entitlements", token, null, null)), (result, error) -> {
             if (error == null) {
                 try {
-                    catalog = result.getJSONObject("catalog"); version = catalog.getString("version");
-                    List<PremiumPlan> choices = new ArrayList<>();
-                    JSONArray items = catalog.getJSONArray("plans");
-                    NumberFormat currency = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
-                    for (int i = 0; i < items.length(); i++) {
-                        JSONObject item = items.getJSONObject(i);
-                        String period = item.getString("period").equals("yearly") ? "every year" :
-                                item.getInt("interval") == 1 ? "every month" : "every " + item.getInt("interval") + " months";
-                        choices.add(new PremiumPlan(item.getString("id"), item.getString("title"),
-                                currency.format(item.getLong("amount") / 100.0),
-                                "Auto-renews " + period + ". Up to " + item.getInt("total_count") + " payments; cancel anytime.", ""));
-                    }
+                    catalog = result.getJSONObject("catalog");
+                    parsedCatalog = SubscriptionCatalog.parse(catalog);
                     acceptAccess(result.getJSONObject("access"));
-                    plans.setValue(catalog.optBoolean("checkout_enabled") ? choices : Collections.emptyList());
+                    plans.setValue(parsedCatalog.plans);
+                    if (!parsedCatalog.complete) message.setValue("Some subscription periods are unavailable. Use Check status to reload all four plans.");
+                    else if (!parsedCatalog.checkoutEnabled) message.setValue("Plans are available to view. Checkout is temporarily unavailable; please try again later.");
                     state.setValue(BillingManager.State.READY);
                 } catch (Exception parseError) { failure(parseError); error = parseError; }
             }
@@ -189,50 +247,65 @@ public class AutoPayManager {
         long server = access.getLong("server_time") * 1000L, until = access.getLong("lease_until") * 1000L;
         long expires = access.getLong("expires_at") * 1000L;
         lease = access.getBoolean("active") ? new AccessLease(account, now, elapsed, server, until, expires) : null;
-        prefs.edit().putString("account", account).putLong("received", now).putLong("elapsed", elapsed)
+        prefs.edit().putString("account", account).putString("access_type", access.optString("purchase_type", "subscription"))
+                .putLong("received", now).putLong("elapsed", elapsed)
                 .putLong("server", server).putLong("lease", lease == null ? 0 : until).putLong("expires", expires)
                 .putInt("boot", android.provider.Settings.Global.getInt(context.getContentResolver(), android.provider.Settings.Global.BOOT_COUNT, -1)).commit();
+        PremiumPurchaseType accessType = "one_time".equals(access.optString("purchase_type"))
+                ? PremiumPurchaseType.PREPAID : PremiumPurchaseType.SUBSCRIPTION;
         premium.setValue(new PremiumState(lease == null ? PremiumState.Status.FREE : PremiumState.Status.ACTIVE,
-                "razorpay", PremiumPurchaseType.SUBSCRIPTION, "", now, now + (lease == null ? 0 : lease.duration)));
+                "razorpay", accessType, "", now, now + (lease == null ? 0 : lease.duration)));
         JSONArray subscriptions = access.getJSONArray("subscriptions");
         currentSubscription = subscriptions.length() > 0 ? subscriptions.getJSONObject(0) : null;
         String status = currentSubscription == null ? "" : currentSubscription.optString("status");
         boolean terminal = isTerminal(status);
         cancellable.setValue(currentSubscription != null && !terminal);
-        if (currentSubscription != null && terminal) prefs.edit().remove("request_key").remove("plan").remove("attempt").commit();
-        if (lease != null) message.setValue("Premium active until " + java.text.DateFormat.getDateInstance().format(new java.util.Date(expires))
+        if (currentSubscription != null && terminal) prefs.edit().remove("request_key").remove("plan")
+                .remove("purchase_type").remove("attempt").commit();
+        if (lease != null && accessType == PremiumPurchaseType.PREPAID) {
+            message.setValue("Prepaid premium active until "
+                    + java.text.DateFormat.getDateInstance().format(new java.util.Date(expires)) + ". No automatic renewal.");
+        } else if (lease != null) message.setValue("Premium active until " + java.text.DateFormat.getDateInstance().format(new java.util.Date(expires))
                 + (terminal ? ". Renewal stopped." : ". AutoPay status: " + status + "."));
         else if (currentSubscription != null && !terminal) message.setValue("Subscription status: " + status + ". Access starts after a confirmed payment. Use Check status to recover.");
-        else message.setValue("Choose a plan. Automatic renewal begins only after you approve the mandate.");
+        else message.setValue("Choose a prepaid plan and pay once using UPI, cards or another available payment method. No automatic renewal.");
     }
     private static boolean isTerminal(String state) {
         return state.equals("cancelled") || state.equals("completed") || state.equals("expired") || state.equals("rejected");
     }
-    public void create(String plan, Completion completion) {
-        if (currentSubscription != null && !isTerminal(currentSubscription.optString("status"))) {
-            if (!plan.equals(currentSubscription.optString("plan_id"))) {
-                completion.complete(null, new BillingApi.ApiException(409, "Resume your existing plan or cancel its renewal first."));
-                message.setValue("Resume your existing plan or cancel its renewal first.");
-                return;
-            }
-            if (!prefs.edit().putString("attempt", currentSubscription.optString("id")).commit()) {
-                completion.complete(null, new IllegalStateException("Cannot save recovery details")); return;
-            }
-            completion.complete(currentSubscription, null); return;
+    public void create(String plan, String purchaseType, Completion completion) {
+        if (!checkoutAvailable() || parsedCatalog.versionFor(plan) == null) {
+            completion.complete(null, new IllegalStateException("Reload available plans before checkout"));
+            return;
         }
-        message.setValue("Preparing your subscription…");
+        final String selectedVersion = parsedCatalog.versionFor(plan);
+        if (!"one_time".equals(purchaseType)) {
+            completion.complete(null, new IllegalArgumentException("Unsupported payment option"));
+            return;
+        }
+        if (currentSubscription != null && !isTerminal(currentSubscription.optString("status"))) {
+            BillingApi.ApiException error = new BillingApi.ApiException(409,
+                    "Cancel your existing AutoPay setup before starting a one-time payment.");
+            message.setValue(error.getMessage());
+            completion.complete(null, error);
+            return;
+        }
+        message.setValue("Preparing your one-time payment…");
         run(() -> {
             String key = prefs.getString("request_key", "");
             String storedPlan = prefs.getString("plan", plan);
-            if (!key.isEmpty() && !storedPlan.equals(plan))
-                throw new IllegalStateException("Check the status of your earlier subscription first");
+            String storedType = prefs.getString("purchase_type", purchaseType);
+            if (!key.isEmpty() && (!storedPlan.equals(plan) || !storedType.equals(purchaseType)))
+                throw new IllegalStateException("Check the status of your earlier payment first");
             if (key.isEmpty()) {
-                key = UUID.randomUUID().toString(); storedPlan = plan;
-                if (!prefs.edit().putString("request_key", key).putString("plan", plan).commit())
+                key = UUID.randomUUID().toString(); storedPlan = plan; storedType = purchaseType;
+                if (!prefs.edit().putString("request_key", key).putString("plan", plan)
+                        .putString("purchase_type", purchaseType).commit())
                     throw new IllegalStateException("Cannot save checkout recovery details");
             }
-            JSONObject attempt = api().request("POST", "/subscription-attempts", token,
-                    new JSONObject().put("plan_id", storedPlan).put("catalog_version", version), key);
+            JSONObject attempt = api().request("POST", "/purchase-attempts", token,
+                    new JSONObject().put("plan_id", storedPlan).put("catalog_version", selectedVersion)
+                            .put("purchase_type", storedType), key);
             if (!prefs.edit().putString("attempt", attempt.getString("id")).commit())
                 throw new IllegalStateException("Cannot save checkout recovery details");
             return attempt;
@@ -240,7 +313,7 @@ public class AutoPayManager {
             // Definitive validation/configuration errors did not reserve a provider attempt.
             if (error instanceof BillingApi.ApiException && (((BillingApi.ApiException) error).status == 400
                     || ((BillingApi.ApiException) error).status == 409)) {
-                prefs.edit().remove("request_key").remove("plan").commit();
+                prefs.edit().remove("request_key").remove("plan").remove("purchase_type").commit();
             }
             completion.complete(result, error);
         });
@@ -248,9 +321,13 @@ public class AutoPayManager {
     public void verify(JSONObject evidence, Completion completion) {
         message.setValue("Checking payment with Razorpay…");
         String id = prefs.getString("attempt", "");
-        run(() -> api().request("POST", "/subscription-attempts/" + id + "/verify", token, evidence, null), (result, error) -> {
+        run(() -> api().request("POST", "/purchase-attempts/" + id + "/verify", token, evidence, null), (result, error) -> {
             if (error == null) {
-                try { acceptAccess(result); } catch (Exception parseError) { failure(parseError); error = parseError; }
+                try {
+                    acceptAccess(result);
+                    if (result.optBoolean("active")) prefs.edit().remove("request_key").remove("plan")
+                            .remove("purchase_type").remove("attempt").commit();
+                } catch (Exception parseError) { failure(parseError); error = parseError; }
             }
             if (completion != null) completion.complete(result, error);
         });
@@ -264,11 +341,14 @@ public class AutoPayManager {
         });
     }
     public void failure(Exception error) {
+        parsedCatalog = null;
+        catalog = null;
         state.setValue(BillingManager.State.UNAVAILABLE);
         plans.setValue(Collections.emptyList());
         if (error instanceof BillingApi.ApiException && ((BillingApi.ApiException) error).status == 401) {
             lease = null; token = null; premium.setValue(PremiumState.free());
-            prefs.edit().remove("lease").commit();
+            account = null;
+            prefs.edit().remove("lease").remove("test_token").remove("test_account").commit();
         }
         message.setValue(error instanceof BillingApi.ApiException ? error.getMessage()
                 : "Unable to confirm billing. Use Check status; your pending checkout is saved.");

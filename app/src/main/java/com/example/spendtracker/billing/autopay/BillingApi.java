@@ -24,7 +24,9 @@ public final class BillingApi {
         connection.setRequestMethod(method);
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(60000);
-        connection.setRequestProperty("Authorization", "Bearer " + token);
+        if (token != null && !token.isEmpty()) {
+            connection.setRequestProperty("Authorization", "Bearer " + token);
+        }
         connection.setRequestProperty("Content-Type", "application/json");
         if (key != null) connection.setRequestProperty("Idempotency-Key", key);
         try {

@@ -4,13 +4,15 @@
 
 The existing codebase already contains the main Android and server-side recurring billing flow:
 
-- `app` has a Java/XML paywall, Play Billing path, and a separate `autopay` build type for direct distribution.
-- `supabase/functions/billing-api` is the deployed payment authority at `https://dwatnipgdvuftwcsgohm.supabase.co/functions/v1/billing-api`. It owns Razorpay plan lookups, durable subscription attempts, callback verification, signed-webhook ingestion, deduplication, reconciliation, grants, cancellation, refunds and restore. Checkout callbacks never grant access by themselves.
+- `app` has a Java/XML paywall backed by Razorpay in the main direct-distribution package and the separate `autopay` test package. Each fixed-duration plan offers either a recurring UPI AutoPay mandate or a non-renewing one-time prepaid payment. The main package does not initialize Google Play Billing at runtime.
+- `supabase/functions/billing-api` is the payment authority at `https://dwatnipgdvuftwcsgohm.supabase.co/functions/v1/billing-api`. It owns Razorpay plan/order lookups, durable subscription and one-time attempts, callback verification, signed-webhook ingestion, deduplication, reconciliation, grants, cancellation, refunds and restore. Checkout callbacks never grant access by themselves.
 - The earlier Python service remains as a tested reference implementation and local simulator. It is no longer the intended hosted endpoint.
 - The Android AutoPay client stores only an encrypted, account-bound three-day maximum offline lease. It restores from the verified service, survives an interrupted checkout, and fails closed when billing configuration is missing.
 - The Supabase migrations add the admin-managed catalog, durable attempts, entitlement/audit tables, RLS, and server-only write boundaries. `supabase/functions/billing-admin` verifies both the administrator and Razorpay’s live plan before publishing a plan.
 
-The schema and both Edge Functions are deployed to project `dwatnipgdvuftwcsgohm`. The function health endpoint is live. Checkout remains deliberately disabled until test-mode merchant secrets, four test plan IDs, policy URLs, the Google web client ID, and a billing administrator are configured.
+The schema and both Edge Functions are deployed to project `dwatnipgdvuftwcsgohm`. The function health endpoint is live. Razorpay test checkout is enabled: the stored test credentials are detected, all four fixed-price test plans are present, and the app can obtain a signed device test session without Google OAuth. Production checkout remains deliberately disabled until the live merchant setup, webhook/account validation, policy URLs, Google ownership, and a billing administrator are configured.
+
+For device testing, `billing-api` now detects a stored `rzp_test_…` key, creates the four fixed test plans when the test catalog is empty, and issues a server-signed 30-day device test session when Google OAuth has not been configured. This path cannot activate with a live Razorpay key. Production still requires Google ownership, webhook/account validation, public policy URLs, an administrator-published catalog, and the explicit checkout switch.
 
 ## Free plan decision and enforcement
 
@@ -28,13 +30,12 @@ The intended Supabase project reference is `dwatnipgdvuftwcsgohm`.
 2. `billing-admin` is deployed with JWT verification enabled and `billing-api` is deployed with gateway JWT verification disabled because it separately verifies Google ID tokens and Razorpay webhook HMACs. Set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `RAZORPAY_ACCOUNT_ID`, `RAZORPAY_PLAN_MONTHLY`, `RAZORPAY_PLAN_QUARTERLY`, `RAZORPAY_PLAN_SIX_MONTHLY`, `RAZORPAY_PLAN_YEARLY`, `GOOGLE_WEB_CLIENT_ID`, `BILLING_TERMS_URL`, `BILLING_PRIVACY_URL`, `BILLING_SUPPORT_URL`, and `BILLING_CHECKOUT_ENABLED=false` in Edge Function Secrets. Use test-mode keys and test-mode plan IDs for the test deployment; never mix modes.
 3. Publish each catalog row through the function with only its TrackMint plan ID (`monthly`, `quarterly`, `six_monthly`, or `yearly`), optional `active`, and optional `catalog_version`. The function obtains the provider plan ID from secrets and rejects a Razorpay amount, currency, period, or interval mismatch.
 4. Give the trusted `backend` service its own Supabase secret key and have it mirror verified grants/events to the two audit tables. It must never accept a mobile app’s assertion as an entitlement.
-5. Publish all four plans, complete the sandbox matrix, and only then change `BILLING_CHECKOUT_ENABLED` to `true`. The Android build already points at the deployed Edge Function and still requires `-PbillingGoogleClientId=...`.
+5. Publish all four plans, complete the sandbox matrix, and only then change `BILLING_CHECKOUT_ENABLED` to `true` for live mode. The Android build already points at the deployed Edge Function; Google OAuth is required for production but the server-signed device session is used for the isolated Razorpay test path.
 6. The Supabase advisors have been run. Remaining findings are informational: server-only tables have RLS with no client policies (deny by default), and newly created indexes are naturally reported unused before traffic exists.
 
 ## Remaining external setup
 
-- Reconnect the Razorpay plugin/account. Its current authentication fails, and the available connector is read-only, so it cannot create plans.
-- In Razorpay **test mode**, create the four plans agreed earlier: ₹99 monthly, ₹149 every three months, ₹299 every six months, and ₹499 yearly. Copy only test-mode IDs and test-mode keys into Supabase Edge Function Secrets.
+- The four Razorpay **test-mode** plans are initialized and mirrored to Supabase: ₹99 monthly, ₹149 every three months, ₹299 every six months, and ₹499 yearly.
 - Configure a dedicated Razorpay webhook at `https://dwatnipgdvuftwcsgohm.supabase.co/functions/v1/billing-api/v1/webhooks/razorpay` and subscribe to subscription lifecycle, invoice paid, payment captured/failed, and refund processed events.
 - Add the first Supabase Auth administrator row, publish all four plans through `billing-admin`, and confirm `public.billing_plans` contains exactly four active rows.
 - Configure the Google web OAuth client ID both as `GOOGLE_WEB_CLIENT_ID` in Supabase and `billingGoogleClientId` at Android build time.

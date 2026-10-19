@@ -85,4 +85,21 @@ public class BillMessageParserTest {
     @Test public void malformedDecimalIsNotSilentlyTruncated() {
         assertEquals(0, parse("Bill amount Rs.500.999 due tomorrow").amount, 0);
     }
+
+    @Test public void detectsMobileRechargeExpiry() {
+        BillMessageParser.Result bill = parse("Your Jio recharge plan of Rs.299 expires tomorrow. Recharge to continue.");
+        assertTrue(bill.isBill); assertEquals(299, bill.amount, 0);
+        assertEquals(LocalDate.of(2026, 9, 19), bill.dueDate);
+        assertEquals("Jio", bill.biller);
+    }
+    @Test public void detectsStreamingRenewal() {
+        BillMessageParser.Result bill = parse("Netflix subscription INR 649 renews on 25 September 2026.");
+        assertTrue(bill.isBill); assertEquals(649, bill.amount, 0);
+        assertEquals(LocalDate.of(2026, 9, 25), bill.dueDate);
+    }
+    @Test public void detectsValidityAndRejectsRechargeReceipts() {
+        assertEquals(LocalDate.of(2026, 9, 20), parse("Airtel recharge Rs.399 valid till 20/09/2026").dueDate);
+        assertFalse(parse("Jio recharge successful for Rs.299").isBill);
+        assertFalse(parse("Recharge now and get cashback offer Rs.100").isBill);
+    }
 }

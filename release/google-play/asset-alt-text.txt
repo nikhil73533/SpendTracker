@@ -1,0 +1,6 @@
+app-icon-512.png: Golden TrackMint monogram with a rising arrow on a blue background.
+feature-graphic-1024x500.png: TrackMint: Know where your money goes, with spending symbols and a chart.
+01-dashboard.png: TrackMint dashboard with sample income and expense records.
+02-analytics.png: Spending analytics for sample transactions.
+03-tools.png: TrackMint tools and settings.
+04-privacy.png: TrackMint on-device processing and optional online services.

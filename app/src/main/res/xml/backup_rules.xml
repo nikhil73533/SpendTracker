@@ -1,15 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
--->
+<?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Defense in depth for versions where platform backup is re-enabled. Financial
-         data leaves the device only through the user's explicit backup flow. -->
-    <exclude domain="database" path="." />
-    <exclude domain="sharedpref" path="." />
-    <exclude domain="external" path="." />
-    <exclude domain="file" path="." />
+    <!-- PinchBackupAgent requires encryption OR device transfer before making this snapshot.
+         XML requireFlags combines bits with AND, so enforce the alternative in the agent. -->
+    <include domain="file" path="reinstall-payload/" />
 </full-backup-content>

@@ -1,0 +1,13 @@
+App access: All on-device functionality is available without a login.
+Demo username/password: Not required; no TrackMint account is needed.
+
+Reviewer steps:
+1. Open TrackMint. Read the SMS disclosure. Choose manual tracking if no test SMS is available.
+2. Add sample income and expense records manually from the dashboard.
+3. Explore daily/monthly views, analytics, categories and More.
+4. Open Your Free plan. Continue with Free returns to the app and never opens checkout.
+5. For SMS testing, allow SMS access and receive a NEW financial-style test message on a test device. Existing inbox messages on a fresh installation must not be imported.
+6. In More → Backup, choose a Documents subfolder and create a test backup password. Save a .pinch file. Restore it with the same password, then close and reopen the app as prompted. Restore replaces current records, so use sample data on a test device.
+7. Android automatic backup is controlled by device backup settings and the reviewer's Google account. It requires a completed protected backup before reinstall; no TrackMint account or app-specific Drive OAuth login is required.
+
+No real user credentials or financial records are included in this release package.

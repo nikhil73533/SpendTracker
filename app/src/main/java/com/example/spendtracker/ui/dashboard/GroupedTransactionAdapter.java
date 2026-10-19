@@ -262,11 +262,7 @@ public class GroupedTransactionAdapter extends ListAdapter<GroupedTransactionAda
             tvSource.setText(transaction.getSource());
             boolean statementDateOnly = "DATE_ONLY".equals(transaction.getTimestampPrecision())
                     && !transaction.getImportBatchId().isEmpty();
-            boolean receivedTime = "SMS_RECEIVED".equals(transaction.getTimestampPrecision())
-                    || ("DATE_ONLY".equals(transaction.getTimestampPrecision()) && !statementDateOnly);
             tvTime.setText(statementDateOnly ? ""
-                    : receivedTime
-                    ? itemView.getContext().getString(R.string.sms_received_time, timeFormat.format(new Date(transaction.getDate())))
                     : timeFormat.format(new Date(transaction.getDate())));
 
             if ("INCOME".equals(transaction.getType())) {

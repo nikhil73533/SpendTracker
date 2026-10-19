@@ -181,7 +181,7 @@ public class SMSParsingServiceTest {
         assertTrue(r.isSuccess());
         assertEquals(750.0, r.getTransaction().getAmount(), 0.001);
         assertEquals("EXPENSE", r.getTransaction().getType());
-        assertEquals("Axis", r.getDetectedBank());
+        assertEquals("AXIS", r.getDetectedBank());
     }
 
     // =========================================================================
@@ -197,7 +197,7 @@ public class SMSParsingServiceTest {
         assertTrue(r.isSuccess());
         assertEquals(450.0, r.getTransaction().getAmount(), 0.001);
         assertEquals("EXPENSE", r.getTransaction().getType());
-        assertEquals("Kotak", r.getDetectedBank());
+        assertEquals("KOTAK", r.getDetectedBank());
     }
 
     // =========================================================================
@@ -338,6 +338,26 @@ public class SMSParsingServiceTest {
         assertEquals(200.0, r.getTransaction().getAmount(), 0.001);
     }
 
+    @Test
+    public void completedDebitWithPendingBalanceTextIsCaptured() {
+        ParseResult result = service.parse("HDFCBK",
+                "Rs 650 debited from A/c XX1234 for UPI payment to Store. Available balance update pending.",
+                System.currentTimeMillis());
+
+        assertTrue("A completed debit must not be rejected because a balance update is pending", result.isSuccess());
+        assertEquals("EXPENSE", result.getTransaction().getType());
+        assertEquals(650.0, result.getTransaction().getAmount(), .001);
+    }
+
+    @Test
+    public void actualPendingDebitIsNotCaptured() {
+        ParseResult result = service.parse("HDFCBK",
+                "UPI payment pending for Rs 650 from A/c XX1234.", System.currentTimeMillis());
+
+        assertFalse("An unconfirmed payment must stay out of the expense ledger", result.isSuccess());
+        assertEquals(ParseStatus.PENDING_TRANSACTION, result.getStatus());
+    }
+
     // =========================================================================
     // ParseResult structure
     // =========================================================================
@@ -397,5 +417,16 @@ public class SMSParsingServiceTest {
     @Test public void futureCreditAndOtpDoNotBecomeIncome() {
         assertFalse(service.parse("ICICIB","Your account will be credited INR 100 on 01-Oct-26.",System.currentTimeMillis()).isSuccess());
         assertFalse(service.parse("ICICIB","OTP 123456 for payment of INR 100",System.currentTimeMillis()).isSuccess());
+    }
+
+    @Test public void durableRetryIdentityIsStableAndDistinctForDifferentMessages() {
+        String body = "Rs.500.00 debited from A/c XX1234. UPI transaction to Zomato. Ref No 123456789.";
+        Transaction first = service.parse("HDFCBK", body, 1800000000000L).getTransaction();
+        Transaction retry = service.parse("HDFCBK", body, 1800000000000L).getTransaction();
+        Transaction different = service.parse("HDFCBK", body.replace("123456789", "987654321"), 1800000000000L).getTransaction();
+        assertNotNull(first); assertNotNull(retry); assertNotNull(different);
+        assertTrue(first.getSourceTransactionId().startsWith("sms:"));
+        assertEquals(first.getSourceTransactionId(), retry.getSourceTransactionId());
+        assertNotEquals(first.getSourceTransactionId(), different.getSourceTransactionId());
     }
 }

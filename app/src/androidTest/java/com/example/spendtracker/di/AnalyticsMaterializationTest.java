@@ -12,6 +12,31 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public class AnalyticsMaterializationTest {
+    @Test public void granularCashFlowExcludesTransfersDeletedRowsAndEndBoundary() {
+        SpendTrackerDatabase db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), SpendTrackerDatabase.class)
+                .addCallback(AnalyticsMaterialization.CALLBACK).allowMainThreadQueries().build();
+        try {
+            for (int i = 0; i < 6; i++) {
+                TransactionEntity row = new TransactionEntity();
+                row.date = i == 5 ? 200 : 150;
+                row.amount = i == 0 ? 1000 : i == 1 ? 200 : 8000;
+                row.type = i == 0 ? "INCOME" : i == 2 ? "TRANSFER" : "EXPENSE";
+                row.category = i == 3 ? "Account Transfer" : "Food";
+                row.status = i == 4 ? "DELETED" : "ACTIVE";
+                db.transactionDao().insertTransaction(row);
+            }
+            com.example.spendtracker.domain.service.AnalyticsService service =
+                    new com.example.spendtracker.domain.service.AnalyticsService(db.transactionDao());
+            for (com.example.spendtracker.domain.model.analytics.AnalyticsGranularity granularity
+                    : com.example.spendtracker.domain.model.analytics.AnalyticsGranularity.values()) {
+                com.example.spendtracker.domain.model.analytics.TimeSeriesPoint point =
+                        service.getIncomeExpenseTrend(100, 200, granularity).get(0);
+                assertEquals(1000, point.getValue(), .001);
+                assertEquals(200, point.getSecondaryValue(), .001);
+                assertEquals(80, service.getSavingsAnalysis(100, 200, granularity).savingsRate(), .001);
+            }
+        } finally { db.close(); }
+    }
     @Test public void summariesFollowReplaceReviewDeleteAndRestore() {
         SpendTrackerDatabase db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), SpendTrackerDatabase.class)
                 .addCallback(AnalyticsMaterialization.CALLBACK).allowMainThreadQueries().build();

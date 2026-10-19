@@ -76,6 +76,16 @@ public class AnalyticsService {
 
     /** Transaction counts by the UI-selected bucket. Values remain counts, not currency. */
     public List<TimeSeriesPoint> getTransactionFrequency(long start, long end, AnalyticsGranularity granularity) {
+        List<TransactionDao.AnalyticsBucket> raw = getBuckets(start, end, granularity);
+        List<TimeSeriesPoint> result = new ArrayList<>();
+        for (TransactionDao.AnalyticsBucket bucket : raw) {
+            result.add(new TimeSeriesPoint(bucket.label, bucket.transactionCount,
+                    bucket.totalAmount, bucket.expenseAmount));
+        }
+        return result;
+    }
+
+    private List<TransactionDao.AnalyticsBucket> getBuckets(long start, long end, AnalyticsGranularity granularity) {
         List<TransactionDao.AnalyticsBucket> raw;
         switch (granularity) {
             case DAY:
@@ -92,11 +102,16 @@ public class AnalyticsService {
                 raw = transactionDao.getMonthlyAnalyticsBucketsSync(start, end);
                 break;
         }
+        return raw;
+    }
+
+    /** Half-open range, matching the frequency chart and selected granularity. */
+    public List<TimeSeriesPoint> getIncomeExpenseTrend(long start, long end, AnalyticsGranularity granularity) {
         List<TimeSeriesPoint> result = new ArrayList<>();
+        List<TransactionDao.AnalyticsBucket> raw = getBuckets(start, end, granularity);
         for (TransactionDao.AnalyticsBucket bucket : raw) {
-            // secondary/tertiary retain amount context for tooltips without changing count chart.
-            result.add(new TimeSeriesPoint(bucket.label, bucket.transactionCount,
-                    bucket.totalAmount, bucket.expenseAmount));
+            result.add(new TimeSeriesPoint(bucket.label, bucket.incomeAmount,
+                    bucket.expenseAmount, bucket.incomeAmount - bucket.expenseAmount));
         }
         return result;
     }
@@ -287,13 +302,13 @@ public class AnalyticsService {
     
     public MonthlyComparison getMonthOverMonthComparison(long start, long end) {
         double currentTotal = transactionDao.getTotalExpenseSync(start, end);
-        long duration = end - start;
+        long duration = end - start + 1;
         long previousStart = start - duration;
-        double previousTotal = transactionDao.getTotalExpenseSync(previousStart, start);
+        double previousTotal = transactionDao.getTotalExpenseSync(previousStart, start - 1);
         double currentIncome = transactionDao.getTotalIncomeSync(start, end);
-        double previousIncome = transactionDao.getTotalIncomeSync(previousStart, start);
+        double previousIncome = transactionDao.getTotalIncomeSync(previousStart, start - 1);
         int currentCount = transactionDao.getExpenseCountSync(start, end);
-        int previousCount = transactionDao.getExpenseCountSync(previousStart, start);
+        int previousCount = transactionDao.getExpenseCountSync(previousStart, start - 1);
         return new MonthlyComparison("Current Period", "Previous Period", currentTotal, previousTotal,
                 currentIncome, previousIncome, currentCount, previousCount);
     }
@@ -325,18 +340,37 @@ public class AnalyticsService {
     }
 
     public List<CategoryAnalytics> getCategoryGrowth(long start, long end) {
-        long duration = end - start;
-        long prevStart = start - duration;
+        return getCategoryGrowth(start, end + 1, AnalyticsGranularity.DAY);
+    }
+
+    public com.example.spendtracker.domain.model.analytics.SavingsAnalysis getSavingsAnalysis(
+            long start, long end, AnalyticsGranularity granularity) {
+        com.example.spendtracker.domain.model.analytics.ComparisonWindow previous =
+                com.example.spendtracker.domain.model.analytics.ComparisonWindow.previous(start, end, granularity);
+        return new com.example.spendtracker.domain.model.analytics.SavingsAnalysis(
+                getFinancialOverview(start, end - 1), getFinancialOverview(previous.start, previous.end - 1), previous);
+    }
+
+    /** Half-open range with all categories from either period, including stopped spending. */
+    public List<CategoryAnalytics> getCategoryGrowth(long start, long endExclusive, AnalyticsGranularity granularity) {
+        com.example.spendtracker.domain.model.analytics.ComparisonWindow window =
+                com.example.spendtracker.domain.model.analytics.ComparisonWindow.previous(start, endExclusive, granularity);
+        long end = endExclusive - 1;
         List<TransactionDao.CategorySum> current = transactionDao.getCategoryTotalsSync(start, end);
-        List<TransactionDao.CategorySum> prev = transactionDao.getCategoryTotalsSync(prevStart, start);
+        List<TransactionDao.CategorySum> prev = transactionDao.getCategoryTotalsSync(window.start, window.end - 1);
         Map<String, Double> prevMap = new HashMap<>();
         for (TransactionDao.CategorySum p : prev) prevMap.put(p.category, p.total);
+        Map<String, Double> currentMap = new HashMap<>();
+        for (TransactionDao.CategorySum c : current) currentMap.put(c.category, c.total);
+        java.util.Set<String> names = new java.util.TreeSet<>(currentMap.keySet());
+        names.addAll(prevMap.keySet());
         
         List<CategoryAnalytics> result = new ArrayList<>();
-        for (TransactionDao.CategorySum c : current) {
-            double previous = prevMap.getOrDefault(c.category, 0.0);
-            double growth = previous > 0 ? ((c.total - previous) / previous) * 100 : 0.0;
-            result.add(new CategoryAnalytics(c.category, c.total, 0, growth, previous > 0));
+        for (String name : names) {
+            double amount = currentMap.getOrDefault(name, 0.0);
+            double previous = prevMap.getOrDefault(name, 0.0);
+            double growth = previous > 0 ? ((amount - previous) / previous) * 100 : 0.0;
+            result.add(new CategoryAnalytics(name, amount, 0, growth, previous > 0));
         }
         return result;
     }

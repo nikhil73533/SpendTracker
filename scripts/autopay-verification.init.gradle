@@ -1,13 +1,13 @@
+// All variants now share com.app.pinch. These legacy tests may replace records.
+if (gradle.startParameter.projectProperties['disposableDeviceTests'] != 'true') {
+    throw new GradleException('Run these tests only on a disposable device with -PdisposableDeviceTests=true; they share the real app ID.')
+}
 // Isolated package, no gateway credentials, no real payment or expense database.
 gradle.beforeProject { project ->
     if (project.path == ':app') {
         project.plugins.withId('com.android.application') {
             project.androidComponents.finalizeDsl { android ->
-                android.defaultConfig.applicationId = 'com.example.spendtracker.billingverification'
-                android.defaultConfig.testApplicationId = 'com.example.spendtracker.billingverification.test'
-                android.testBuildType = 'autopay'
-                android.sourceSets.getByName('autopay').java.srcDir('src/debug/java')
-                android.sourceSets.getByName('autopay').manifest.srcFile('src/debug/AndroidManifest.xml')
+                android.testBuildType = 'debug'
                 android.defaultConfig.testInstrumentationRunnerArguments['class'] = 'com.example.spendtracker.billing.autopay.AutoPayDeviceTest'
             }
         }

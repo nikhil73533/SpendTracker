@@ -33,22 +33,22 @@ public class BankNormalizerTest {
     public void testSBIShort() { assertEquals("SBI", normalizer.normalize("SBI")); }
 
     @Test
-    public void testAxis() { assertEquals("Axis", normalizer.normalize("Axis Bank")); }
+    public void testAxis() { assertEquals("AXIS", normalizer.normalize("Axis Bank")); }
 
     @Test
-    public void testKotak() { assertEquals("Kotak", normalizer.normalize("Kotak Mahindra Bank")); }
+    public void testKotak() { assertEquals("KOTAK", normalizer.normalize("Kotak Mahindra Bank")); }
 
     @Test
-    public void testBankOfBaroda() { assertEquals("Bank of Baroda", normalizer.normalize("bob")); }
+    public void testBankOfBaroda() { assertEquals("BANK OF BARODA", normalizer.normalize("bob")); }
 
     @Test
-    public void testOneCard() { assertEquals("OneCard", normalizer.normalize("One Card")); }
+    public void testOneCard() { assertEquals("ONECARD", normalizer.normalize("One Card")); }
 
     @Test
-    public void testPhonePe() { assertEquals("PhonePe", normalizer.normalize("PhonePe")); }
+    public void testPhonePe() { assertEquals("PHONEPE", normalizer.normalize("PhonePe")); }
 
     @Test
-    public void testUnknownReturnsAsIs() { assertEquals("Random Bank", normalizer.normalize("Random Bank")); }
+    public void testUnknownIsUppercase() { assertEquals("RANDOM BANK", normalizer.normalize("Random Bank")); }
 
     @Test
     public void testNullReturnsNull() { assertNull(normalizer.normalize(null)); }

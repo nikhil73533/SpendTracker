@@ -27,6 +27,13 @@
             android:paddingBottom="8dp">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPrivacy"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Show values" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDateFilter"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
@@ -369,8 +376,9 @@
                     android:padding="16dp" />
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Monthly debit/credit total line chart -->
+            <!-- In/out chart follows the selected granularity. -->
             <TextView
+                android:id="@+id/tv_money_flow_title"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Money in and out · Monthly"

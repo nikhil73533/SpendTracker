@@ -235,6 +235,10 @@ public class SMSParsingService {
         // Step 10: Build domain Transaction.
         // Finally, map our intermediate `ParsedTransaction` to the application's core `Transaction` entity.
         Transaction transaction = buildTransaction(parsed);
+        // Stable across broadcast retries and inbox recovery; never overwrite reviewed rows.
+        String identity = (sender == null ? "" : sender) + "|" + timestamp / 60000 + "|" + body.trim();
+        transaction.setSourceTransactionId("sms:" + java.util.UUID.nameUUIDFromBytes(
+                identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         resultBuilder.transaction(transaction)
                 .confidence(parsed.getOverallConfidence())
                 .status(validationResult.getWarnings().isEmpty()

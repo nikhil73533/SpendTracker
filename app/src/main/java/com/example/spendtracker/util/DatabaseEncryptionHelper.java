@@ -1,7 +1,7 @@
 package com.example.spendtracker.util;
 
 import android.content.Context;
-import net.sqlcipher.database.SQLiteDatabase;
+import net.zetetic.database.sqlcipher.SQLiteDatabase;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -61,7 +61,7 @@ public class DatabaseEncryptionHelper {
             try {
                 android.util.Log.e("RECOVERY_CORE", "Encrypting database...");
                 // Open unencrypted with SQLCipher (empty password) to perform migration
-                SQLiteDatabase unencryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, "", null);
+                SQLiteDatabase unencryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, "", null, null);
                 encryptDatabase(context, dbFile, unencryptedDb, passphrase);
                 android.util.Log.e("RECOVERY_CORE", "ENCRYPTION COMPLETE.");
             } catch (Exception e) {
@@ -199,13 +199,13 @@ public class DatabaseEncryptionHelper {
                 }
 
                 // 4. Encrypt
-                SQLiteDatabase unencryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, "", null);
+                SQLiteDatabase unencryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile, "", null, null);
                 encryptDatabase(context, dbFile, unencryptedDb, passphrase);
                 android.util.Log.e("RECOVERY_CORE", "Re-encryption complete.");
             } else {
                 android.util.Log.e("RECOVERY_CORE", "Unzipped DB is encrypted. Attempting SQLCipher checkpoint...");
                 try {
-                    SQLiteDatabase encryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
+                    SQLiteDatabase encryptedDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null, null);
                     encryptedDb.rawExecSQL("PRAGMA wal_checkpoint(FULL);");
                     encryptedDb.close();
                     android.util.Log.e("RECOVERY_CORE", "SQLCipher checkpoint complete.");
@@ -221,7 +221,7 @@ public class DatabaseEncryptionHelper {
 
             // 6. Sanitize restored columns
             try {
-                SQLiteDatabase restoredDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
+                SQLiteDatabase restoredDb = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null, null);
                 restoredDb.rawExecSQL("UPDATE transactions SET status = 'ACTIVE' WHERE status IS NULL OR status = '';");
                 restoredDb.rawExecSQL("UPDATE transactions SET categoryEmoji = '' WHERE categoryEmoji IS NULL;");
                 restoredDb.rawExecSQL("UPDATE transactions SET fromAccount = '' WHERE fromAccount IS NULL;");
@@ -273,7 +273,7 @@ public class DatabaseEncryptionHelper {
             // Try opening with passphrase
             try {
                 // Using openOrCreateDatabase with byte[] passphrase as it's known to work in this version
-                SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null);
+                SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(dbFile.getAbsolutePath(), passphrase, null, null);
                 db.rawQuery("SELECT count(*) FROM transactions", null).close();
                 db.close();
                 return true;

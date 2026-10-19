@@ -16,6 +16,8 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public class ReceiptAndTransferIntegrationTest {
+    @dagger.hilt.EntryPoint @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent.class)
+    public interface BillingDependencies { com.example.spendtracker.billing.PremiumRepository premium(); }
     @Rule public InstantTaskExecutorRule rule = new InstantTaskExecutorRule();
     private SpendTrackerDatabase db, clone;
     private Context context;
@@ -38,7 +40,8 @@ public class ReceiptAndTransferIntegrationTest {
     }
     @Test public void repositoryRetainsUncertainConfidenceAndConfirmationClearsIt() throws Exception {
         TransactionRepositoryImpl repository = new TransactionRepositoryImpl(context, db.transactionDao(), clone.transactionDao(),
-                db.categoryDao(), db.transactionGroupDao(), db.repeatedAlertDao(), db);
+                db.categoryDao(), db.transactionGroupDao(), db.repeatedAlertDao(),
+                dagger.hilt.android.EntryPointAccessors.fromApplication(context, BillingDependencies.class).premium(), db);
         Transaction tx = new Transaction(); tx.setAmount(20); tx.setCategory("Uncategorized"); tx.setConfidenceScore(0);
         repository.addTransaction(tx);
         long deadline = System.currentTimeMillis() + 5000;

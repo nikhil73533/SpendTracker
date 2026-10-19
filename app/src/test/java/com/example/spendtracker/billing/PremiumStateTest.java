@@ -26,4 +26,14 @@ public class PremiumStateTest {
         assertFalse(new PremiumState(PremiumState.Status.EXPIRED, "monthly", PremiumPurchaseType.SUBSCRIPTION,
                 "hash", System.currentTimeMillis(), 0L).hasPremiumAccess(System.currentTimeMillis()));
     }
+
+    @Test public void prepaidAccessRequiresAnUnexpiredServerExpiry() {
+        long now = System.currentTimeMillis();
+        PremiumState active = new PremiumState(PremiumState.Status.ACTIVE, "yearly",
+                PremiumPurchaseType.PREPAID, "", now, now + TimeUnit.DAYS.toMillis(30));
+        PremiumState expired = new PremiumState(PremiumState.Status.ACTIVE, "yearly",
+                PremiumPurchaseType.PREPAID, "", now, now - 1);
+        assertTrue(active.hasPremiumAccess(now));
+        assertFalse(expired.hasPremiumAccess(now));
+    }
 }
