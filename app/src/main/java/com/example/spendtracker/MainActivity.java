@@ -101,9 +101,8 @@ public class MainActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         com.example.spendtracker.data.sms.BillReminderWorker.checkNow(this);
         if (requestCode == SMS_PERMISSION_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
-            }
+            // Check actual READ_SMS access, not the position of RECEIVE_SMS in the result.
+            com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
         }
     }
 
@@ -142,6 +141,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         premiumRepository.refreshEntitlement();
+        com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Permissions can also change in Settings while this activity remains started.
         com.example.spendtracker.data.sms.SmsTrackingWorker.recoverInbox(this);
     }
 

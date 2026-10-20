@@ -67,6 +67,48 @@ public class BankMessageRegressionTest {
         }
     }
 
+    @Test public void acceptsCurrencySuffixPunctuationAndUnicodeWithoutTakingBalance() {
+        String[] messages = {
+            "A/c XX1234 debited: 500.00 at ACME. Avl Bal INR 9000.",
+            "A/c XX1234 debited by: 500.00 at ACME. Avl Bal INR 9000.",
+            "500.00 INR debited from A/c XX1234 at ACME. Avl Bal INR 9000.",
+            "Rupees 500.00 debited from A/c XX1234 at ACME.",
+            "INR\u202f５００.００ de\u200bbited from A/c XX1234 at ACME.",
+            "Rs ५००.०० debited from A/c XX1234 at ACME."
+        };
+        for (String text : messages) {
+            ParseResult result = service.parse("AD-NEWBNK-S", text, arrival);
+            assertTrue(text + ": " + result.getStatus(), result.isSuccess());
+            assertEquals(500, result.getTransaction().getAmount(), .001);
+            assertEquals("EXPENSE", result.getTransaction().getType());
+            assertEquals(text, result.getTransaction().getDescription());
+        }
+    }
+
+    @Test public void unicodeAuthorizationAndFailureNeverCreateLedgerRows() {
+        for (String text : new String[]{
+                "OTP １２３４５６ for Rs ５００ spent on your card XX1234.",
+                "INR ５００ debited from A/c XX1234; transaction\u00a0pending.",
+                "INR ５００ transaction failed. Amount will be refunded."}) {
+            assertFalse(text, service.parse("HDFCBK", text, arrival).isSuccess());
+        }
+    }
+
+    @Test public void currencySuffixPreservesCreditDirectionAndRejectsNonPayments() {
+        ParseResult credit = service.parse("AXISBK",
+                "500.00 INR credited to A/c XX1234 from ACME. Available balance 9500 INR.", arrival);
+        assertTrue(credit.isSuccess());
+        assertEquals(500, credit.getTransaction().getAmount(), .001);
+        assertEquals("INCOME", credit.getTransaction().getType());
+        for (String text : new String[]{
+                "Available balance 500 INR in A/c XX1234.",
+                "500 INR will be debited tomorrow from A/c XX1234.",
+                "OTP 123456 for 500 INR spent on card XX1234.",
+                "A/c XX1234 debited. Available balance 500 INR."}) {
+            assertFalse(text, service.parse("AXISBK", text, arrival).isSuccess());
+        }
+    }
+
     @Test public void currencylessSbiUsesActualAssetAndPreservesReference() {
         ParseResult r = service.parse("AD-SBIUPI-S",
                 "Dear UPI user A/C X1234 debited by 1046.0 on date 16Sep26 trf to ACME Refno 123456789012.", arrival);

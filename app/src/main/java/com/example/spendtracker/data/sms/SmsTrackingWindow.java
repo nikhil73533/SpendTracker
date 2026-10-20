@@ -20,4 +20,10 @@ public final class SmsTrackingWindow {
         long last = preferences.getLong("last_scan", start);
         return Math.max(start, last > 60000 ? last - 60000 : 0);
     }
+
+    /** Concurrent recovery scans must never move the durable cursor backwards. */
+    public static synchronized boolean advance(SharedPreferences preferences, long timestamp) {
+        long previous = preferences.getLong("last_scan", 0);
+        return timestamp <= previous || preferences.edit().putLong("last_scan", timestamp).commit();
+    }
 }

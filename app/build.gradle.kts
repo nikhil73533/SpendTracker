@@ -16,11 +16,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.app.pinch"
+        applicationId = "com.pinchtrack.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
 
         // This application is distributed directly and uses Razorpay for premium billing.
         // Debug and release share one installable application ID.

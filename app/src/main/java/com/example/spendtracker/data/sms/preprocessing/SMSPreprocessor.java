@@ -51,7 +51,15 @@ public class SMSPreprocessor {
     public PreprocessedSMS preprocess(String sender, String body, long timestamp) {
         if (body == null) body = "";
 
-        String normalized = body.trim();
+        String normalized = java.text.Normalizer.normalize(body, java.text.Normalizer.Form.NFKC)
+                .replaceAll("[\\u200B-\\u200D\\u2060\\uFEFF]", "").trim();
+        StringBuilder digits = new StringBuilder(normalized.length());
+        for (int i = 0; i < normalized.length(); i++) {
+            char ch = normalized.charAt(i);
+            int digit = Character.digit(ch, 10);
+            digits.append(digit >= 0 ? (char) ('0' + digit) : ch);
+        }
+        normalized = digits.toString();
 
         // Collapse Windows-style line endings to Unix
         normalized = normalized.replace("\r\n", "\n");

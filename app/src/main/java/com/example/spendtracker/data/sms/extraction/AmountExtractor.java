@@ -8,10 +8,12 @@ import java.util.regex.Pattern;
 /** Selects the action amount, never a balance/limit or an arbitrary reference number. */
 public class AmountExtractor {
     private static final String NUMBER = "([0-9][0-9,]*(?:\\.[0-9]+)?)(?![0-9,]|\\.\\d)";
-    private static final Pattern CURRENCY = Pattern.compile("(?i)(?:\\bINR|\\bRs\\.?|₹)\\s*[:.]?\\s*" + NUMBER);
+    private static final Pattern CURRENCY = Pattern.compile("(?i)(?:\\bINR|\\bRs\\.?|\\bRupees|₹)\\s*[:.]?\\s*" + NUMBER);
+    private static final Pattern SUFFIX_CURRENCY = Pattern.compile(
+            "(?i)(?<![\\w.,])" + NUMBER + "\\s*(?:INR|Rs\\.?|Rupees)\\b");
     private static final Pattern AFTER_ACTION = Pattern.compile(
             "(?i)\\b(?:debited|credited|deposited|deducted|withdrawn|withdrawal|spent|paid|charged|sent|received|used|"
-            + "transferred|refunded|reversed|dr|cr)\\b\\s*(?:(?:by|for|with|of|back|amount)\\s+)*"
+            + "transferred|refunded|reversed|dr|cr)\\b\\s*[:=-]?\\s*(?:(?:by|for|with|of|back|amount)\\s*[:=-]?\\s+)*"
             + "(?:(?:INR|Rs\\.?|₹)\\s*[:.]?\\s*)?" + NUMBER);
     private static final Pattern OTHER_FIELD = Pattern.compile(
             "(?i)(?:avl\\.?\\s*(?:bal(?:ance)?|limit)|avail(?:able)?\\s*(?:bal(?:ance)?|limit)|"
@@ -34,17 +36,19 @@ public class AmountExtractor {
             if (bestScore == 3 && !value.equals(best)) conflict = true;
             else if (bestScore < 3) { best = value; bestScore = 3; }
         }
-        Matcher money = CURRENCY.matcher(text);
-        while (money.find()) {
-            String before = text.substring(Math.max(0, money.start() - 45), money.start());
-            if (OTHER_FIELD.matcher(before).find()) continue;
-            if (NumericEntityRoles.overlaps(roles, money.start(1), money.end(1))) continue;
-            Double value = valid(money.group(1));
-            if (value == null) continue;
-            String after = text.substring(money.end(), Math.min(text.length(), money.end() + 55));
-            int score = after.matches("(?is)^\\s*(?:(?:has|have|is|was|been)\\s+)*(?:debited|credited|spent|paid|sent|received|withdrawn|deposited|transferred)\\b.*") ? 3 : 1;
-            if (score > bestScore) { best = value; bestScore = score; conflict = false; }
-            else if (score == bestScore && !value.equals(best)) conflict = true;
+        for (Pattern currencyPattern : new Pattern[]{CURRENCY, SUFFIX_CURRENCY}) {
+            Matcher money = currencyPattern.matcher(text);
+            while (money.find()) {
+                String before = text.substring(Math.max(0, money.start() - 45), money.start());
+                if (OTHER_FIELD.matcher(before).find()) continue;
+                if (NumericEntityRoles.overlaps(roles, money.start(1), money.end(1))) continue;
+                Double value = valid(money.group(1));
+                if (value == null) continue;
+                String after = text.substring(money.end(), Math.min(text.length(), money.end() + 55));
+                int score = after.matches("(?is)^\\s*(?:(?:has|have|is|was|been)\\s+)*(?:debited|credited|spent|paid|sent|received|withdrawn|deposited|transferred)\\b.*") ? 3 : 1;
+                if (score > bestScore) { best = value; bestScore = score; conflict = false; }
+                else if (score == bestScore && !value.equals(best)) conflict = true;
+            }
         }
         return best == null || conflict ? ExtractionResult.empty() : ExtractionResult.of(best, bestScore == 3 ? .95 : .75);
     }

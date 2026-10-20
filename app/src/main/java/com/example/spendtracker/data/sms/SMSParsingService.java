@@ -143,9 +143,10 @@ public class SMSParsingService {
 
         if (timestamp <= 0) timestamp = System.currentTimeMillis();
 
+        SMSPreprocessor.PreprocessedSMS sms = preprocessor.preprocess(sender, body, timestamp);
         // Gate lifecycle before any permissive bank regex can create a ledger record.
-        if (!TransactionText.isAuthorization(body)) {
-            String lifecycle = statusExtractor.extract(body, body).getValue();
+        if (!TransactionText.isAuthorization(sms.getNormalizedMessage())) {
+            String lifecycle = statusExtractor.extract(sms.getNormalizedMessage(), sms.getLowercaseMessage()).getValue();
             if ("FAILED".equals(lifecycle) || "PENDING".equals(lifecycle)) {
                 return ParseResult.builder().status("FAILED".equals(lifecycle)
                         ? ParseStatus.FAILED_TRANSACTION : ParseStatus.PENDING_TRANSACTION).build();
@@ -155,7 +156,6 @@ public class SMSParsingService {
         // Step 1: Preprocess the incoming raw message.
         // This generates a normalized representation (e.g. standardizing spaces/newlines)
         // and a lowercase version to optimize regex matching in later stages.
-        SMSPreprocessor.PreprocessedSMS sms = preprocessor.preprocess(sender, body, timestamp);
 
         // Step 2: Transaction Detection.
         // We use a multi-signal approach (keywords, monetary values, context) to determine

@@ -6,6 +6,22 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class SmsTrackingWindowTest {
+    @Test public void staleConcurrentScanCannotMoveCursorBackwards() {
+        SharedPreferences prefs = mock(SharedPreferences.class);
+        when(prefs.getLong("last_scan", 0)).thenReturn(200000L);
+        assertTrue(SmsTrackingWindow.advance(prefs, 100000L));
+        verify(prefs, never()).edit();
+    }
+
+    @Test public void advancingCursorWaitsForDurableCommit() {
+        SharedPreferences prefs = mock(SharedPreferences.class);
+        SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);
+        when(prefs.edit()).thenReturn(editor);
+        when(editor.putLong("last_scan", 200000L)).thenReturn(editor);
+        assertFalse(SmsTrackingWindow.advance(prefs, 200000L));
+        when(editor.commit()).thenReturn(true);
+        assertTrue(SmsTrackingWindow.advance(prefs, 200000L));
+    }
     @Test public void freshInstallStartsNowInsteadOfEpoch() {
         SharedPreferences prefs = mock(SharedPreferences.class);
         SharedPreferences.Editor editor = mock(SharedPreferences.Editor.class);

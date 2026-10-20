@@ -32,34 +32,50 @@ public final class SmsTrackingWorker extends Worker {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return;
         if (!SmsTrackingWindow.initialize(context.getSharedPreferences("sms_tracking", Context.MODE_PRIVATE),
                 System.currentTimeMillis())) return;
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork("sms-periodic-recovery",
+                ExistingPeriodicWorkPolicy.KEEP,
+                new PeriodicWorkRequest.Builder(SmsTrackingWorker.class, 15, TimeUnit.MINUTES).build());
         WorkManager.getInstance(context).enqueueUniqueWork("sms-inbox-recovery", ExistingWorkPolicy.KEEP,
                 new OneTimeWorkRequest.Builder(SmsTrackingWorker.class).build());
     }
 
     @NonNull @Override public Result doWork() {
         Context context = getApplicationContext();
-        Dependencies deps = EntryPointAccessors.fromApplication(context, Dependencies.class);
         try {
+            // Revoked permission must also stop already-queued broadcast work.
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)
+                return Result.success();
+            Dependencies deps = EntryPointAccessors.fromApplication(context, Dependencies.class);
             if (getInputData().getString("body") != null) {
                 return process(deps, getInputData().getString("sender"), getInputData().getString("body"),
                         getInputData().getLong("timestamp", System.currentTimeMillis())) ? Result.success() : Result.retry();
             }
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED)
-                return Result.success();
             android.content.SharedPreferences prefs = context.getSharedPreferences("sms_tracking", Context.MODE_PRIVATE);
             if (!SmsTrackingWindow.initialize(prefs, System.currentTimeMillis())) return Result.retry();
             long since = SmsTrackingWindow.lowerBound(prefs);
+            boolean allSaved = true;
             try (Cursor cursor = context.getContentResolver().query(Telephony.Sms.Inbox.CONTENT_URI,
                     new String[]{"address", "body", "date", "date_sent"}, "date >= ?",
                     new String[]{String.valueOf(since)}, "date ASC")) {
                 if (cursor == null) return Result.retry();
                 while (!isStopped() && cursor.moveToNext()) {
                     long timestamp = cursor.getLong(2);
-                    if (!process(deps, cursor.getString(0), cursor.getString(1), cursor.getLong(3) > 0 ? cursor.getLong(3) : timestamp)) return Result.retry();
-                    if (!prefs.edit().putLong("last_scan", timestamp).commit()) return Result.retry();
+                    try {
+                        if (!process(deps, cursor.getString(0), cursor.getString(1),
+                                cursor.getLong(3) > 0 ? cursor.getLong(3) : timestamp)) allSaved = false;
+                    } catch (RuntimeException error) {
+                        android.util.Log.w("SmsTracking", "Message will retry; continuing inbox recovery", error);
+                        allSaved = false;
+                    }
+                    // Preserve the first failed position, but still save later valid messages.
+                    // Source IDs make replay of those successful messages idempotent.
+                    if (allSaved && !SmsTrackingWindow.advance(prefs, timestamp)) return Result.retry();
                 }
             }
-            return isStopped() ? Result.retry() : Result.success();
+            return isStopped() || !allSaved ? Result.retry() : Result.success();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return Result.retry();
         } catch (Exception error) {
             android.util.Log.e("SmsTracking", "SMS processing will retry", error);
             return Result.retry();

@@ -3,7 +3,6 @@
     <application>
         <activity android:name="com.example.spendtracker.billing.autopay.AutoPayActivity" tools:node="remove" />
         <activity android:name="com.razorpay.CheckoutActivity" tools:node="remove" />
-        <activity android:name="com.razorpay.RzpTokenReceiverActivity" tools:node="remove" />
         <activity android:name="com.razorpay.MagicXActivity" tools:node="remove" />
         <activity android:name="com.razorpay.DeeplinkActivity" tools:node="remove" />
         <receiver android:name="com.razorpay.UpiChooserSelectionReceiver" tools:node="remove" />
