@@ -19,8 +19,9 @@ android {
         applicationId = "com.pinchtrack.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        // Must increase for every Play upload so internal testers receive this build.
+        versionCode = 4
+        versionName = "1.0.3"
 
         // This application is distributed directly and uses Razorpay for premium billing.
         // Debug and release share one installable application ID.
